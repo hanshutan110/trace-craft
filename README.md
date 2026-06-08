@@ -63,3 +63,8 @@ npm start
 2. 接入 Redis + PostgreSQL（会话 + 跑步记录）。  
 3. 完成高德/Google Provider 的 runtime 渲染适配。  
 4. 添加上架前权限文案与隐私政策。  
+
+## 最新进度（2026-06-08）
+
+- 最新交付已合并：提交 `1474872`（前端页面重构 + 设计一致性修复 + 导航逻辑统一）。
+- 详情见：`docs/Progress-Sync-Guide.md`
