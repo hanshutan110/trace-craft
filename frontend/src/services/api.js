@@ -1,9 +1,12 @@
 const API_BASE = 'http://localhost:3001';
 
-export const createRouteFromImage = async ({ userId, file }) => {
+export const createRouteFromImage = async ({ userId, file, locale }) => {
   const formData = new FormData();
   formData.append('userId', userId || 'anonymous');
   formData.append('image', file);
+  if (locale) {
+    formData.append('locale', locale);
+  }
 
   const res = await fetch(`${API_BASE}/v1/routes/from-image`, {
     method: 'POST',
@@ -15,6 +18,19 @@ export const createRouteFromImage = async ({ userId, file }) => {
 export const getMapConfig = async () => {
   const res = await fetch(`${API_BASE}/v1/maps/config`);
   return res.json();
+};
+
+export const resolveLocaleConfig = async () => {
+  const data = await getMapConfig();
+  const locales = Array.isArray(data?.locales) && data.locales.length > 0 ? data.locales : null;
+  const fallback = data?.localeFallback || 'zh-CN';
+  const localeLabels = Array.isArray(data?.localeLabels) ? data.localeLabels : [];
+  return {
+    ...data,
+    locales: locales || ['zh-CN', 'en-US'],
+    localeFallback: fallback,
+    localeLabels,
+  };
 };
 
 export const adjustRoute = async ({ routeId, targetKm }) => {

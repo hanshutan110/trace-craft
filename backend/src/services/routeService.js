@@ -15,6 +15,29 @@ const MAP_PROVIDER_LIST = (process.env.MAP_PROVIDER_LIST || 'amap,google,baidu,t
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+const DEFAULT_LOCALE = process.env.MAP_LOCALE_FALLBACK || 'zh-CN';
+
+const LOCALE_LABELS = {
+  'zh-CN': '\u4e2d\u6587',
+  'en-US': 'English',
+};
+
+function splitList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+const SUPPORTED_LOCALES = (() => {
+  const locales = splitList(process.env.MAP_LOCALES || 'zh-CN,en-US');
+  const uniq = [...new Set(locales)];
+  return uniq.length ? uniq : ['zh-CN', 'en-US'];
+})();
+
+function withLocaleFallback(fallback) {
+  return SUPPORTED_LOCALES.includes(fallback) ? fallback : (SUPPORTED_LOCALES[0] || 'zh-CN');
+}
 
 const PROVIDER_FEATURES = {
   amap: { supportPoi: true, offlineTile: false, navHints: true, geocode: true },
@@ -44,6 +67,38 @@ function normalizeProvider(value) {
   if (!value) return DEFAULT_PROVIDER;
   if (MAP_PROVIDER_LIST.includes(value)) return value;
   return DEFAULT_PROVIDER;
+}
+
+function normalizeLocale(value) {
+  if (!value || typeof value !== 'string') return DEFAULT_LOCALE;
+  const norm = value.trim();
+  if (SUPPORTED_LOCALES.includes(norm)) return norm;
+  return withLocaleFallback(DEFAULT_LOCALE);
+}
+
+function getLocaleMeta() {
+  const safeDefault = withLocaleFallback(DEFAULT_LOCALE);
+  const labelsFromEnv = parseLocaleLabels(process.env.MAP_LOCALE_LABELS || '');
+  const locales = SUPPORTED_LOCALES.length > 0 ? SUPPORTED_LOCALES : ['zh-CN', 'en-US'];
+  return {
+    localeFallback: safeDefault,
+    locales,
+    localeLabels: locales.map((code) => ({
+      code,
+      label: labelsFromEnv[code] || LOCALE_LABELS[code] || code,
+    })),
+  };
+}
+
+function parseLocaleLabels(value) {
+  if (!value || typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed;
+  } catch (_e) {
+    return {};
+  }
 }
 
 function parsePoint(raw, fallback) {
@@ -154,13 +209,14 @@ function createRouteFromImage({ userId, filename, buffer, startPoint, endPoint, 
   const seed = randomSeedFromString(filename + (buffer ? buffer.length : 0));
   const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
   const routeId = id('route');
+  const normalizedLocale = normalizeLocale(locale);
   const rawPoints = generateDemoPoints(seed, 200, baseStart);
   const points = resampleByDistance(rawPoints, 60);
   const meta = routeMeta(points);
   const created = {
     id: routeId,
     userId,
-    locale: locale || 'auto',
+    locale: normalizedLocale,
     source: {
       filename,
       createdBy: 'v1-prototype',
@@ -388,7 +444,7 @@ function getMapConfig() {
   return {
     providers,
     defaultProvider: DEFAULT_PROVIDER,
-    localeFallback: 'auto',
+    ...getLocaleMeta(),
     crsPolicy: {
       internal: 'wgs84',
       domesticHint: 'gcj02',
@@ -413,5 +469,8 @@ module.exports = {
   listUserRuns,
   getMapConfig,
   normalizeProvider,
+  getLocaleMeta,
+  splitList,
   seedWgs84ToProvider,
+  normalizeLocale,
 };
