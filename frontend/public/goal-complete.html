@@ -1,0 +1,103 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>TraceCraft | 目标完成页</title>
+    <link rel="stylesheet" href="./tracecraft.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="tc-shell">
+      <header class="tc-topbar">
+        <div class="tc-brand">
+          <div class="tc-brand-mark">TC</div>
+          <div>
+            <h1 class="tc-brand-name">目标完成页</h1>
+            <p class="tc-brand-sub">导航完成后的摘要结果</p>
+          </div>
+        </div>
+        <a id="homeLink" class="tc-btn tc-btn-ghost" href="./index.html">首页</a>
+      </header>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">本次结果</h2>
+        <p class="tc-subtitle" id="routeHint">暂无结果，先完成一段导航。</p>
+        <div class="tc-meta">
+          <div class="tc-kpi"><span>路线</span><b id="routeId">--</b></div>
+          <div class="tc-kpi"><span>会话</span><b id="sessionId">--</b></div>
+          <div class="tc-kpi"><span>目标距离</span><b id="targetDistance">-- km</b></div>
+          <div class="tc-kpi"><span>实际距离</span><b id="actualDistance">-- km</b></div>
+          <div class="tc-kpi"><span>耗时</span><b id="durationText">--:--</b></div>
+          <div class="tc-kpi"><span>平均速度</span><b id="speedText">-- km/h</b></div>
+          <div class="tc-kpi"><span>偏航</span><b id="deviationText">-- m</b></div>
+        </div>
+        <div class="tc-actions">
+          <a id="toHome" class="tc-btn tc-btn-ghost" href="./index.html">返回首页</a>
+          <a id="toNav" class="tc-btn" href="./navigation.html">再次导航</a>
+          <a id="toShare" class="tc-btn tc-btn-ghost" href="./share.html">查看分享页</a>
+        </div>
+      </div>
+    </main>
+
+    <script src="./tracecraft.js"></script>
+    <script>
+      const ui = {
+        routeHint: document.getElementById('routeHint'),
+        routeId: document.getElementById('routeId'),
+        sessionId: document.getElementById('sessionId'),
+        targetDistance: document.getElementById('targetDistance'),
+        actualDistance: document.getElementById('actualDistance'),
+        durationText: document.getElementById('durationText'),
+        speedText: document.getElementById('speedText'),
+        deviationText: document.getElementById('deviationText'),
+        toNav: document.getElementById('toNav'),
+        toShare: document.getElementById('toShare'),
+      };
+
+      function parseSessionData() {
+        const qs = TC_DEMO.getQuery();
+        const queryData = {
+          route: qs.get('route') || '',
+          session: qs.get('session') || '',
+          routeDistanceKm: TC_DEMO.parseNum(qs.get('distance'), null),
+          actualDistanceKm: TC_DEMO.parseNum(qs.get('covered'), null),
+          durationSec: TC_DEMO.parseNum(qs.get('duration'), null),
+          speedKmh: TC_DEMO.parseNum(qs.get('speed'), null),
+          deviationM: TC_DEMO.parseNum(qs.get('deviation'), null),
+          source: 'query',
+        };
+
+        const hasQuery = [queryData.routeDistanceKm, queryData.actualDistanceKm, queryData.durationSec, queryData.speedKmh].some((v) => typeof v === 'number');
+        if (hasQuery) return TC_DEMO.normalizeRoute(queryData);
+
+        const raw = TC_DEMO.getLastSession();
+        return raw ? TC_DEMO.normalizeRoute(raw) : null;
+      }
+
+      const data = parseSessionData();
+      if (!data) {
+        ui.routeHint.textContent = '暂无导航完成记录，请先进入实时导航并结束。';
+      } else {
+        ui.routeHint.textContent = `路线 ${data.route || 'route'} 已完成，可直接分享。`;
+        ui.routeId.textContent = data.route || 'tc-route';
+        ui.sessionId.textContent = data.session || 'mock-session';
+        ui.targetDistance.textContent = `${Number(data.routeDistanceKm || 0).toFixed(2)} km`;
+        ui.actualDistance.textContent = `${Number(data.actualDistanceKm || 0).toFixed(2)} km`;
+        ui.durationText.textContent = TC_DEMO.fmtTime(data.durationSec || 0);
+        ui.speedText.textContent = `${Number(data.speedKmh || 0).toFixed(1)} km/h`;
+        ui.deviationText.textContent = `${Number(data.deviationM || 0).toFixed(1)} m`;
+
+        ui.toNav.href = TC_DEMO.buildNavigationLink({
+          ...TC_DEMO.getSeed(),
+          routeDistanceKm: data.routeDistanceKm,
+          speedKmh: data.speedKmh,
+          from: 'goal-complete',
+        });
+
+        ui.toShare.href = TC_DEMO.buildShareLink(data);
+      }
+    </script>
+  </body>
+</html>

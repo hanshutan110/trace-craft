@@ -1,0 +1,166 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>TraceCraft | 参数调节页</title>
+    <link rel="stylesheet" href="./tracecraft.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="tc-shell">
+      <header class="tc-topbar">
+        <div class="tc-brand">
+          <div class="tc-brand-mark">TC</div>
+          <div>
+            <h1 class="tc-brand-name">参数调节页</h1>
+            <p class="tc-brand-sub">滑动调节后可预估到达时间与偏航趋势</p>
+          </div>
+        </div>
+        <a id="homeLink" class="tc-btn tc-btn-ghost" href="./index.html">首页</a>
+      </header>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">核心参数</h2>
+        <div class="tc-forms">
+          <div class="tc-row">
+            <label>目标距离</label>
+            <div class="tc-slider-row">
+              <input id="distanceRange" class="tc-input" type="range" min="0.3" max="20" step="0.1" />
+              <input id="distanceInput" class="tc-input" type="number" min="0.3" max="20" step="0.1" />
+            </div>
+          </div>
+          <div class="tc-row">
+            <label>目标速度</label>
+            <div class="tc-slider-row">
+              <input id="speedRange" class="tc-input" type="range" min="2" max="20" step="0.5" />
+              <input id="speedInput" class="tc-input" type="number" min="2" max="20" step="0.5" />
+            </div>
+          </div>
+          <div class="tc-row">
+            <label>平滑度</label>
+            <input id="smoothingInput" class="tc-input" type="range" min="1" max="10" step="1" />
+          </div>
+          <div class="tc-inline-actions">
+            <button id="applyBtn" class="tc-btn" type="button">应用配置</button>
+            <button id="resetBtn" class="tc-btn tc-btn-ghost" type="button">恢复默认</button>
+          </div>
+          <div class="tc-note" id="hint">参数将同步到导航与模板/编辑页。</div>
+        </div>
+      </div>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">调节预览</h2>
+        <div class="tc-meta">
+          <div class="tc-kpi"><span>预计耗时</span><b id="etaText">--</b></div>
+          <div class="tc-kpi"><span>每小时里程</span><b id="paceText">--</b></div>
+          <div class="tc-kpi"><span>预计步数</span><b id="stepsText">--</b></div>
+          <div class="tc-kpi"><span>形状</span><b id="shapeText">--</b></div>
+        </div>
+        <div class="tc-actions">
+          <a id="toNavigation" class="tc-btn" href="./navigation.html">继续到导航</a>
+          <a id="toEdit" class="tc-btn tc-btn-ghost" href="./route-editor.html">去编辑路径</a>
+        </div>
+      </div>
+    </main>
+
+    <script src="./tracecraft.js"></script>
+    <script>
+      const distanceRange = document.getElementById('distanceRange');
+      const distanceInput = document.getElementById('distanceInput');
+      const speedRange = document.getElementById('speedRange');
+      const speedInput = document.getElementById('speedInput');
+      const smoothingInput = document.getElementById('smoothingInput');
+      const etaText = document.getElementById('etaText');
+      const paceText = document.getElementById('paceText');
+      const stepsText = document.getElementById('stepsText');
+      const shapeText = document.getElementById('shapeText');
+      const hint = document.getElementById('hint');
+
+      const shapeMap = {
+        wave: '波浪',
+        spiral: '螺旋',
+        step: '阶梯',
+      };
+
+      function renderPreview(distance, speed, shape) {
+        const sec = (distance / speed) * 3600;
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = Math.floor(sec % 60).toString().padStart(2, '0');
+        const pace = 3600 / Math.max(speed, 0.1);
+        etaText.textContent = `${m}:${s}`;
+        paceText.textContent = `${pace.toFixed(0)} s/km`;
+        stepsText.textContent = `${Math.round(distance * TC_DEMO.clamp(Number(smoothingInput.value), 1, 10, 5) * 5)} 步`;
+        shapeText.textContent = shapeMap[shape] || shape;
+      }
+
+      function syncInputs() {
+        const distance = TC_DEMO.clamp(Number(distanceInput.value) || TC_DEMO.DEFAULTS.routeDistanceKm, 0.3, 20, TC_DEMO.DEFAULTS.routeDistanceKm);
+        const speed = TC_DEMO.clamp(Number(speedInput.value) || TC_DEMO.DEFAULTS.speedKmh, 2, 20, TC_DEMO.DEFAULTS.speedKmh);
+        distanceRange.value = String(distance);
+        speedRange.value = String(speed);
+        distanceInput.value = String(distance);
+        speedInput.value = String(speed);
+        const seed = TC_DEMO.getSeed();
+        renderPreview(distance, speed, seed.shapeId || 'wave');
+        return { distance, speed };
+      }
+
+      function apply() {
+        const distance = TC_DEMO.clamp(Number(distanceRange.value), 0.3, 20, TC_DEMO.DEFAULTS.routeDistanceKm);
+        const speed = TC_DEMO.clamp(Number(speedRange.value), 2, 20, TC_DEMO.DEFAULTS.speedKmh);
+        TC_DEMO.setSeed({
+          routeDistanceKm: distance,
+          speedKmh: speed,
+          from: 'route-adjust',
+          templatePreset: {
+            smoothing: Number(smoothingInput.value),
+          },
+        });
+        document.getElementById('toNavigation').href = TC_DEMO.buildNavigationLink();
+        syncInputs();
+        hint.textContent = '已保存到会话种子，可直接启动导航。';
+      }
+
+      const seed = TC_DEMO.getSeed();
+      distanceRange.value = String(seed.routeDistanceKm || TC_DEMO.DEFAULTS.routeDistanceKm);
+      distanceInput.value = String(seed.routeDistanceKm || TC_DEMO.DEFAULTS.routeDistanceKm);
+      speedRange.value = String(seed.speedKmh || TC_DEMO.DEFAULTS.speedKmh);
+      speedInput.value = String(seed.speedKmh || TC_DEMO.DEFAULTS.speedKmh);
+      smoothingInput.value = String(seed.templatePreset?.smoothing || 5);
+
+      distanceInput.addEventListener('input', () => {
+        distanceRange.value = distanceInput.value;
+        apply();
+      });
+      distanceRange.addEventListener('input', () => {
+        distanceInput.value = distanceRange.value;
+        apply();
+      });
+      speedInput.addEventListener('input', () => {
+        speedRange.value = speedInput.value;
+        apply();
+      });
+      speedRange.addEventListener('input', () => {
+        speedInput.value = speedRange.value;
+        apply();
+      });
+      smoothingInput.addEventListener('input', apply);
+
+      document.getElementById('applyBtn').addEventListener('click', apply);
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        distanceInput.value = TC_DEMO.DEFAULTS.routeDistanceKm;
+        distanceRange.value = TC_DEMO.DEFAULTS.routeDistanceKm;
+        speedInput.value = TC_DEMO.DEFAULTS.speedKmh;
+        speedRange.value = TC_DEMO.DEFAULTS.speedKmh;
+        smoothingInput.value = 5;
+        apply();
+      });
+
+      syncInputs();
+      apply();
+      TC_DEMO.initCommonLinks();
+    </script>
+  </body>
+</html>

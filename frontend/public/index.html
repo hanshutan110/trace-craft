@@ -1,409 +1,181 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <meta name="format-detection" content="telephone=no" />
-    <title>TraceCraft Demo</title>
-    <style>
-      :root {
-        --bg: #f5f7fc;
-        --card: #ffffff;
-        --txt: #111827;
-        --muted: #6b7280;
-        --bd: #e5e7eb;
-      }
-      body {
-        margin: 0;
-        padding: 18px;
-        font: 14px/1.5 "PingFang SC", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
-        background: var(--bg);
-        color: var(--txt);
-      }
-      .card {
-        max-width: 920px;
-        background: var(--card);
-        border: 1px solid var(--bd);
-        border-radius: 10px;
-        padding: 12px;
-        margin-bottom: 12px;
-      }
-      h1, h3 {
-        margin: 0 0 10px 0;
-      }
-      .row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
-        margin: 8px 0;
-      }
-      input, select, button {
-        height: 34px;
-        border-radius: 6px;
-        border: 1px solid var(--bd);
-        padding: 0 10px;
-      }
-      button {
-        background: #4f46e5;
-        color: white;
-        border-color: #4338ca;
-        cursor: pointer;
-      }
-      button.secondary {
-        background: #fff;
-        color: #111827;
-      }
-      .mono {
-        font-family: Consolas, Monaco, monospace;
-        white-space: pre-wrap;
-        word-break: break-all;
-      }
-      .warn {
-        color: #b91c1c;
-      }
-      .ok {
-        color: #166534;
-      }
-      .tiny {
-        color: var(--muted);
-      }
-      .disabled {
-        opacity: 0.45;
-      }
-      .w100 {
-        width: 120px;
-      }
-      .w140 {
-        width: 145px;
-      }
-      .w220 {
-        width: 220px;
-      }
-      .chip {
-        font-size: 12px;
-        color: var(--muted);
-        border: 1px dashed var(--bd);
-        border-radius: 6px;
-        padding: 6px 8px;
-      }
-    </style>
+    <title>TraceCraft | 首页</title>
+    <link rel="stylesheet" href="./tracecraft.css" />
   </head>
   <body>
-    <h1>TraceCraft V2 预览</h1>
+    <div class="grain"></div>
+    <main class="tc-shell">
+      <header class="tc-topbar">
+        <div class="tc-brand">
+          <div class="tc-brand-mark">TC</div>
+          <div>
+            <h1 class="tc-brand-name">TraceCraft</h1>
+            <p class="tc-brand-sub">智能路线演示平台</p>
+          </div>
+        </div>
+        <a id="toNavigation" class="tc-btn tc-btn-ghost" href="./navigation.html">进入导航</a>
+      </header>
 
-    <div class="card">
-      <h3>1）地图能力与定位</h3>
-      <div class="row">
-        <button onclick="loadMapConfig()">读取地图配置</button>
-        <span>当前 Provider：</span>
-        <select id="provider" class="w140"></select>
-        <button class="secondary w100" onclick="getCurrentLocation()">获取定位</button>
-      </div>
-      <div class="row">
-        <span id="locLabel" class="tiny">当前定位：未获取</span>
-      </div>
-      <div class="row">
-        <div id="providerInfo" class="chip">provider：--</div>
-      </div>
-    </div>
+      <div class="tc-kicker">TraceCraft · 产品入口页</div>
 
-    <div class="card">
-      <h3>2）生成路线</h3>
-      <div class="row">
-        <input type="file" id="img" accept="image/*" />
-      </div>
-      <div class="row">
-        <input id="startLat" class="w140" placeholder="起点纬度" />
-        <input id="startLng" class="w140" placeholder="起点经度" />
-        <input id="endLat" class="w140" placeholder="终点纬度（可选）" />
-        <input id="endLng" class="w140" placeholder="终点经度（可选）" />
-      </div>
-      <div class="row">
-        <label>目标公里数：</label>
-        <input id="km" class="w100" type="number" step="0.1" value="3" />
-        <button onclick="createRoute()">生成路线</button>
-      </div>
-      <div class="row">
-        <span id="routeLabel">routeId：未创建</span>
-      </div>
-      <div class="row">
-        <span id="routeMeta" class="tiny">路线元数据：--</span>
-      </div>
-    </div>
+      <div class="tc-card">
+        <h2 class="tc-section-title">先定义你的导航参数</h2>
+        <p class="tc-subtitle">统一入口配置目标距离、目标速度、轨迹模板和形状，参数会同步到后续页面。</p>
 
-    <div class="card">
-      <h3>3）调整与重映射</h3>
-      <div class="row">
-        <button onclick="adjustRoute()">按公里数重缩放</button>
-        <button class="secondary" onclick="rebaseRouteByInputs()">重映射起终点</button>
-      </div>
-      <div class="row">
-        <span id="adjustInfo" class="tiny">--</span>
-      </div>
-    </div>
+        <div class="tc-forms">
+          <div class="tc-row">
+            <label for="distanceInput">目标距离</label>
+            <input id="distanceInput" class="tc-input" type="number" min="0.3" max="20" step="0.1" value="3" />
+          </div>
+          <div class="tc-row">
+            <label for="speedInput">目标速度</label>
+            <input id="speedInput" class="tc-input" type="number" min="2" max="20" step="0.5" value="8" />
+          </div>
+          <div class="tc-row">
+            <label for="templateSelect">模板</label>
+            <select id="templateSelect" class="tc-select">
+              <option value="balanced-loop">平衡环线</option>
+              <option value="city-loop">城市环线</option>
+              <option value="forest-loop">公园环线</option>
+            </select>
+          </div>
+          <div class="tc-row">
+            <label for="shapeSelect">轨迹形状</label>
+            <select id="shapeSelect" class="tc-select">
+              <option value="wave">波浪</option>
+              <option value="spiral">螺旋</option>
+              <option value="step">阶梯</option>
+            </select>
+          </div>
 
-    <div class="card">
-      <h3>4）导航会话</h3>
-      <div class="row">
-        <button onclick="startRun()">开始导航</button>
-        <button class="secondary" onclick="finishRun()">完成</button>
+          <div class="tc-inline-actions">
+            <button id="syncBtn" class="tc-btn" type="button">应用参数</button>
+            <a id="navigationLink" class="tc-btn tc-btn-ghost" href="./navigation.html">实时导航</a>
+          </div>
+          <div id="syncHint" class="tc-note">默认参数已加载完成，可直接进入实时导航。</div>
+        </div>
       </div>
-      <div class="row">
-        <span id="sessionLabel">sessionId：--</span>
-      </div>
-      <div class="row">
-        <div id="navState" class="tiny">状态：未开始</div>
-      </div>
-    </div>
 
-    <div class="card">
-      <h3>5）结果</h3>
-      <div id="report" class="mono">--</div>
-    </div>
+      <section class="tc-card">
+        <h2 class="tc-section-title">页面入口</h2>
+        <div class="tc-link-grid tc-grid">
+          <a class="tc-link" id="onboardLink" href="./onboard.html">
+            <h3>引导页</h3>
+            <p>配置起点参数并进入完整流程。</p>
+          </a>
+          <a class="tc-link" id="templateCenterLink" href="./template-center.html">
+            <h3>快速模板页</h3>
+            <p>选择预置路线模板，快速切换风格。</p>
+          </a>
+          <a class="tc-link" id="routeAdjustLink" href="./route-adjust.html">
+            <h3>参数调节页</h3>
+            <p>精调速度、距离、形状参数。</p>
+          </a>
+          <a class="tc-link" id="routeEditLink" href="./route-editor.html">
+            <h3>轨迹编辑页</h3>
+            <p>手动规划路径点，保存为草稿。</p>
+          </a>
+          <a class="tc-link" id="routeLoadLink" href="./route-load.html">
+            <h3>轨迹行程加载页</h3>
+            <p>加载草稿或历史路线后直接开跑。</p>
+          </a>
+          <a class="tc-link" id="goalCompleteLink" href="./goal-complete.html">
+            <h3>目标完成页</h3>
+            <p>查看最后一次导航结果。</p>
+          </a>
+          <a class="tc-link" id="shareLink" href="./share.html">
+            <h3>分享页</h3>
+            <p>展示当前会话摘要，支持生成分享链接。</p>
+          </a>
+        </div>
+      </section>
 
-    <div class="card">
-      <h3>日志</h3>
-      <div id="errors" class="warn mono"></div>
-    </div>
+      <section class="tc-card">
+        <h2 class="tc-section-title">最近会话</h2>
+        <div class="tc-meta" id="sessionMeta"></div>
+        <p class="tc-subtitle" id="sessionStatus"></p>
+      </section>
 
+      <div class="tc-footer">首页用于统一参数入口，可与后续页面保持一致体验。</div>
+    </main>
+
+    <script src="./tracecraft.js"></script>
     <script>
-      const API = 'http://localhost:3001';
-      let state = { routeId: '', sessionId: '', location: null, provider: 'amap' };
-      let navTimerId = null;
+      function renderSession() {
+        const container = document.getElementById('sessionMeta');
+        const status = document.getElementById('sessionStatus');
+        const seed = TC_DEMO.getSeed();
 
-      function setText(id, text) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = text;
-      }
-      function setErr(text) {
-        setText('errors', text || '');
+        document.getElementById('distanceInput').value = String(seed.routeDistanceKm);
+        document.getElementById('speedInput').value = String(seed.speedKmh);
+        document.getElementById('templateSelect').value = seed.templateId || 'balanced-loop';
+        document.getElementById('shapeSelect').value = seed.shapeId || 'wave';
+
+        const raw = TC_DEMO.getLastSession();
+        const data = raw ? TC_DEMO.normalizeRoute(raw) : null;
+        if (!data) {
+          container.innerHTML = '<div class="tc-kpi"><span>最近会话</span><b>尚未开始</b></div>';
+          status.textContent = '当前尚未产生历史导航数据。';
+          return;
+        }
+
+        const routeDistance = Number(data.routeDistanceKm || 0).toFixed(2);
+        const actual = Number(data.actualDistanceKm || 0).toFixed(2);
+        const duration = TC_DEMO.fmtTime(data.durationSec || 0);
+        const dev = Number(data.deviationM || 0).toFixed(1);
+
+        container.innerHTML = `
+          <div class="tc-kpi"><span>路线</span><b>${data.route || '--'}</b></div>
+          <div class="tc-kpi"><span>目标/实际</span><b>${routeDistance} / ${actual} km</b></div>
+          <div class="tc-kpi"><span>用时</span><b>${duration}</b></div>
+          <div class="tc-kpi"><span>偏航</span><b>${dev} m</b></div>
+        `;
+
+        status.textContent = `数据源：${data.source || '本地'}，可继续同步参数后跳转。`;
       }
 
-      function setSelect(list, selected) {
-        const el = document.getElementById('provider');
-        el.innerHTML = '';
-        list.forEach((item) => {
-          const value = typeof item === 'string' ? item : item.key;
-          const opt = document.createElement('option');
-          opt.value = value;
-          opt.textContent = `${value} (${(item.features && item.features.geocode ? '有POI' : '无POI')} / key:${item.hasApiKey ? '已配' : '未配'})`;
-          if (value === selected) opt.selected = true;
-          el.appendChild(opt);
+      function updateFromInputs() {
+        const routeDistanceKm = TC_DEMO.clamp(Number(document.getElementById('distanceInput').value), 0.3, 20, TC_DEMO.DEFAULTS.routeDistanceKm);
+        const speedKmh = TC_DEMO.clamp(Number(document.getElementById('speedInput').value), 2, 20, TC_DEMO.DEFAULTS.speedKmh);
+        const templateId = document.getElementById('templateSelect').value;
+        const shapeId = document.getElementById('shapeSelect').value;
+
+        TC_DEMO.setSeed({
+          routeDistanceKm,
+          speedKmh,
+          templateId,
+          shapeId,
+          from: 'home',
         });
+
+        TC_DEMO.initCommonLinks();
+        document.getElementById('navigationLink').href = TC_DEMO.buildNavigationLink();
+        document.getElementById('toNavigation').href = TC_DEMO.buildNavigationLink();
+        document.getElementById('syncHint').textContent = `参数已更新：${routeDistanceKm}km / ${speedKmh}km/h`;
       }
 
-      function setInput(id, value) {
-        const el = document.getElementById(id);
-        if (el) el.value = value;
+      document.getElementById('syncBtn').addEventListener('click', updateFromInputs);
+      document.getElementById('distanceInput').addEventListener('change', updateFromInputs);
+      document.getElementById('speedInput').addEventListener('change', updateFromInputs);
+      document.getElementById('templateSelect').addEventListener('change', updateFromInputs);
+      document.getElementById('shapeSelect').addEventListener('change', updateFromInputs);
+
+      renderSession();
+      updateFromInputs();
+
+      const q = TC_DEMO.getQuery();
+      if (q.get('from')) {
+        const distance = Number(q.get('distance'));
+        const speed = Number(q.get('speed'));
+        if (Number.isFinite(distance) && distance > 0) document.getElementById('distanceInput').value = distance;
+        if (Number.isFinite(speed) && speed > 0) document.getElementById('speedInput').value = speed;
+        updateFromInputs();
       }
-
-      function parsePoint(prefix) {
-        const lat = Number(document.getElementById(`${prefix}Lat`).value);
-        const lng = Number(document.getElementById(`${prefix}Lng`).value);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          return { lat, lng };
-        }
-        return null;
-      }
-
-      async function requestJson(url, opts = {}) {
-        const res = await fetch(url, opts);
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
-          const msg = data.error || res.statusText || '请求失败';
-          throw new Error(msg);
-        }
-        return data;
-      }
-
-      async function loadMapConfig() {
-        try {
-          const data = await requestJson(`${API}/v1/maps/config`);
-          setSelect(data.providers || [], data.defaultProvider);
-          setText('providerInfo', `provider：${data.defaultProvider}, CRS策略:${JSON.stringify(data.crsPolicy || {})}`);
-          state.provider = data.defaultProvider || 'amap';
-          setErr('');
-        } catch (e) {
-          setErr(`读取配置失败：${e.message}`);
-        }
-      }
-
-      function getCurrentLocation() {
-        if (!navigator.geolocation) {
-          setErr('当前浏览器不支持 geolocation');
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            state.location = {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-            };
-            setInput('startLat', state.location.lat.toFixed(6));
-            setInput('startLng', state.location.lng.toFixed(6));
-            setText('locLabel', `当前定位：${state.location.lat.toFixed(6)}, ${state.location.lng.toFixed(6)}，精度 ${Math.round(state.location.accuracy || 0)}m`);
-            setErr('');
-          },
-          () => setErr('定位失败：请检查权限或稍后重试'),
-          { enableHighAccuracy: true, timeout: 8000 }
-        );
-      }
-
-      async function createRoute() {
-        const fileEl = document.getElementById('img');
-        if (!fileEl.files || !fileEl.files[0]) {
-          setErr('请先选择图片');
-          return;
-        }
-        const provider = document.getElementById('provider').value || state.provider;
-        const startPoint = parsePoint('start') || state.location;
-        const endPoint = parsePoint('end');
-        const fd = new FormData();
-        fd.append('userId', 'demo');
-        fd.append('provider', provider);
-        fd.append('locale', 'zh-CN');
-        fd.append('image', fileEl.files[0]);
-        if (startPoint) fd.append('startPoint', JSON.stringify(startPoint));
-        if (endPoint) fd.append('endPoint', JSON.stringify(endPoint));
-        const km = Number(document.getElementById('km').value);
-        if (Number.isFinite(km) && km > 0) {
-          fd.append('targetKm', String(km));
-        }
-
-        try {
-          const data = await requestJson(`${API}/v1/routes/from-image`, { method: 'POST', body: fd });
-          state.routeId = data.route.id;
-          setText('routeLabel', `routeId：${state.routeId}`);
-          setText('routeMeta', `providerHint=${data.route.providerHint}，crsHint=${data.route.crsHint}，距离=${Math.round(data.route.meta.distanceM)}m，点数=${data.route.points?.length || 0}`);
-          setText('adjustInfo', '创建成功，可继续编辑公里数和起终点');
-          setErr('');
-        } catch (e) {
-          setErr(`创建失败：${e.message}`);
-        }
-      }
-
-      async function adjustRoute() {
-        if (!state.routeId) {
-          setErr('请先创建路线');
-          return;
-        }
-        const targetKm = Number(document.getElementById('km').value);
-        if (!Number.isFinite(targetKm) || targetKm <= 0) {
-          setErr('请输入大于0的目标公里数');
-          return;
-        }
-        try {
-          const data = await requestJson(`${API}/v1/routes/${state.routeId}/adjust`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetKm }),
-          });
-          setText('adjustInfo', `已重缩放：${Math.round(data.route.meta.distanceM)}m，pointsVersion=${data.route.pointsVersion || '--'}`);
-          setErr('');
-        } catch (e) {
-          setErr(`调整失败：${e.message}`);
-        }
-      }
-
-      async function rebaseRouteByInputs() {
-        if (!state.routeId) {
-          setErr('请先创建路线');
-          return;
-        }
-        const startPoint = parsePoint('start');
-        const endPoint = parsePoint('end');
-        if (!startPoint && !endPoint) {
-          setErr('请输入起点或终点中的至少一个');
-          return;
-        }
-        try {
-          const data = await requestJson(`${API}/v1/routes/${state.routeId}/rebase`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              startPoint,
-              endPoint,
-              strategy: endPoint ? 'fit' : 'align',
-            }),
-          });
-          setText('adjustInfo', `重映射完成，当前距离 ${Math.round(data.route.meta.distanceM)}m`);
-          setErr('');
-        } catch (e) {
-          setErr(`重映射失败：${e.message}`);
-        }
-      }
-
-      async function startRun() {
-        if (!state.routeId) {
-          setErr('请先创建路线');
-          return;
-        }
-        if (!state.location) {
-          setErr('请先获取定位，再开始导航');
-          return;
-        }
-        const provider = document.getElementById('provider').value || state.provider;
-        try {
-          const data = await requestJson(`${API}/v1/routes/${state.routeId}/start-run`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: 'demo', provider }),
-          });
-          state.sessionId = data.session.id;
-          setText('sessionLabel', `sessionId：${state.sessionId}`);
-          setText('navState', '状态：running');
-
-          if (navTimerId) clearInterval(navTimerId);
-          navTimerId = setInterval(async () => {
-            try {
-              await requestJson(`${API}/v1/run/${state.sessionId}/location`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  lat: state.location.lat,
-                  lng: state.location.lng,
-                  accuracy: state.location.accuracy || null,
-                }),
-              });
-              const s = await requestJson(`${API}/v1/run/${state.sessionId}/state`);
-              setText('navState', `状态：${s.state.status}，偏离 ${s.state.deviationM}m，精度 ${s.state.currentAccuracy || '--'}m，完成率 ${s.state.progressPct}%`);
-            } catch (err) {
-              setText('navState', `导航状态异常：${err.message}`);
-            }
-          }, 2000);
-          setErr('');
-        } catch (e) {
-          setErr(`开始失败：${e.message}`);
-        }
-      }
-
-      async function finishRun() {
-        if (!state.sessionId) {
-          setErr('请先开始导航');
-          return;
-        }
-        try {
-          const path = [state.location].filter(Boolean).map((p) => ({ lat: p.lat, lng: p.lng }));
-          const data = await requestJson(`${API}/v1/run/${state.sessionId}/finish`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ actualPath: path }),
-          });
-          if (navTimerId) clearInterval(navTimerId);
-          setText('navState', '状态：finished');
-          setText('report', JSON.stringify(data.result.metrics, null, 2));
-          setErr('');
-        } catch (e) {
-          setErr(`完成失败：${e.message}`);
-        }
-      }
-
-      window.addEventListener('load', () => {
-        loadMapConfig();
-        setText('locLabel', '当前定位：等待定位授权...');
-      });
     </script>
   </body>
 </html>

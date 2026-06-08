@@ -1,0 +1,139 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>TraceCraft | 轨迹行程加载页</title>
+    <link rel="stylesheet" href="./tracecraft.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="tc-shell">
+      <header class="tc-topbar">
+        <div class="tc-brand">
+          <div class="tc-brand-mark">TC</div>
+          <div>
+            <h1 class="tc-brand-name">轨迹行程加载页</h1>
+            <p class="tc-brand-sub">加载草稿或历史会话，直接回到导航</p>
+          </div>
+        </div>
+        <a id="homeLink" class="tc-btn tc-btn-ghost" href="./index.html">首页</a>
+      </header>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">路径草稿</h2>
+        <div id="draftList">暂无草稿</div>
+      </div>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">最近会话</h2>
+        <div id="historyList">暂无会话记录</div>
+      </div>
+
+      <div class="tc-actions">
+        <a id="toEditor" class="tc-btn tc-btn-ghost" href="./route-editor.html">前往编辑页</a>
+        <a id="toNavigate" class="tc-btn" href="./navigation.html">开始新导航</a>
+      </div>
+    </main>
+
+    <script src="./tracecraft.js"></script>
+    <script>
+      const draftContainer = document.getElementById('draftList');
+      const historyContainer = document.getElementById('historyList');
+
+      function renderDraft() {
+        const draft = TC_DEMO.getRouteDraft();
+        if (!draft || !draft.id) {
+          draftContainer.textContent = '暂无路径草稿';
+          return;
+        }
+
+        draftContainer.innerHTML = '';
+        const card = document.createElement('div');
+        card.className = 'tc-list-item';
+        card.style.alignItems = 'stretch';
+
+        const info = document.createElement('div');
+        info.innerHTML = `<b>${draft.name || '自定义路径'}</b><div class="meta">${draft.templateId || ''} · ${draft.shapeId || ''} · ${draft.points?.length || 0} 点</div>`;
+
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '6px';
+
+        const load = document.createElement('button');
+        load.className = 'tc-btn';
+        load.type = 'button';
+        load.textContent = '载入';
+        load.addEventListener('click', () => {
+          if (draft.templateId) TC_DEMO.setSeed({
+            templateId: draft.templateId,
+            shapeId: draft.shapeId,
+            from: 'route-load',
+            routeDistanceKm: draft.routeDistanceKm || TC_DEMO.DEFAULTS.routeDistanceKm,
+            speedKmh: draft.speedKmh || TC_DEMO.DEFAULTS.speedKmh,
+          });
+          window.location.href = TC_DEMO.buildNavigationLink({
+            ...TC_DEMO.getSeed(),
+            from: 'route-load',
+            source: 'draft',
+          });
+        });
+
+        const del = document.createElement('button');
+        del.className = 'tc-btn tc-btn-danger';
+        del.type = 'button';
+        del.textContent = '清除';
+        del.addEventListener('click', () => {
+          localStorage.removeItem(TC_DEMO.STORAGE_KEYS.routeDraft);
+          renderDraft();
+        });
+
+        actions.appendChild(load);
+        actions.appendChild(del);
+        card.appendChild(info);
+        card.appendChild(actions);
+        draftContainer.appendChild(card);
+      }
+
+      function renderHistory() {
+        const raw = TC_DEMO.getLastSession();
+        if (!raw) {
+          historyContainer.textContent = '暂无会话记录';
+          return;
+        }
+
+        const data = TC_DEMO.normalizeRoute(raw);
+        historyContainer.innerHTML = '';
+        const card = document.createElement('div');
+        card.className = 'tc-list-item';
+        card.style.alignItems = 'stretch';
+
+        const detail = document.createElement('div');
+        detail.innerHTML = `<b>${data.route || '自定义路线'}</b><div class="meta">目标 ${data.routeDistanceKm.toFixed(2)}km，实际 ${data.actualDistanceKm.toFixed(2)}km，${TC_DEMO.fmtTime(data.durationSec)}</div>`;
+
+        const load = document.createElement('button');
+        load.className = 'tc-btn tc-btn-ghost';
+        load.type = 'button';
+        load.textContent = '继续';
+        load.addEventListener('click', () => {
+          TC_DEMO.setSeed({
+            routeDistanceKm: data.routeDistanceKm || TC_DEMO.DEFAULTS.routeDistanceKm,
+            speedKmh: data.speedKmh || TC_DEMO.DEFAULTS.speedKmh,
+            from: 'route-load',
+          });
+          window.location.href = TC_DEMO.buildNavigationLink();
+        });
+
+        card.appendChild(detail);
+        card.appendChild(load);
+        historyContainer.appendChild(card);
+      }
+
+      renderDraft();
+      renderHistory();
+      document.getElementById('toNavigate').href = TC_DEMO.buildNavigationLink();
+      TC_DEMO.initCommonLinks();
+    </script>
+  </body>
+</html>

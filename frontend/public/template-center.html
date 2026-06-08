@@ -1,0 +1,108 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>TraceCraft | 快速模板页</title>
+    <link rel="stylesheet" href="./tracecraft.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="tc-shell">
+      <header class="tc-topbar">
+        <div class="tc-brand">
+          <div class="tc-brand-mark">TC</div>
+          <div>
+            <h1 class="tc-brand-name">快速模板页</h1>
+            <p class="tc-brand-sub">选择预置模板，快速进入下一步</p>
+          </div>
+        </div>
+        <a id="homeLink" class="tc-btn tc-btn-ghost" href="./index.html">首页</a>
+      </header>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">模板选择</h2>
+        <p class="tc-subtitle">每个模板会自动设置一组推荐参数。</p>
+        <div class="tc-link-grid tc-grid" id="templateCards"></div>
+      </div>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">已选结果</h2>
+        <div class="tc-meta">
+          <div class="tc-kpi"><span>模板</span><b id="selectedTemplate">-</b></div>
+          <div class="tc-kpi"><span>形状</span><b id="selectedShape">-</b></div>
+          <div class="tc-kpi"><span>建议距离</span><b id="suggestDistance">-</b></div>
+          <div class="tc-kpi"><span>建议速度</span><b id="suggestSpeed">-</b></div>
+        </div>
+        <div class="tc-actions">
+          <a id="toNavigation" class="tc-btn" href="./navigation.html">基于该模板开始导航</a>
+          <a id="toAdjust" class="tc-btn tc-btn-ghost" href="./route-adjust.html">前往参数调节</a>
+        </div>
+      </div>
+    </main>
+
+    <script src="./tracecraft.js"></script>
+    <script>
+      const seed = TC_DEMO.getSeed();
+      const cardsWrap = document.getElementById('templateCards');
+
+      const templates = [
+        { id: 'balanced-loop', title: '平衡环线', shape: 'wave', distance: 3.2, speed: 8, desc: '适合通用场景，起停平稳。' },
+        { id: 'city-loop', title: '城市环线', shape: 'spiral', distance: 4.8, speed: 7, desc: '转弯更密集，节奏更紧凑。' },
+        { id: 'forest-loop', title: '公园环线', shape: 'step', distance: 2.6, speed: 6.5, desc: '路线松弛，适合慢速演示。' },
+      ];
+      const shapeNames = {
+        wave: '波浪',
+        spiral: '螺旋',
+        step: '阶梯',
+      };
+
+      function renderTemplateCard(item) {
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'tc-link';
+        a.id = `template-${item.id}`;
+        a.innerHTML = `<h3>${item.title}</h3><p>${item.desc}</p><div class="tc-note">${item.distance}km · ${item.speed}km/h</div>`;
+        return a;
+      }
+
+      function updateActiveCard(selectedId) {
+        [...cardsWrap.children].forEach((el) => {
+          el.classList.remove('active');
+          if (el.id === `template-${selectedId}`) el.classList.add('active');
+        });
+      }
+
+      function applyTemplate(item) {
+        TC_DEMO.setSeed({
+          routeDistanceKm: item.distance,
+          speedKmh: item.speed,
+          templateId: item.id,
+          shapeId: item.shape,
+          from: 'template-center',
+        });
+
+        document.getElementById('selectedTemplate').textContent = item.title;
+        document.getElementById('selectedShape').textContent = shapeNames[item.shape] || item.shape;
+        document.getElementById('suggestDistance').textContent = `${item.distance} km`;
+        document.getElementById('suggestSpeed').textContent = `${item.speed} km/h`;
+        document.getElementById('toNavigation').href = TC_DEMO.buildNavigationLink();
+        updateActiveCard(item.id);
+      }
+
+      templates.forEach((item) => {
+        const node = renderTemplateCard(item);
+        node.addEventListener('click', (evt) => {
+          evt.preventDefault();
+          applyTemplate(item);
+        });
+        cardsWrap.appendChild(node);
+      });
+
+      const current = templates.find((item) => item.id === seed.templateId) || templates[0];
+      applyTemplate(current);
+      TC_DEMO.initCommonLinks();
+    </script>
+  </body>
+</html>

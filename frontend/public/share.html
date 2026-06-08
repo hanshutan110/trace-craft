@@ -1,0 +1,162 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>TraceCraft | 分享页</title>
+    <link rel="stylesheet" href="./tracecraft.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="tc-shell">
+      <header class="tc-topbar">
+        <div class="tc-brand">
+          <div class="tc-brand-mark">TC</div>
+          <div>
+            <h1 class="tc-brand-name">分享页</h1>
+            <p class="tc-brand-sub">查看导航结果并快速复制链接</p>
+          </div>
+        </div>
+        <a id="homeLink" class="tc-btn tc-btn-ghost" href="./index.html">首页</a>
+      </header>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">结果概览</h2>
+        <p class="tc-subtitle" id="statusBadge">加载中...</p>
+        <div class="tc-grid" style="margin-top: 8px;">
+          <div class="tc-kpi"><span>路线</span><b id="routeText">--</b></div>
+          <div class="tc-kpi"><span>会话</span><b id="sessionText">--</b></div>
+          <div class="tc-kpi"><span>目标距离</span><b id="targetText">-- km</b></div>
+          <div class="tc-kpi"><span>实际距离</span><b id="actualText">-- km</b></div>
+          <div class="tc-kpi"><span>耗时</span><b id="durationText">--:--</b></div>
+          <div class="tc-kpi"><span>平均速度</span><b id="speedText">-- km/h</b></div>
+          <div class="tc-kpi"><span>偏航</span><b id="deviationText">-- m</b></div>
+          <div class="tc-kpi"><span>节奏</span><b id="paceText">--</b></div>
+        </div>
+      </div>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">分享卡片</h2>
+        <div id="summaryText" class="tc-subtitle">还未有可分享数据</div>
+        <div class="tc-actions">
+          <a id="toNav" class="tc-btn tc-btn-ghost" href="./navigation.html">再次导航</a>
+          <a id="toHome" class="tc-btn" href="./index.html">返回首页</a>
+          <button id="copyLink" class="tc-btn tc-btn-ghost" type="button">复制分享链接</button>
+          <button id="copySummary" class="tc-btn" type="button">复制结果文案</button>
+        </div>
+      </div>
+    </main>
+
+    <script src="./tracecraft.js"></script>
+    <script>
+      const ui = {
+        statusBadge: document.getElementById('statusBadge'),
+        routeText: document.getElementById('routeText'),
+        sessionText: document.getElementById('sessionText'),
+        targetText: document.getElementById('targetText'),
+        actualText: document.getElementById('actualText'),
+        durationText: document.getElementById('durationText'),
+        speedText: document.getElementById('speedText'),
+        deviationText: document.getElementById('deviationText'),
+        paceText: document.getElementById('paceText'),
+        summaryText: document.getElementById('summaryText'),
+        toNav: document.getElementById('toNav'),
+        toHome: document.getElementById('toHome'),
+        copyLink: document.getElementById('copyLink'),
+        copySummary: document.getElementById('copySummary'),
+      };
+
+      function parseQueryData() {
+        const params = TC_DEMO.getQuery();
+        const raw = {
+          route: params.get('route') || params.get('routeId') || '',
+          session: params.get('session') || params.get('sessionId') || '',
+          routeDistanceKm: TC_DEMO.parseNum(params.get('distance'), null),
+          actualDistanceKm: TC_DEMO.parseNum(params.get('covered'), null),
+          durationSec: TC_DEMO.parseNum(params.get('duration'), null),
+          speedKmh: TC_DEMO.parseNum(params.get('speed'), null),
+          deviationM: TC_DEMO.parseNum(params.get('deviation'), null),
+          source: 'query',
+          from: params.get('from') || 'share',
+        };
+
+        const valid = [raw.routeDistanceKm, raw.actualDistanceKm, raw.durationSec, raw.speedKmh, raw.deviationM].some((v) => typeof v === 'number');
+        return valid ? TC_DEMO.normalizeRoute(raw) : null;
+      }
+
+      const queryData = parseQueryData();
+      const rawLast = TC_DEMO.getLastSession();
+      const last = queryData || (rawLast ? TC_DEMO.normalizeRoute(rawLast) : null);
+
+      if (!last || (last.routeDistanceKm === 0 && last.actualDistanceKm === 0 && last.durationSec === 0)) {
+        ui.statusBadge.textContent = '未检测到可展示数据';
+        ui.summaryText.textContent = '请先完成导航，再回到此页查看分享摘要。';
+      } else {
+        const routeDistance = Number(last.routeDistanceKm || 0).toFixed(2);
+        const actualDistance = Number(last.actualDistanceKm || 0).toFixed(2);
+        const duration = TC_DEMO.fmtTime(last.durationSec || 0);
+        const speed = Number(last.speedKmh || 0).toFixed(1);
+        const deviation = Number(last.deviationM || 0).toFixed(1);
+        const paceSec = actualDistance > 0 ? (last.durationSec || 0) / Number(actualDistance) : 0;
+        const paceSecText = paceSec > 0 ? `${Math.floor(paceSec / 60)}:${String(Math.round(paceSec % 60)).padStart(2, '0')}/km` : '--';
+
+        ui.statusBadge.textContent = `数据来源：${last.source || '本地'}，可安全复制。`;
+        ui.routeText.textContent = last.route || 'trace-route';
+        ui.sessionText.textContent = last.session || 'mock-session';
+        ui.targetText.textContent = `${routeDistance} km`;
+        ui.actualText.textContent = `${actualDistance} km`;
+        ui.durationText.textContent = duration;
+        ui.speedText.textContent = `${speed} km/h`;
+        ui.deviationText.textContent = `${deviation} m`;
+        ui.paceText.textContent = paceSecText;
+        ui.summaryText.textContent = `TraceCraft 导航完成：${last.route || 'trace-route'}，目标 ${routeDistance}km，实际 ${actualDistance}km，耗时 ${duration}，偏航 ${deviation}m。`;
+
+        const shareUrl = TC_DEMO.buildShareLink(last);
+        const navUrl = TC_DEMO.buildNavigationLink({
+          ...TC_DEMO.getSeed(),
+          routeDistanceKm: Number(routeDistance) || TC_DEMO.DEFAULTS.routeDistanceKm,
+          speedKmh: Number(speed) || TC_DEMO.DEFAULTS.speedKmh,
+          from: 'share',
+        });
+
+        ui.toNav.href = navUrl;
+        ui.toHome.href = TC_DEMO.buildHomeLink(last);
+        ui.copyLink.dataset.text = shareUrl;
+        ui.copySummary.dataset.text = ui.summaryText.textContent;
+      }
+
+      function copyToClipboard(text) {
+        if (!text) return Promise.resolve();
+        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+
+        const el = document.createElement('textarea');
+        el.value = text;
+        el.setAttribute('readonly', '');
+        el.style.position = 'fixed';
+        el.style.opacity = '0';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        return Promise.resolve();
+      }
+
+      ui.copyLink.addEventListener('click', async () => {
+        await copyToClipboard(ui.copyLink.dataset.text || window.location.href);
+        const old = ui.copyLink.textContent;
+        ui.copyLink.textContent = '已复制';
+        setTimeout(() => ui.copyLink.textContent = old, 1000);
+      });
+
+      ui.copySummary.addEventListener('click', async () => {
+        await copyToClipboard(ui.copySummary.dataset.text || '');
+        const old = ui.copySummary.textContent;
+        ui.copySummary.textContent = '已复制';
+        setTimeout(() => ui.copySummary.textContent = old, 1000);
+      });
+
+      TC_DEMO.initCommonLinks();
+    </script>
+  </body>
+</html>

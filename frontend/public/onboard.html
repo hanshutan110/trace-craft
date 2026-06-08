@@ -1,0 +1,154 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>TraceCraft | 引导页面</title>
+    <link rel="stylesheet" href="./tracecraft.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="tc-shell">
+      <header class="tc-topbar">
+        <div class="tc-brand">
+          <div class="tc-brand-mark">TC</div>
+          <div>
+            <h1 class="tc-brand-name">引导页面</h1>
+            <p class="tc-brand-sub">从首页参数进入后的第一步流程</p>
+          </div>
+        </div>
+        <a id="homeLink" class="tc-btn tc-btn-ghost" href="./index.html">返回首页</a>
+      </header>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">开始前检查</h2>
+        <p class="tc-subtitle">确认距离与速度后即可快速进入导航。如果你希望沿用首页参数，直接点击“开始导航”。</p>
+
+        <div class="tc-forms">
+          <div class="tc-row">
+            <label>目标距离</label>
+            <input id="distance" class="tc-input" type="number" min="0.3" max="20" step="0.1" />
+          </div>
+          <div class="tc-row">
+            <label>目标速度</label>
+            <input id="speed" class="tc-input" type="number" min="2" max="20" step="0.5" />
+          </div>
+          <div class="tc-row">
+            <label>轨迹模板</label>
+            <select id="template" class="tc-select"></select>
+          </div>
+          <div class="tc-row">
+            <label>轨迹形状</label>
+            <select id="shape" class="tc-select"></select>
+          </div>
+
+          <div class="tc-inline-actions">
+            <button id="startBtn" class="tc-btn" type="button">开始导航</button>
+            <button id="saveBtn" class="tc-btn tc-btn-ghost" type="button">保存当前设置</button>
+          </div>
+          <div class="tc-note" id="hint">准备就绪后进入导航。</div>
+        </div>
+      </div>
+
+      <div class="tc-card">
+        <h2 class="tc-section-title">流程预览</h2>
+        <div class="tc-meta">
+          <div class="tc-kpi"><span>当前模板</span><b id="templateName">-</b></div>
+          <div class="tc-kpi"><span>当前形状</span><b id="shapeName">-</b></div>
+          <div class="tc-kpi"><span>预计用时</span><b id="eta">-</b></div>
+          <div class="tc-kpi"><span>预计步数</span><b id="stepCount">-</b></div>
+        </div>
+      </div>
+    </main>
+
+    <script src="./tracecraft.js"></script>
+    <script>
+      const templates = [
+        { id: 'balanced-loop', name: '平衡环线' },
+        { id: 'city-loop', name: '城市环线' },
+        { id: 'forest-loop', name: '公园环线' },
+      ];
+      const shapes = [
+        { id: 'wave', name: '波浪' },
+        { id: 'spiral', name: '螺旋' },
+        { id: 'step', name: '阶梯' },
+      ];
+
+      const templateEl = document.getElementById('template');
+      const shapeEl = document.getElementById('shape');
+      const distanceEl = document.getElementById('distance');
+      const speedEl = document.getElementById('speed');
+      const templateNameEl = document.getElementById('templateName');
+      const shapeNameEl = document.getElementById('shapeName');
+      const etaEl = document.getElementById('eta');
+      const stepCountEl = document.getElementById('stepCount');
+      const hint = document.getElementById('hint');
+      const saveBtn = document.getElementById('saveBtn');
+
+      templates.forEach((item) => {
+        const o = document.createElement('option');
+        o.value = item.id;
+        o.textContent = item.name;
+        templateEl.appendChild(o);
+      });
+
+      shapes.forEach((item) => {
+        const o = document.createElement('option');
+        o.value = item.id;
+        o.textContent = item.name;
+        shapeEl.appendChild(o);
+      });
+
+      function syncPreview() {
+        const distance = TC_DEMO.clamp(Number(distanceEl.value) || TC_DEMO.DEFAULTS.routeDistanceKm, 0.3, 20, TC_DEMO.DEFAULTS.routeDistanceKm);
+        const speed = TC_DEMO.clamp(Number(speedEl.value) || TC_DEMO.DEFAULTS.speedKmh, 2, 20, TC_DEMO.DEFAULTS.speedKmh);
+        distanceEl.value = String(distance);
+        speedEl.value = String(speed);
+
+        const templateText = templates.find((item) => item.id === templateEl.value)?.name || templateEl.value;
+        const shapeText = shapes.find((item) => item.id === shapeEl.value)?.name || shapeEl.value;
+        const eta = distance / Math.max(speed, 0.1);
+
+        templateNameEl.textContent = templateText;
+        shapeNameEl.textContent = shapeText;
+        etaEl.textContent = `${Math.max(0, eta).toFixed(2)}h`;
+        stepCountEl.textContent = Math.max(12, Math.round(distance * 5));
+        return { distance, speed, templateId: templateEl.value, shapeId: shapeEl.value };
+      }
+
+      function syncDraft(saveOnly = false) {
+        const values = syncPreview();
+        const payload = {
+          routeDistanceKm: values.distance,
+          speedKmh: values.speed,
+          templateId: values.templateId,
+          shapeId: values.shapeId,
+          from: 'onboard',
+          source: 'onboard',
+        };
+        TC_DEMO.setSeed(payload);
+        hint.textContent = saveOnly ? '设置已保存到本地会话种子。' : '参数已同步。';
+      }
+
+      function startNavigation() {
+        syncDraft();
+        window.location.href = TC_DEMO.buildNavigationLink();
+      }
+
+      const seed = TC_DEMO.getSeed();
+      distanceEl.value = seed.routeDistanceKm;
+      speedEl.value = seed.speedKmh;
+      templateEl.value = seed.templateId || 'balanced-loop';
+      shapeEl.value = seed.shapeId || 'wave';
+      syncPreview();
+
+      distanceEl.addEventListener('change', syncPreview);
+      speedEl.addEventListener('change', syncPreview);
+      templateEl.addEventListener('change', syncPreview);
+      shapeEl.addEventListener('change', syncPreview);
+      document.getElementById('startBtn').addEventListener('click', startNavigation);
+      saveBtn.addEventListener('click', () => syncDraft(true));
+    </script>
+  </body>
+</html>
