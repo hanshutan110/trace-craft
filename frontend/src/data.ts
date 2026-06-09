@@ -1,0 +1,87 @@
+import { PresetShape, HistoryRecord } from './types';
+
+export const presetShapes: PresetShape[] = [
+  {
+    id: 'star',
+    name: '五角星',
+    englishName: 'star',
+    gradient: 'linear-gradient(135deg, #FFD166 0%, #FFB347 100%)',
+    description: '跑出璀璨星芒',
+    distance: 5.0,
+    iconType: 'star',
+    isHot: true,
+  },
+  {
+    id: 'heart',
+    name: '心形',
+    englishName: 'heart',
+    gradient: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)',
+    description: '用脚步画出一颗爱心',
+    distance: 4.2,
+    iconType: 'heart',
+    isHot: true,
+  },
+  {
+    id: 'circle',
+    name: '圆形',
+    englishName: 'circle',
+    gradient: 'linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%)',
+    description: '经典的环湖跑圈路线',
+    distance: 3.5,
+    iconType: 'circle',
+  },
+  {
+    id: 'triangle',
+    name: '三角形',
+    englishName: 'triangle',
+    gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A24 100%)',
+    description: '几何美感的短程冲刺',
+    distance: 3.0,
+    iconType: 'triangle',
+  },
+  {
+    id: 'square',
+    name: '正方形',
+    englishName: 'square',
+    gradient: 'linear-gradient(135deg, #A8E6CF 0%, #3BAC6A 100%)',
+    description: '规则的街区环绕路线',
+    distance: 4.0,
+    iconType: 'square',
+  },
+  {
+    id: 'hexagon',
+    name: '六边形',
+    englishName: 'hexagon',
+    gradient: 'linear-gradient(135deg, #A29BFE 0%, #6C5CE7 100%)',
+    description: '蜂巢结构的中长跑路线',
+    distance: 4.8,
+    iconType: 'hexagon',
+  },
+];
+
+export const historyRecords: HistoryRecord[] = [
+  {
+    id: 'hist1',
+    name: '小猫跑',
+    distance: '5.01km',
+    time: '32:15',
+    date: '2026-06-08',
+    shapeType: 'cat',
+  },
+  {
+    id: 'hist2',
+    name: '星形极限速跑',
+    distance: '3.62km',
+    time: '22:40',
+    date: '2026-05-30',
+    shapeType: 'star',
+  },
+  {
+    id: 'hist3',
+    name: '爱心跑表白',
+    distance: '4.25km',
+    time: '28:10',
+    date: '2026-05-24',
+    shapeType: 'heart',
+  },
+];

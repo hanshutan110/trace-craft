@@ -8,6 +8,17 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
+# Local override / debug configs
+*.local
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
 # Logs
 logs/
 *.log
@@ -60,3 +71,8 @@ Thumbs.db
 # IDE / Editors
 .idea/
 .vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Legacy files (pre-Vite React Native entry)
+frontend/App.js
