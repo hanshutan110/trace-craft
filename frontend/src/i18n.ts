@@ -416,7 +416,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     [language, handleSetLanguage, t, languageOptions, languageLabels],
   );
 
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+  return React.createElement(I18nContext.Provider, { value }, children);
 };
 
 export const useI18n = () => useContext(I18nContext);

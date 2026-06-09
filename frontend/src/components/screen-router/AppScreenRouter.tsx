@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ScreenId } from '../../types';
 
 import {
@@ -28,21 +28,21 @@ import {
   TraceDetailScreen,
   RunHistoryScreen,
   RunDetailScreen,
-} from '../Screens14to18';
+} from '../TraceJourneyScreens';
 
 import {
   FavoritesScreen,
   TemplateDetailScreen,
   SearchScreen,
   SearchResultScreen,
-} from '../Screens19to22';
+} from '../DiscoveryScreens';
 
 import {
   TraceShareScreen,
   SquareScreen,
   PostDetailScreen,
   NotificationsScreen,
-} from '../Screens23to26';
+} from '../CommunityScreens';
 
 interface AppScreenRouterProps {
   activeScreen: ScreenId;
@@ -158,7 +158,11 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
       )}
 
       {activeScreen === 'my_traces' && (
-        <MyTracesScreen onNavigate={(screen) => setActiveScreen(screen)} />
+        <MyTracesScreen
+          onNavigate={(screen) => setActiveScreen(screen)}
+          activeNavbarTab={activeNavbarTab}
+          setActiveNavbarTab={setActiveNavbarTab}
+        />
       )}
 
       {activeScreen === 'trace_detail' && (
@@ -166,7 +170,11 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
       )}
 
       {activeScreen === 'run_history' && (
-        <RunHistoryScreen onNavigate={(screen) => setActiveScreen(screen)} />
+        <RunHistoryScreen
+          onNavigate={(screen) => setActiveScreen(screen)}
+          activeNavbarTab={activeNavbarTab}
+          setActiveNavbarTab={setActiveNavbarTab}
+        />
       )}
 
       {activeScreen === 'run_detail' && (
@@ -174,7 +182,11 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
       )}
 
       {activeScreen === 'favorites' && (
-        <FavoritesScreen onNavigate={(screen) => setActiveScreen(screen)} />
+        <FavoritesScreen
+          onNavigate={(screen) => setActiveScreen(screen)}
+          activeNavbarTab={activeNavbarTab}
+          setActiveNavbarTab={setActiveNavbarTab}
+        />
       )}
 
       {activeScreen === 'template_detail' && (
@@ -207,3 +219,4 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
     </div>
   );
 };
+

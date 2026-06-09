@@ -38,9 +38,9 @@ src/
     ├── HomeAndLibrary.tsx
     ├── NavigationAndEditor.tsx
     ├── Others.tsx
-    ├── Screens14to18.tsx
-    ├── Screens19to22.tsx
-    ├── Screens23to26.tsx
+    ├── TraceJourneyScreens.tsx
+    ├── DiscoveryScreens.tsx
+    ├── CommunityScreens.tsx
     ├── layout/
     └── screen-router/
 ```

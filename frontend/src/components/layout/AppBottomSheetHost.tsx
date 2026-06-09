@@ -1,4 +1,4 @@
-import { BottomSheetModal } from '../Others';
+﻿import { BottomSheetModal } from '../Others';
 import React from 'react';
 
 interface AppBottomSheetHostProps {
@@ -26,3 +26,4 @@ export const AppBottomSheetHost: React.FC<AppBottomSheetHostProps> = ({
     />
   );
 };
+

@@ -74,5 +74,11 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
+# Tool / Agent config
+.codex/
+
+# Lint cache
+.eslintcache
+
 # Legacy files (pre-Vite React Native entry)
 frontend/App.js

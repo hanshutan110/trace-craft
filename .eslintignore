@@ -1,0 +1,13 @@
+# Node modules
+node_modules/
+
+# Logs
+**/*.log
+coverage/
+
+# Build outputs
+backend/data/
+frontend/dist/
+
+# Generated lock artifacts
+package-lock.json

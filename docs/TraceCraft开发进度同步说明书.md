@@ -123,34 +123,57 @@
 
 ### 本次同步目标
 
-1. 完成前端设计图页面的加载与逻辑一致性整改；
-2. 修正跨页面导航路径兼容性；
-3. 上线提交并同步最新交付清单；
-4. 补充配置化语言切换能力；
-5. 维护 `.gitignore`，忽略无用变更与敏感文件；
-6. 补全文档与进度信息。
+1. 新增后台管理模块（admin/）——用户管理、内容管理、模板管理（Mock 模式）
+2. 新增数据库设计文档（db/）——PostgreSQL 建表、API 设计、维护清单
+3. 后端扩展：引入 `pg` 依赖，`storage.js` 增加 PostgreSQL 存储层
+4. 前端组件重构：拆分大文件为按功能域划分的独立组件
+5. 新增公共组件 `BottomNavBar`，提取共享导航逻辑
+6. 新增 ESLint 代码规范配置（`.eslintrc.cjs` + `.eslintignore`）
+7. 补充 `.gitignore` 忽略规则（`.codex/`）
+8. 更新 README 与进度文档
 
 ### 本次交付结果
 
-| 模块 | 事项 | 状态 | 证据 | 备注 |
-| --- | --- | --- | --- | --- |
-| 前端页面 | 新建并重构 9 个页面：`frontend/public/index.html`、`goal-complete.html`、`navigation.html`、`onboard.html`、`route-adjust.html`、`route-editor.html`、`route-load.html`、`share.html`、`template-center.html` | 已完成 | 最近提交 `1474872` | 样式统一到 `tracecraft.css`，参数调节页滑块/输入布局修复 |
-| 前端脚本 | 新建 `frontend/public/tracecraft.js` 并统一构建链接策略（`buildNavigationLink`/`buildHomeLink`/`buildPageLink`） | 已完成 | 提交差异 | `homeLink`、加载参数、返回动作已统一 |
-| 路由与导航逻辑 | 修复首页/返回链路、`/route-load`、`新建路线` 按钮等跳转一致性问题 | 已完成 | 提交差异 | 避免根路径 `/` 依赖，提升文件直接打开与子路径兼容 |
-| 设计一致性 | 调整字段文案（如模板形状名显示）、补充布局细节（`tc-slider-row`）并回填按钮文案 | 已完成 | 提交差异 | 与设计稿导览页文案保持更一致 |
-| 前端国际化 | 完善前端逻辑，支持按配置切换语言（`frontend/src/i18n.ts` 与页面文案配置） | 已完成 | 本次代码更新 | 支持不同语言下文案动态切换，减少硬编码 |
-| 开发规范 | 补充 `.gitignore`，忽略前端构建缓存、日志、临时文件与密钥/凭据类敏感项 | 已完成 | 本次代码更新 | 避免 `node_modules`、`.npm-cache`、日志与 `.env*` 重复出现在提交里 |
-| 文档 | 本次进度与问题清单补充到进度说明书 | 已完成 | 本节更新 | 形成闭环交付记录 |
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 后台管理 | 新增 `admin/` 模块：用户/内容/模板管理 Demo（localStorage mock） | 已完成 | 包含 `admin.js`(855行)、`index.html`、`styles.css`、`README.md` |
+| 数据库设计 | 新增 `db/` 目录：`admin-schema.sql`（PostgreSQL 建表+索引+角色回填）、`admin-api-design.md`（API 清单）、`maintenance_checklist.md`（维护单） | 已完成 | 最小可行后台，不破坏现有跑步链路表 |
+| 后端扩展 | `backend/package.json` 新增 `pg` 依赖和 `eslint` devDependency |\ 已完成 | 为后续数据库接入做准备 |
+| 后端逻辑 | `index.js`、`routeService.js`、`storage.js` 大幅扩展（+1886 行） | 已完成 | 增加管理接口路由、PostgreSQL 存储适配、扩展服务逻辑 |
+| 前端重构 | 拆分 `Screens14to18/19to22/23to26.tsx` 为按功能域划分的新文件 | 已完成 | `TraceJourneyScreens.tsx`(894行)、`DiscoveryScreens.tsx`(691行)、`CommunityScreens.tsx`(879行) |
+| 公共组件 | 新增 `components/common/BottomNavBar.tsx` | 已完成 | 提取底部导航栏为可复用组件 |
+| 代码规范 | 新增 `.eslintrc.cjs` + `.eslintignore` | 已完成 | 支持 JS/TS/TSX，分别配置 backend 和 frontend 规则 |
+| 开发工具 | 新增 `.codex/` 目录（Agent 配置） | 已完成 | 已加入 .gitignore |
+| 文档 | 更新 README.md 项目结构（新增 admin/、db/）、更新进度说明书 | 已完成 | |
 
 ### 未完成/待处理
 
-| 模块 | 待办 | 责任人 | 目标日期 | 风险 |
-| --- | --- | --- | --- | --- |
-| 文档 | 继续补全 `README` 与 `Progress-Sync-Guide` 的中文标题与日期说明一致性 | 你我共同 | 2026-06-15 | 低 |
-| 测试 | 补充本地交互冒烟（关键按钮：开始/暂停/继续/分享/返回） | 待安排 | 2026-06-12 | 中 |
-| 样式 | 若需严格匹配设计稿，追加字体系统与字号规范化（移动端适配） | 待安排 | 2026-06-12 | 低 |
-| 运维 | 清理已追踪的历史噪音文件（若有）并补充 `.gitignore` 覆盖验证 | 待安排 | 2026-06-11 | 低 |
+| 模块 | 待办 | 目标日期 | 风险 |
+| --- | --- | --- | --- |
+| 后台管理 | admin mock service 迁移为后端 API（用户/内容/模板管理接口） | 2026-06-15 | 中 |
+| 数据库 | 执行 `admin-schema.sql` 建表并验证索引 | 2026-06-12 | 低 |
+| 测试 | 补充本地交互冒烟（关键按钮：开始/暂停/继续/分享/返回） | 2026-06-12 | 中 |
+| 样式 | 严格匹配设计稿，追加字体系统与字号规范化 | 2026-06-15 | 低 |
+| 运维 | ESLint 规则全量通过验证（`npm run lint`） | 2026-06-11 | 低 |
 
 ### 版本与里程碑映射
-- 关键改动提交：`.gitignore` 与前端语言切换逻辑（待提测提交记录）
-- 下次同步建议：当 `frontend/src/i18n.ts`、`frontend/src/main.tsx`、`frontend/public/tracecraft.*`、`.gitignore` 变化时，需同步更新本表并补充验收截图与 diff 片段。
+- 关键改动提交：后台管理模块、数据库设计文档、PostgreSQL 存储层、前端组件拆分、ESLint 配置
+- 下次同步建议：当 admin API 落地或数据库 schema 变更时，需同步更新 `db/` 文档和本说明书
+
+## 2026-06-09：全量运行现状同步
+
+- 当前状态：后台管理页与 App 展示页均为 mock data 驱动，未走“落库/持久化生产链路”。
+- 后台管理确认：
+  - 文件 `admin/admin.js` 使用 `DEFAULT_DB` 与 `service.list/create/update/remove` 的本地 mock 数据层。
+  - 状态持久化只落到 `localStorage["tracecraft-admin-mock-db-v2"]`，不是数据库或后端 API。
+  - 启动页与列表/编辑都通过该 mock service 返回数据。
+- App 页面确认：
+  - 文件 `frontend/public/tracecraft.js` 的种子、草稿、会话摘要都基于 `localStorage`（`tc_nav_seed` 等）进行读写。
+  - 页面切换与参数拼接为运行时 seed/query 的本地拼装逻辑，不依赖后端分页/查询接口。
+  - `frontend/src/App.tsx` 只把 onboarding/login 状态写入 `localStorage`，用于体验状态保持。
+  - `frontend/src/i18n.ts` 仍有 `/v1/maps/config` 的可选远端回退，但失败时会使用本地默认文案，不阻断前端展示。
+- 兼容说明：仓库内存在 `frontend/App.js` 旧路径示例，当前实现中 `userId: 'demo'` 与 `fakeImage` 仍属于演示行为（非真实持久化）。
+- 下一步动作（已冻结为阶段性计划）：
+  - P1：Admin mock service 迁移为后端 API（用户、内容、模板三类管理接口），保留 `service` 方法签名做最小侵入替换。
+  - P2：App 展示页改造为服务端会话与记录管理链路（历史/完成态/模板/运行状态）后再退回 `localStorage` 作为短期缓存。
+  - P3：后端技术架构按接口化/服务化重构（鉴权、持久层、离线兜底、可观测性）逐层上线，替代当前硬编码/浏览器本地依赖。

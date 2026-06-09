@@ -1,0 +1,66 @@
+﻿import React from 'react';
+import { Home, Activity, User } from 'lucide-react';
+import { ScreenId } from '../../types';
+
+type BottomNavTab = 'home' | 'traces' | 'profile';
+
+interface BottomNavBarProps {
+  onNavigate: (screen: ScreenId) => void;
+  activeNavbarTab: BottomNavTab;
+  setActiveNavbarTab: (tab: BottomNavTab) => void;
+  iconSize?: number;
+  className?: string;
+  labelClassName?: string;
+}
+
+export const BottomNavBar: React.FC<BottomNavBarProps> = ({
+  onNavigate,
+  activeNavbarTab,
+  setActiveNavbarTab,
+  iconSize = 20,
+  className = '',
+  labelClassName = 'text-[10px] font-medium mt-1',
+}) => {
+  const navClass = (tab: BottomNavTab) =>
+    `flex flex-col items-center justify-center flex-1 py-1.5 ${
+      activeNavbarTab === tab ? 'text-[#4FACFE]' : 'text-slate-400'
+    }`;
+
+  return (
+    <div className={`fixed inset-x-0 bottom-0 bg-white border-t border-slate-100 flex items-center justify-around px-4 z-30 pb-[env(safe-area-inset-bottom)] ${className}`}>
+      <button
+        onClick={() => {
+          setActiveNavbarTab('home');
+          onNavigate('home');
+        }}
+        className={navClass('home')}
+      >
+        <Home size={iconSize} className="mb-0.5" />
+        <span className={labelClassName}>首页</span>
+      </button>
+
+      <button
+        onClick={() => {
+          setActiveNavbarTab('traces');
+          onNavigate('my_traces');
+        }}
+        className={navClass('traces')}
+      >
+        <Activity size={iconSize} className="mb-0.5" />
+        <span className={labelClassName}>我的轨迹</span>
+      </button>
+
+      <button
+        onClick={() => {
+          setActiveNavbarTab('profile');
+          onNavigate('profile');
+        }}
+        className={navClass('profile')}
+      >
+        <User size={iconSize} className="mb-0.5" />
+        <span className={labelClassName}>个人中心</span>
+      </button>
+    </div>
+  );
+};
+

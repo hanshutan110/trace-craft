@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Search, 
@@ -21,6 +21,7 @@ import {
   Info
 } from 'lucide-react';
 import { ScreenId } from '../types';
+import { BottomNavBar } from './common/BottomNavBar';
 
 // Simple lightweight toast helper
 function miniToast(msg: string) {
@@ -32,7 +33,7 @@ function miniToast(msg: string) {
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 14: Splash Screen (启动页)
+  // SCREEN 14: Splash Screen (启动页)
 // ----------------------------------------------------------------------
 export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [loadingStep, setLoadingStep] = useState(0);
@@ -46,7 +47,7 @@ export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      miniToast('正在自动为您跳转至登录/注册界面...');
+      miniToast('正在自动跳转登录页面...');
       onNavigate('login');
     }, 3000);
     return () => clearTimeout(timer);
@@ -56,7 +57,7 @@ export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
     <div 
       className="w-full h-full bg-gradient-to-tr from-[#4FACFE] to-[#00F2FE] flex flex-col justify-between p-6 text-white text-center relative select-none animate-fadeIn cursor-pointer"
       onClick={() => {
-        miniToast('欢迎进入轨迹工坊！');
+        miniToast('欢迎进入运动应用');
         onNavigate('home');
       }}
     >
@@ -71,11 +72,11 @@ export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
         
         {/* Title */}
         <h1 className="text-[28px] font-black tracking-tight drop-shadow-md">
-          轨迹工坊
+          轨迹运动
         </h1>
         {/* Slogan */}
         <p className="text-14px text-white/80 font-medium tracking-widest mt-2">
-          跑出你的专属形状
+          让每一次运动更清晰
         </p>
 
         {/* Loading dots */}
@@ -95,10 +96,9 @@ export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
           }}
           className="mx-auto w-[220px] py-3 bg-white text-cyan-600 font-extrabold text-sm rounded-full shadow-lg hover:bg-neutral-50 active:scale-95 transition-all text-center uppercase tracking-wider block"
         >
-          立即开启体验
-        </button>
+          继续开始体验        </button>
         <p className="text-[10px] text-white/60 tracking-wider">
-          © 2026 TraceCraft · 跑图设计领导品牌
+          TrackCraft 2026 运动路线智能分析
         </p>
       </div>
     </div>
@@ -106,16 +106,24 @@ export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 15: My Traces List (我的轨迹列表页)
+  // SCREEN 15: My Traces List (我的轨迹列表)
 // ----------------------------------------------------------------------
-export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+export function MyTracesScreen({
+  onNavigate,
+  activeNavbarTab,
+  setActiveNavbarTab,
+}: {
+  onNavigate: (screen: ScreenId) => void;
+  activeNavbarTab: 'home' | 'traces' | 'profile';
+  setActiveNavbarTab: (tab: 'home' | 'traces' | 'profile') => void;
+}) {
   const [activeTab, setActiveTab] = useState<'all' | 'run' | 'unrun' | 'fav'>('all');
 
   const items = [
     {
       id: 'cat_trace_1',
-      title: '小猫跑',
-      distance: '5.0公里',
+      title: '猫咪轨迹',
+      distance: '5.0km',
       date: '2026-06-09',
       status: 'unrun', // unrun or completed
       isFavorite: true,
@@ -130,8 +138,8 @@ export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) 
     },
     {
       id: 'heart_trace_2',
-      title: '爱心挑战',
-      distance: '4.2公里',
+      title: '心形徽标',
+      distance: '4.2km',
       date: '2026-06-07',
       status: 'completed',
       isFavorite: true,
@@ -145,8 +153,8 @@ export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) 
     },
     {
       id: 'star_trace_3',
-      title: '星形挑战',
-      distance: '5.0公里',
+      title: '五角徽标',
+      distance: '5.0km',
       date: '2026-06-05',
       status: 'unrun',
       isFavorite: false,
@@ -197,19 +205,19 @@ export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) 
           onClick={() => setActiveTab('run')}
           className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeTab === 'run' ? 'bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600'}`}
         >
-          已跑
+          宸茶窇
         </button>
         <button 
           onClick={() => setActiveTab('unrun')}
           className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeTab === 'unrun' ? 'bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600'}`}
         >
-          未跑
+          未完成
         </button>
         <button 
           onClick={() => setActiveTab('fav')}
           className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeTab === 'fav' ? 'bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600'}`}
         >
-          收藏
+          鏀惰棌
         </button>
       </div>
 
@@ -217,8 +225,8 @@ export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) 
       <div className="flex-1 overflow-y-auto px-4 pb-16 space-y-3">
         {filtered.length === 0 ? (
           <div className="py-20 text-center text-slate-400 space-y-2">
-            <p className="text-sm">暂无该分类的轨迹对象</p>
-            <p className="text-xs text-slate-300">去添加一些炫酷的线路吧！</p>
+            <p className="text-sm">暂无我的轨迹内容</p>
+            <p className="text-xs text-slate-300">下拉刷新，查看历史记录和统计数据</p>
           </div>
         ) : (
           filtered.map(item => (
@@ -236,7 +244,7 @@ export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) 
                   <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-cyan-600 transition-colors">{item.title}</h3>
                   <div className="flex items-center space-x-2 mt-1">
                     <span className="text-[12px] text-slate-500 font-medium">{item.distance}</span>
-                    <span className="text-[10px] text-slate-400">•</span>
+                    <span className="text-[10px] text-slate-400">距</span>
                     <span className="text-[10px] text-slate-400 font-mono">{item.date}</span>
                   </div>
                 </div>
@@ -245,14 +253,14 @@ export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) 
               {/* Status flag right */}
               <div className="flex flex-col items-end space-y-1">
                 {item.status === 'unrun' ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-600 font-semibold border border-amber-200">未跑</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-600 font-semibold border border-amber-200">未完成</span>
                 ) : (
                   <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-600 font-semibold border border-emerald-200">已完成</span>
                 )}
-                <button 
+                    <button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    miniToast(`已触发“${item.title}”管理菜单`);
+                    miniToast(`查看 ${item.title}`);
                   }}
                   className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded"
                 >
@@ -273,26 +281,20 @@ export function MyTracesScreen({ onNavigate }: { onNavigate: (screen: ScreenId) 
       </button>
 
       {/* Simple Simulated Bottom Navigation Bar */}
-      <div className="sticky bottom-0 h-14 bg-white border-t border-slate-100 flex items-center justify-around text-slate-400 text-[10px] select-none shrink-0 z-35 font-semibold">
-        <button onClick={() => onNavigate('home')} className="flex flex-col items-center justify-center flex-1 py-1 hover:text-slate-750">
-          <svg className="w-5 h-5 mb-0.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
-          主页
-        </button>
-        <button onClick={() => onNavigate('my_traces')} className="flex flex-col items-center justify-center flex-1 py-1 text-cyan-500 font-extrabold">
-          <svg className="w-5 h-5 mb-0.5 text-cyan-500" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1"><path d="M9 18l6-6-6-6" /></svg>
-          我的轨迹
-        </button>
-        <button onClick={() => onNavigate('profile')} className="flex flex-col items-center justify-center flex-1 py-1 hover:text-slate-750">
-          <svg className="w-5 h-5 mb-0.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-          个人中心
-        </button>
-      </div>
+            <BottomNavBar
+        onNavigate={onNavigate}
+        activeNavbarTab={activeNavbarTab}
+        setActiveNavbarTab={setActiveNavbarTab}
+        iconSize={20}
+        labelClassName="text-[10px] font-medium mt-1"
+      />
+
     </div>
   );
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 16: Track Detail (轨迹详情页)
+// SCREEN 16: Track Detail (轨迹详情)
 // ----------------------------------------------------------------------
 export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [favorite, setFavorite] = useState(false);
@@ -306,7 +308,7 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
         </button>
         <span className="text-[16px] font-bold text-slate-900">轨迹详情</span>
         <div className="flex space-x-1">
-          <button onClick={() => { setFavorite(!favorite); miniToast(favorite ? '已取消收藏' : '已添加至收藏模板'); }} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => { setFavorite(!favorite); miniToast(favorite ? '取消收藏' : '已添加收藏到模板'); }} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Heart size={16} fill={favorite ? 'red' : 'none'} className={favorite ? 'text-red-500' : 'text-slate-600'} />
           </button>
           <button onClick={() => miniToast('分享轨迹')} className="p-1.5 hover:bg-neutral-100 rounded-full">
@@ -334,11 +336,11 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
           {/* Indicators overlay */}
           <div className="absolute top-2.5 left-2.5 bg-slate-900/80 text-white text-[9px] px-2 py-0.5 rounded-full border border-slate-800 z-20 font-bold select-none flex items-center space-x-1">
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
-            <span>GPS 位置矫正中</span>
+            <span>GPS 实时定位</span>
           </div>
 
           <button 
-            onClick={() => miniToast('已切换至全屏大地图模式')}
+            onClick={() => miniToast('开启全屏查看')}
             className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/90 shadow-md border border-neutral-100 flex items-center justify-center hover:bg-white active:scale-90 transition-all text-slate-700 z-20"
           >
             <Maximize2 size={13} />
@@ -350,8 +352,8 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
           <div className="bg-white p-4 rounded-[24px] shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-slate-100/85">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <span className="text-[20px] font-black text-slate-900">小猫跑</span>
-                <span className="px-1.5 py-0.5 text-[9px] bg-orange-50 text-orange-600 font-bold rounded">未跑</span>
+                <span className="text-[20px] font-black text-slate-900">猫咪路线</span>
+                <span className="px-1.5 py-0.5 text-[9px] bg-orange-50 text-orange-600 font-bold rounded">未完成</span>
               </div>
               <button 
                 onClick={() => onNavigate('editor')}
@@ -363,23 +365,23 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
 
             <div className="grid grid-cols-2 gap-y-3 gap-x-2 pt-2 border-t border-slate-50 text-[13px] text-slate-600">
               <div className="flex items-center space-x-2">
-                <span className="text-slate-400 font-bold">●</span>
-                <span>设计里程:</span>
-                <strong className="text-slate-900">5.0 公里</strong>
+                <span className="text-slate-400 font-bold">长</span>
+                <span>总长度:</span>
+                <strong className="text-slate-900">5.0 km</strong>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-slate-400 font-bold">●</span>
-                <span>预计耗时:</span>
-                <strong className="text-slate-900">约 30 分钟</strong>
+                <span className="text-slate-400 font-bold">耗</span>
+                <span>耗时:</span>
+                <strong className="text-slate-900">30 分钟</strong>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-slate-400 font-bold">●</span>
+                <span className="text-slate-400 font-bold">时</span>
                 <span>创建时间:</span>
                 <span className="text-slate-900 font-mono">2026-06-09</span>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-slate-400 font-bold">●</span>
-                <span>最后修改:</span>
+                <span className="text-slate-400 font-bold">配</span>
+                <span>平均配速:</span>
                 <span className="text-slate-900 font-mono">2026-06-09</span>
               </div>
             </div>
@@ -390,16 +392,16 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
         <div className="px-4 mt-3">
           <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-[0_4px_16px_rgba(0,0,0,0.03)]/80 flex items-center justify-between text-center select-none">
             <div className="flex-1 border-r border-slate-100">
-              <p className="text-[10px] text-slate-400 font-medium">总点数</p>
-              <p className="text-[16px] font-extrabold text-slate-900 mt-0.5">128 个</p>
+              <p className="text-[10px] text-slate-400 font-medium">卡路里</p>
+              <p className="text-[16px] font-extrabold text-slate-900 mt-0.5">128</p>
             </div>
             <div className="flex-1 border-r border-slate-100">
-              <p className="text-[10px] text-slate-400 font-medium">缩放倍数</p>
+              <p className="text-[10px] text-slate-400 font-medium">高低变化</p>
               <p className="text-[16px] font-extrabold text-slate-900 mt-0.5">1.0x</p>
             </div>
             <div className="flex-1">
-              <p className="text-[10px] text-slate-400 font-medium">旋转角度</p>
-              <p className="text-[16px] font-extrabold text-slate-900 mt-0.5">0°</p>
+              <p className="text-[10px] text-slate-400 font-medium">平均配速</p>
+              <p className="text-[16px] font-extrabold text-slate-900 mt-0.5">0.0 km/h</p>
             </div>
           </div>
         </div>
@@ -411,11 +413,11 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
             className="py-3 px-4 border border-slate-200 text-slate-700 font-black text-sm rounded-[32px] flex items-center justify-center space-x-2 bg-white active:bg-neutral-50 active:scale-98 transition-all"
           >
             <Edit size={15} />
-            <span>修改轨迹</span>
+            <span>编辑轨迹</span>
           </button>
           <button 
             onClick={() => {
-              miniToast('进入地图实跑导航...');
+              miniToast('开始地图导航...');
               onNavigate('nav');
             }}
             className="py-3 px-4 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-98 transition-all text-white font-black text-sm rounded-[32px] flex items-center justify-center space-x-2 shadow-md shadow-cyan-400/20"
@@ -437,26 +439,26 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
             <span className="text-[10px] text-slate-500 font-medium leading-none">分享</span>
           </button>
           <button 
-            onClick={() => miniToast('已开始下载GPX轨迹记录包')}
+            onClick={() => miniToast('导出GPX轨迹记录')}
             className="flex flex-col items-center space-y-1 group"
           >
             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-cyan-50 transition-colors text-slate-500 group-hover:text-cyan-600">
               <Download size={16} />
             </div>
-            <span className="text-[10px] text-slate-500 font-medium leading-none">导出 GPX</span>
+            <span className="text-[10px] text-slate-500 font-medium leading-none">导出GPX</span>
           </button>
           <button 
-            onClick={() => miniToast('已触发收藏模板')}
+            onClick={() => miniToast('已收藏该模板')}
             className="flex flex-col items-center space-y-1 group"
           >
             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-cyan-50 transition-colors text-slate-500 group-hover:text-cyan-600">
               <Heart size={16} />
             </div>
-            <span className="text-[10px] text-slate-500 font-medium leading-none">收藏模板</span>
+            <span className="text-[10px] text-slate-500 font-medium leading-none">收藏</span>
           </button>
           <button 
             onClick={() => {
-              miniToast('已成功清除轨迹缓存');
+              miniToast('已执行删除轨迹任务');
               onNavigate('my_traces');
             }}
             className="flex flex-col items-center space-y-1 group"
@@ -464,7 +466,7 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-red-50 transition-colors text-slate-500 group-hover:text-red-500">
               <Trash2 size={16} />
             </div>
-            <span className="text-[10px] text-slate-500 font-medium leading-none">删除</span>
+            <span className="text-[10px] text-slate-500 font-medium leading-none">鍒犻櫎</span>
           </button>
         </div>
       </div>
@@ -473,15 +475,23 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 17: History Runner List (历史跑步记录页)
+  // SCREEN 17: History Runner List (历史跑步记录)
 // ----------------------------------------------------------------------
-export function RunHistoryScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+export function RunHistoryScreen({
+  onNavigate,
+  activeNavbarTab,
+  setActiveNavbarTab,
+}: {
+  onNavigate: (screen: ScreenId) => void;
+  activeNavbarTab: 'home' | 'traces' | 'profile';
+  setActiveNavbarTab: (tab: 'home' | 'traces' | 'profile') => void;
+}) {
   const [activeTab, setActiveTab] = useState<'all' | 'month' | 'week' | 'custom'>('all');
 
   const records = [
     {
       id: 'r1',
-      title: '小猫跑',
+      title: '猫咪之路',
       date: '2026-06-09',
       dist: '5.01km',
       duration: '32:15',
@@ -495,7 +505,7 @@ export function RunHistoryScreen({ onNavigate }: { onNavigate: (screen: ScreenId
     },
     {
       id: 'r2',
-      title: '爱心挑战',
+      title: '鐖卞績鎸戞垬',
       date: '2026-06-07',
       dist: '4.18km',
       duration: '28:30',
@@ -509,7 +519,7 @@ export function RunHistoryScreen({ onNavigate }: { onNavigate: (screen: ScreenId
     },
     {
       id: 'r3',
-      title: '星形挑战',
+      title: '鏄熷舰鎸戞垬',
       date: '2026-06-05',
       dist: '5.08km',
       duration: '34:20',
@@ -532,10 +542,10 @@ export function RunHistoryScreen({ onNavigate }: { onNavigate: (screen: ScreenId
         </button>
         <span className="text-[16px] font-bold text-slate-900">历史记录</span>
         <div className="flex space-x-1">
-          <button onClick={() => miniToast('筛选类型')} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => miniToast('开启筛选条件')} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Filter size={16} className="text-slate-600" />
           </button>
-          <button onClick={() => miniToast('选择日期范围')} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => miniToast('閫夋嫨鏃ユ湡鑼冨洿')} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Calendar size={16} className="text-slate-600" />
           </button>
         </div>
@@ -544,19 +554,19 @@ export function RunHistoryScreen({ onNavigate }: { onNavigate: (screen: ScreenId
       {/* Main stats summary top card */}
       <div className="px-4 pt-3 shrink-0">
         <div className="bg-slate-900 text-white rounded-[24px] p-4 shadow-md bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-755">
-          <span className="text-[10px] text-teal-400 font-extrabold uppercase tracking-widest block mb-2">RUNNING SUMMARY · 统计总览</span>
+          <span className="text-[10px] text-teal-400 font-extrabold uppercase tracking-widest block mb-2">RUNNING SUMMARY / 运动总结</span>
           <div className="grid grid-cols-3 gap-1 select-none">
             <div className="text-center border-r border-slate-800/80">
               <span className="text-[20px] font-black font-mono text-white">28</span>
-              <p className="text-[9px] text-slate-400 mt-0.5">总数 (次)</p>
+              <p className="text-[9px] text-slate-400 mt-0.5">里程 (km)</p>
             </div>
             <div className="text-center border-r border-slate-800/80">
               <span className="text-[20px] font-black font-mono text-white">328</span>
-              <p className="text-[9px] text-slate-400 mt-0.5">公里 (KM)</p>
+              <p className="text-[9px] text-slate-400 mt-0.5">距离 (KM)</p>
             </div>
             <div className="text-center">
               <span className="text-[20px] font-black font-mono text-white">42</span>
-              <p className="text-[9px] text-slate-400 mt-0.5">时间 (小时)</p>
+              <p className="text-[9px] text-slate-400 mt-0.5">时间 (分钟)</p>
             </div>
           </div>
         </div>
@@ -611,7 +621,7 @@ export function RunHistoryScreen({ onNavigate }: { onNavigate: (screen: ScreenId
               {/* Accuracy label right */}
               <div className="flex items-center space-x-1 shrink-0">
                 <div className="text-right mr-1.5">
-                  <p className="text-[9px] text-slate-400 leading-none">贴合度</p>
+                <p className="text-[9px] text-slate-400 leading-none">精准度</p>
                   <p className={`text-[15px] font-black font-mono leading-none mt-1 ${accuracyColor}`}>{rec.accuracy}%</p>
                 </div>
                 <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 transition-colors" />
@@ -622,26 +632,20 @@ export function RunHistoryScreen({ onNavigate }: { onNavigate: (screen: ScreenId
       </div>
 
       {/* Navigation bottom */}
-      <div className="sticky bottom-0 h-14 bg-white border-t border-slate-100 flex items-center justify-around text-slate-400 text-[10px] select-none shrink-0 z-35 font-semibold">
-        <button onClick={() => onNavigate('home')} className="flex flex-col items-center justify-center flex-1 py-1 hover:text-slate-750">
-          <svg className="w-5 h-5 mb-0.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
-          主页
-        </button>
-        <button onClick={() => onNavigate('my_traces')} className="flex flex-col items-center justify-center flex-1 py-1 hover:text-slate-750">
-          <svg className="w-5 h-5 mb-0.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
-          我的轨迹
-        </button>
-        <button onClick={() => onNavigate('profile')} className="flex flex-col items-center justify-center flex-1 py-1 text-cyan-500 font-extrabold">
-          <svg className="w-5 h-5 mb-0.5 text-cyan-500" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-          个人中心
-        </button>
-      </div>
+            <BottomNavBar
+        onNavigate={onNavigate}
+        activeNavbarTab={activeNavbarTab}
+        setActiveNavbarTab={setActiveNavbarTab}
+        iconSize={20}
+        labelClassName="text-[10px] font-medium mt-1"
+      />
+
     </div>
   );
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 18: Single Run Detail (单次跑步详情页)
+// SCREEN 18: Single Run Detail (单次跑步详情)
 // ----------------------------------------------------------------------
 export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   return (
@@ -656,7 +660,7 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
           <button onClick={() => onNavigate('trace_share')} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Share2 size={16} className="text-slate-600" />
           </button>
-          <button onClick={() => miniToast('分享数据')} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => miniToast('分享记录')} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <MoreVertical size={16} className="text-slate-600" />
           </button>
         </div>
@@ -699,11 +703,11 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
           <div className="absolute top-2.5 right-2.5 bg-white/95 border border-slate-100 rounded-lg p-2 text-[8px] space-y-1 text-slate-600 scale-90 origin-top-right shadow-sm select-none">
             <div className="flex items-center space-x-1.5">
               <span className="w-4 border-t-2 border-dashed border-[#FF8038]"></span>
-              <span className="font-medium">规划轨迹</span>
+              <span className="font-medium">瑙勫垝杞ㄨ抗</span>
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="w-4 border-t-2 border-[#1D4ED8]"></span>
-              <span className="font-medium">实际轨迹</span>
+              <span className="font-medium">瀹為檯杞ㄨ抗</span>
             </div>
           </div>
         </div>
@@ -713,12 +717,12 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
           <div className="bg-white p-4 rounded-[24px] shadow-[0_6px_20px_rgba(0,0,0,0.05)] border border-slate-100">
             <div className="flex items-center justify-between border-b border-slate-50 pb-2 mb-3">
               <div>
-                <h3 className="text-[17px] font-black text-slate-900">小猫跑</h3>
-                <span className="text-[11px] text-slate-500 font-mono">2026年6月9日 星期二</span>
+                <h3 className="text-[17px] font-black text-slate-900">灏忕尗锟?</h3>
+                <span className="text-[11px] text-slate-500 font-mono">2026锟?锟?锟?鏄熸湡锟?</span>
               </div>
               <div className="text-right">
                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-extrabold rounded-md border border-emerald-200">
-                  极佳贴合
+                  鏋佷匠璐村悎
                 </span>
               </div>
             </div>
@@ -727,15 +731,15 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             <div className="grid grid-cols-3 gap-2 text-center pb-3 border-b border-slate-50">
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">5.01</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">总公里 (km)</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">鎬诲叕锟?(km)</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">32:15</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">用时 (分:秒)</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">鐢ㄦ椂 (锟?锟?</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">6'27"</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">平均配速</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">骞冲潎閰嶏拷?</p>
               </div>
             </div>
 
@@ -743,15 +747,15 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             <div className="grid grid-cols-3 gap-2 text-center pt-3 select-none">
               <div>
                 <span className="text-[18px] font-black text-emerald-500 font-mono">94%</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">图形贴合度</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">鍥惧舰璐村悎锟?</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">23m</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">最大偏离</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">鏈€澶у亸锟?</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">8m</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">平均偏离</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">骞冲潎鍋忕</p>
               </div>
             </div>
           </div>
@@ -763,9 +767,9 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             <div className="flex items-center justify-between mb-2">
               <span className="text-[13px] font-extrabold text-slate-900 flex items-center space-x-1">
                 <TrendingUp size={14} className="text-cyan-500" />
-                <span>实时配速曲线</span>
+                <span>瀹炴椂閰嶉€熸洸锟?</span>
               </span>
-              <span className="text-[10px] text-slate-400">最快跑速: 6'15"</span>
+              <span className="text-[10px] text-slate-400">鏈€蹇窇锟? 6'15"</span>
             </div>
             
             {/* Elegant SVG pace chart */}
@@ -793,7 +797,7 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
                 <circle cx="60" cy="18" r="3" fill="#EEF2F6" stroke="#F59E0B" strokeWidth="2" />
               </svg>
               <div className="absolute top-2 left-10 text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded leading-none select-none border border-amber-100">
-                最高速 6'10"
+                鏈€楂橈拷?6'10"
               </div>
             </div>
             {/* labels axis */}
@@ -808,44 +812,44 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
         {/* Splitted segments data table */}
         <div className="px-4 mt-3">
           <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
-            <span className="text-[13px] font-extrabold text-slate-900 block mb-3">分段数据详情</span>
+            <span className="text-[13px] font-extrabold text-slate-900 block mb-3">鍒嗘鏁版嵁璇︽儏</span>
             <div className="overflow-x-auto scrollbar-none">
               <table className="w-full text-[11px] text-slate-700 font-mono text-left whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-slate-50 text-slate-400 font-sans">
-                    <th className="pb-2 font-bold">段落</th>
-                    <th className="pb-2 font-bold">瞬时配速</th>
-                    <th className="pb-2 font-bold text-center">平均心率</th>
-                    <th className="pb-2 font-bold text-right">拟合精准</th>
+                    <th className="pb-2 font-bold">娈佃惤</th>
+                    <th className="pb-2 font-bold">耗时/配速</th>
+                    <th className="pb-2 font-bold text-center">骞冲潎蹇冪巼</th>
+                    <th className="pb-2 font-bold text-right">鎷熷悎绮惧噯</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 leading-relaxed font-semibold">
                   <tr>
-                    <td className="py-2 text-slate-900">第 1 公里</td>
+                    <td className="py-2 text-slate-900">锟?1 鍏噷</td>
                     <td className="py-2 text-slate-800">6'15" /km</td>
                     <td className="py-2 text-center text-slate-600">142 bpm</td>
                     <td className="py-2 text-right text-emerald-500">98%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">第 2 公里</td>
+                    <td className="py-2 text-slate-900">锟?2 鍏噷</td>
                     <td className="py-2 text-slate-800">6'22" /km</td>
                     <td className="py-2 text-center text-slate-600">145 bpm</td>
                     <td className="py-2 text-right text-emerald-500">96%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">第 3 公里</td>
+                    <td className="py-2 text-slate-900">锟?3 鍏噷</td>
                     <td className="py-2 text-slate-800">6'30" /km</td>
                     <td className="py-2 text-center text-slate-600">148 bpm</td>
                     <td className="py-2 text-right text-emerald-500 font-bold">93%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">第 4 公里</td>
+                    <td className="py-2 text-slate-900">锟?4 鍏噷</td>
                     <td className="py-2 text-slate-800">6'35" /km</td>
                     <td className="py-2 text-center text-slate-600">150 bpm</td>
                     <td className="py-2 text-right text-amber-500 font-bold">91%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">第 5 公里</td>
+                    <td className="py-2 text-slate-900">锟?5 鍏噷</td>
                     <td className="py-2 text-slate-800">6'28" /km</td>
                     <td className="py-2 text-center text-slate-600">147 bpm</td>
                     <td className="py-2 text-right text-emerald-500">95%</td>
@@ -863,27 +867,27 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
               onClick={() => onNavigate('trace_share')}
               className="py-3 px-4 border border-slate-200 text-slate-700 hover:bg-neutral-50 active:bg-neutral-100 text-xs font-black rounded-full text-center tracking-wider transition-all"
             >
-              分享跑步成绩
+              鍒嗕韩璺戞鎴愮哗
             </button>
             <button 
               onClick={() => {
-                miniToast('已重新加载该轨迹导航！');
+                miniToast('查看并添加该轨迹到导航');
                 onNavigate('nav');
               }}
               className="py-3 px-4 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 hover:shadow-cyan-400/25 text-white text-xs font-black rounded-full text-center tracking-wider transition-all shadow-md"
             >
-              我要再跑一次
-            </button>
+              鎴戣鍐嶈窇涓€锟?            </button>
           </div>
           
           <button
             onClick={() => onNavigate('run_history')}
             className="w-full text-center text-xs text-slate-400 hover:text-slate-600 font-semibold underline underline-offset-4"
           >
-            返回历史记录列表
+            杩斿洖鍘嗗彶璁板綍鍒楄〃
           </button>
         </div>
       </div>
     </div>
   );
 }
+

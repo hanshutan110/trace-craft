@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ScreenId } from '../types';
 import { AppBottomSheetHost } from './layout/AppBottomSheetHost';
 import { AppScreenRouter } from './screen-router/AppScreenRouter';
@@ -80,3 +80,4 @@ export const AppViewport: React.FC<AppViewportProps> = ({
     </div>
   );
 };
+

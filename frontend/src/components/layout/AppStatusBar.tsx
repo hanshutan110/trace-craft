@@ -1,4 +1,4 @@
-import { Wifi } from 'lucide-react';
+﻿import { Wifi } from 'lucide-react';
 import React from 'react';
 
 interface AppStatusBarProps {
@@ -36,3 +36,4 @@ export const AppStatusBar: React.FC<AppStatusBarProps> = ({ liveTime, isEditorSc
     </div>
   );
 };
+

@@ -1,26 +1,55 @@
 const crypto = require('crypto');
 const { pointDistanceMeters, scalePathPreserveShape, latLngCentroid, resampleByDistance, angleSmooth } = require('../utils/geo');
-const { convertPoint, wgs84ToGcj02 } = require('../utils/coordAdapter');
+const { convertPoint } = require('../utils/coordAdapter');
 const {
-  getRoute,
-  getSession,
-  putRoute,
-  putSession,
-  getStore,
   normalizePoint,
+  createRouteRecord,
+  upsertRouteRecord,
+  getRouteRecord,
+  saveSessionRecord,
+  getSessionRecord,
+  appendSessionLocationRecord,
+  updateSessionRecord,
+  listUserRuns: listUserRoutes,
+  initStorage,
 } = require('./storage');
 
 const DEFAULT_PROVIDER = process.env.MAP_PROVIDER_DEFAULT || 'amap';
 const MAP_PROVIDER_LIST = (process.env.MAP_PROVIDER_LIST || 'amap,google,baidu,tencent')
   .split(',')
-  .map((s) => s.trim())
+  .map((value) => value.trim())
   .filter(Boolean);
 const DEFAULT_LOCALE = process.env.MAP_LOCALE_FALLBACK || 'zh-CN';
 
 const LOCALE_LABELS = {
-  'zh-CN': '\u4e2d\u6587',
+  'zh-CN': '中文',
   'en-US': 'English',
 };
+
+const SESSION_STATUS = {
+  CREATED: 'created',
+  RUNNING: 'running',
+  PAUSED: 'paused',
+  FINISHED: 'finished',
+  FAILED: 'failed',
+};
+
+const SESSION_NEXT_ACTION = {
+  [SESSION_STATUS.CREATED]: 'start_run',
+  [SESSION_STATUS.RUNNING]: 'report_location',
+  [SESSION_STATUS.PAUSED]: 'resume_or_review',
+  [SESSION_STATUS.FINISHED]: 'summary',
+  [SESSION_STATUS.FAILED]: 'retry_or_rebase',
+};
+
+function nowIso() {
+  // 统一时间戳格式，前后端都使用 ISO 8601，便于日志与审计对齐。
+  return new Date().toISOString();
+}
+
+function id(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+}
 
 function splitList(value) {
   return String(value || '')
@@ -53,12 +82,8 @@ const PROVIDER_KEY_ENV = {
   tencent: 'TENCENT_MAP_KEY',
 };
 
-function id(prefix) {
-  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
-}
-
 function randomSeedFromString(value) {
-  const h = crypto.createHash('md5').update(value).digest('hex');
+  const h = crypto.createHash('md5').update(String(value)).digest('hex');
   const base = parseInt(h.substring(0, 8), 16);
   return base / 0xffffffff;
 }
@@ -71,9 +96,26 @@ function normalizeProvider(value) {
 
 function normalizeLocale(value) {
   if (!value || typeof value !== 'string') return DEFAULT_LOCALE;
-  const norm = value.trim();
-  if (SUPPORTED_LOCALES.includes(norm)) return norm;
+  const normalized = value.trim();
+  if (SUPPORTED_LOCALES.includes(normalized)) return normalized;
   return withLocaleFallback(DEFAULT_LOCALE);
+}
+
+function parseLocaleLabels(value) {
+  if (!value || typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed;
+  } catch (_err) {
+    return {};
+  }
+}
+
+function parsePoint(raw, fallback) {
+  const point = normalizePoint(raw || {});
+  if (point) return point;
+  return fallback || null;
 }
 
 function getLocaleMeta() {
@@ -87,24 +129,8 @@ function getLocaleMeta() {
       code,
       label: labelsFromEnv[code] || LOCALE_LABELS[code] || code,
     })),
+    localeVersion: process.env.MAP_LOCALE_LABEL_VERSION || 'v1',
   };
-}
-
-function parseLocaleLabels(value) {
-  if (!value || typeof value !== 'string') return {};
-  try {
-    const parsed = JSON.parse(value);
-    if (!parsed || typeof parsed !== 'object') return {};
-    return parsed;
-  } catch (_e) {
-    return {};
-  }
-}
-
-function parsePoint(raw, fallback) {
-  const p = normalizePoint(raw || {});
-  if (p) return p;
-  return fallback || null;
 }
 
 function routeBounds(points) {
@@ -113,11 +139,11 @@ function routeBounds(points) {
   let maxLat = points[0].lat;
   let minLng = points[0].lng;
   let maxLng = points[0].lng;
-  points.forEach((p) => {
-    if (p.lat < minLat) minLat = p.lat;
-    if (p.lat > maxLat) maxLat = p.lat;
-    if (p.lng < minLng) minLng = p.lng;
-    if (p.lng > maxLng) maxLng = p.lng;
+  points.forEach((point) => {
+    if (point.lat < minLat) minLat = point.lat;
+    if (point.lat > maxLat) maxLat = point.lat;
+    if (point.lng < minLng) minLng = point.lng;
+    if (point.lng > maxLng) maxLng = point.lng;
   });
   return { minLat, maxLat, minLng, maxLng };
 }
@@ -137,21 +163,30 @@ function routeMeta(points) {
   return { distanceM, start, end };
 }
 
+function routePathDistanceMeters(path) {
+  if (!Array.isArray(path) || path.length < 2) return 0;
+  let sum = 0;
+  for (let i = 1; i < path.length; i += 1) {
+    sum += pointDistanceMeters(path[i - 1], path[i]);
+  }
+  return sum;
+}
+
 function generateDemoPoints(seed, count, center) {
   const origin = center || { lat: 31.2304, lng: 121.4737 };
   const radius = 0.004 + seed * 0.0015;
-  const pts = [];
+  const points = [];
   for (let i = 0; i < count; i += 1) {
     const angle = (Math.PI * 2 * i) / count;
     const wobble = (seed - 0.5) * 0.3;
     const r = radius * (0.6 + 0.4 * Math.sin(angle * 3 + wobble * 10));
-    pts.push({
+    points.push({
       lat: origin.lat + Math.cos(angle) * r,
       lng: origin.lng + Math.sin(angle) * r,
       ts: Date.now() + i * 1000,
     });
   }
-  return pts;
+  return points;
 }
 
 function normalizeRouteForProvider(route, provider) {
@@ -161,7 +196,7 @@ function normalizeRouteForProvider(route, provider) {
     if (providerNorm === 'google') {
       return point;
     }
-  if (providerNorm === 'baidu') {
+    if (providerNorm === 'baidu') {
       return convertPoint(point, 'wgs84', 'bd09');
     }
     return convertPoint(point, 'wgs84', 'gcj02');
@@ -170,42 +205,92 @@ function normalizeRouteForProvider(route, provider) {
     ...route,
     providerHint: providerNorm,
     crsHint,
-    points: route.points.map((p) => {
-      const converted = toProvider(p);
-      return {
-        ...p,
-        lat: converted.lat,
-        lng: converted.lng,
-      };
+    points: route.points.map((point) => {
+      const converted = toProvider(point);
+      return { ...point, lat: converted.lat, lng: converted.lng };
     }),
   };
 }
 
 function rebaseRoutePoints(route, startPoint, endPoint) {
-  const points = route.points.map((p) => ({ lat: p.lat, lng: p.lng }));
+  const points = route.points.map((point) => ({ lat: point.lat, lng: point.lng }));
   const origin = route.meta.start;
   const targetStart = startPoint || origin;
   const shift = {
     lat: targetStart.lat - origin.lat,
     lng: targetStart.lng - origin.lng,
   };
-  let rebased = points.map((p) => ({ lat: p.lat + shift.lat, lng: p.lng + shift.lng }));
+  let rebased = points.map((point) => ({ lat: point.lat + shift.lat, lng: point.lng + shift.lng }));
   if (endPoint) {
     const shiftedEnd = rebased[rebased.length - 1];
     const endShift = {
       lat: endPoint.lat - shiftedEnd.lat,
       lng: endPoint.lng - shiftedEnd.lng,
     };
-    rebased = rebased.map((p) => ({
-      lat: p.lat + endShift.lat,
-      lng: p.lng + endShift.lng,
+    rebased = rebased.map((point) => ({
+      lat: point.lat + endShift.lat,
+      lng: point.lng + endShift.lng,
     }));
   }
-  const smoothed = angleSmooth(rebased);
-  return smoothed;
+  return angleSmooth(rebased);
 }
 
-function createRouteFromImage({ userId, filename, buffer, startPoint, endPoint, provider, targetKm, locale }) {
+function nearestDistanceToRoute(point, routePoints) {
+  let min = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < routePoints.length; i += 1) {
+    const a = routePoints[i - 1];
+    const b = routePoints[i];
+    const d1 = pointDistanceMeters(point, a);
+    const d2 = pointDistanceMeters(point, b);
+    min = Math.min(min, d1, d2);
+  }
+  return min;
+}
+
+function computeSessionState(session, route) {
+  if (!session || !route) return null;
+  const actualPath = Array.isArray(session.actualPath) ? session.actualPath : [];
+  const status = session.status || SESSION_STATUS.CREATED;
+  const plannedDistance = Number(route?.meta?.distanceM || 0);
+  const traveledDistance = routePathDistanceMeters(actualPath);
+  const latestPoint = actualPath.length ? actualPath[actualPath.length - 1] : (route.points[0] || null);
+  const deviation = latestPoint ? nearestDistanceToRoute(latestPoint, route.points) : Number.POSITIVE_INFINITY;
+  const progressPct = plannedDistance > 0 ? Math.min(100, Math.max(0, Math.round((traveledDistance / plannedDistance) * 100))) : 0;
+  return {
+    sessionId: session.id,
+    routeId: route.id,
+    status,
+    progressPct,
+    lastPosition: latestPoint || route.points[0] || null,
+    deviationM: Number.isFinite(deviation) ? Math.round(deviation) : null,
+    needRedirect: Number.isFinite(deviation) ? deviation > 25 : false,
+    currentAccuracy: session.currentAccuracy,
+    deviationScore: session.deviationScore || 0,
+    pointCount: actualPath.length,
+    version: session.version || 1,
+    isTerminal: [SESSION_STATUS.FINISHED, SESSION_STATUS.FAILED].includes(status),
+    currentState: status,
+    nextAction: SESSION_NEXT_ACTION[status] || 'report_location',
+    lastUpdatedAt: session.lastStateAt || nowIso(),
+  };
+}
+
+function toPositiveNumber(value, fallback) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : fallback;
+}
+
+async function createRouteFromImage({
+  userId,
+  filename,
+  buffer,
+  provider,
+  locale,
+  targetKm,
+  startPoint,
+  endPoint,
+}) {
+  await initStorage();
   const seed = randomSeedFromString(filename + (buffer ? buffer.length : 0));
   const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
   const routeId = id('route');
@@ -225,17 +310,18 @@ function createRouteFromImage({ userId, filename, buffer, startPoint, endPoint, 
     createdBy: 'backend-route-service',
     points,
     version: 1,
-    meta,
-    bounds: routeBounds(points),
     anchorVersion: 1,
     providerHint: normalizeProvider(provider),
     crsHint: normalizeProvider(provider) === 'google' ? 'wgs84' : 'gcj02',
     startPoint: parsePoint(startPoint, { lat: points[0].lat, lng: points[0].lng }),
     endPoint: parsePoint(endPoint, null),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    bounds: routeBounds(points),
+    meta,
+    status: 'active',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
     targetKm: Number.isFinite(Number(targetKm)) ? Number(targetKm) : null,
-    actualDistanceM: meta.distanceM,
+    actualDistanceM: Math.round(meta.distanceM),
   };
   if (!created.startPoint) {
     created.startPoint = points[0];
@@ -244,16 +330,20 @@ function createRouteFromImage({ userId, filename, buffer, startPoint, endPoint, 
     created.endPoint = points[points.length - 1];
   }
   const adjusted = normalizeRouteForProvider(created, normalizeProvider(provider));
-  putRoute(adjusted);
-  return adjusted;
+  return upsertRouteRecord(adjusted, {
+    userId,
+    changeReason: 'create',
+    expectedVersion: 0,
+  });
 }
 
-function adjustRouteDistance(routeId, targetKm) {
-  const route = getRoute(routeId);
-  if (!route || !Number.isFinite(targetKm) || targetKm <= 0) {
-    return null;
-  }
-  const targetMeters = targetKm * 1000;
+async function adjustRouteDistance(routeId, targetKm, userId) {
+  await initStorage();
+  const route = await getRouteRecord(routeId, userId);
+  if (!route) return null;
+  const target = Number(targetKm);
+  if (!Number.isFinite(target) || target <= 0) return null;
+  const targetMeters = target * 1000;
   const scaled = scalePathPreserveShape(route.points, targetMeters, {
     minPoints: 30,
     maxPoints: 400,
@@ -263,22 +353,24 @@ function adjustRouteDistance(routeId, targetKm) {
   const adjusted = {
     ...route,
     points: smoothed,
-    version: route.version + 1,
-    adjustedDistanceKm: targetKm,
-    adjustedAt: new Date().toISOString(),
-    anchorVersion: route.anchorVersion + 1,
-    originAnchor: route.startPoint,
-    pointsVersion: route.version + 1,
+    version: Number(route.version || 0) + 1,
+    adjustedDistanceKm: target,
+    adjustedAt: nowIso(),
+    anchorVersion: Number(route.anchorVersion || 0) + 1,
     bounds: routeBounds(smoothed),
     meta,
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowIso(),
   };
-  putRoute(adjusted);
-  return adjusted;
+  return upsertRouteRecord(adjusted, {
+    userId,
+    changeReason: 'adjust',
+    expectedVersion: route.version,
+  });
 }
 
-function rebaseRoute(routeId, startPoint, endPoint, strategy) {
-  const route = getRoute(routeId);
+async function rebaseRoute(routeId, startPoint, endPoint, strategy, userId) {
+  await initStorage();
+  const route = await getRouteRecord(routeId, userId);
   if (!route) return null;
   const start = parsePoint(startPoint, route.startPoint);
   const end = parsePoint(endPoint, null);
@@ -287,146 +379,192 @@ function rebaseRoute(routeId, startPoint, endPoint, strategy) {
   const updated = {
     ...route,
     points: rebased,
-    version: route.version + 1,
-    anchorVersion: route.anchorVersion + 1,
+    version: Number(route.version || 0) + 1,
+    anchorVersion: Number(route.anchorVersion || 0) + 1,
     bounds: routeBounds(rebased),
     startPoint: start,
     endPoint: end || rebased[rebased.length - 1],
     meta: routeMeta(rebased),
     rebaseStrategy: strategy || 'manual',
-    updatedAt: new Date().toISOString(),
+    updatedAt: nowIso(),
   };
-  putRoute(updated);
-  return updated;
+  return upsertRouteRecord(updated, {
+    userId,
+    changeReason: 'rebase',
+    expectedVersion: route.version,
+  });
 }
 
-function startRunSession(routeId, userId, provider) {
-  const route = getRoute(routeId);
+async function startRunSession(routeId, userId, provider, idempotencyKey) {
+  await initStorage();
+  const route = await getRouteRecord(routeId, userId);
   if (!route) return null;
-  const sessionId = id('session');
   const firstPoint = route.points[0];
+  const sessionId = idempotencyKey ? `session-${idempotencyKey}` : id('session');
+  const existing = await getSessionRecord(sessionId, userId);
+  if (existing && existing.userId === userId) {
+    return {
+      session: existing,
+      currentState: existing.status || SESSION_STATUS.RUNNING,
+      nextAction: SESSION_NEXT_ACTION[existing.status] || 'report_location',
+      resumed: true,
+    };
+  }
+
   const session = {
     id: sessionId,
     routeId,
     userId,
     provider: normalizeProvider(provider || route.providerHint),
-    status: 'running',
-    createdAt: new Date().toISOString(),
-    startedAt: new Date().toISOString(),
+    status: SESSION_STATUS.RUNNING,
+    createdAt: nowIso(),
+    startedAt: nowIso(),
+    lastStateAt: nowIso(),
     cursor: 0,
     currentAccuracy: null,
     deviationScore: 0,
+    pathVersion: route.version,
     locationSample: [{ lat: firstPoint.lat, lng: firstPoint.lng, accuracy: null, ts: Date.now() }],
     actualPath: [{ lat: firstPoint.lat, lng: firstPoint.lng, ts: Date.now() }],
-    pathVersion: route.version,
+    metadata: {
+      idempotencyKey: idempotencyKey || null,
+      routeVersion: route.version,
+      provider: normalizeProvider(provider || route.providerHint),
+    },
+    version: 1,
   };
-  putSession(session);
-  return session;
-}
-
-function appendLocation(sessionId, point) {
-  const session = getSession(sessionId);
-  if (!session) return null;
-  const next = normalizePoint(point);
-  if (!next) return session;
-  session.locationSample.push({
-    lat: next.lat,
-    lng: next.lng,
-    accuracy: Number.isFinite(point.accuracy) ? point.accuracy : null,
-    ts: Date.now(),
-  });
-  session.currentAccuracy = Number.isFinite(point.accuracy) ? point.accuracy : session.currentAccuracy;
-  session.actualPath = session.actualPath || [];
-  const currentLength = session.actualPath.length;
-  if (currentLength === 0 || pointDistanceMeters(session.actualPath[currentLength - 1], next) > 0.2) {
-    session.actualPath.push(next);
-  }
-  putSession(session);
-  return session;
-}
-
-function nearestDistanceToRoute(point, routePoints) {
-  let min = Number.POSITIVE_INFINITY;
-  for (let i = 1; i < routePoints.length; i += 1) {
-    const a = routePoints[i - 1];
-    const b = routePoints[i];
-    const d1 = pointDistanceMeters(point, a);
-    const d2 = pointDistanceMeters(point, b);
-    min = Math.min(min, d1, d2);
-  }
-  return min;
-}
-
-function getRunSessionState(sessionId) {
-  const session = getSession(sessionId);
-  if (!session) return null;
-  const route = getRoute(session.routeId);
-  if (!route) return null;
-  const last = session.locationSample[session.locationSample.length - 1];
-  const nearest = last ? nearestDistanceToRoute(last, route.points) : Number.POSITIVE_INFINITY;
-  const threshold = 25;
-  const progressPct = Math.min(100, Math.round((session.actualPath.length / Math.max(1, route.points.length)) * 100));
-  session.deviationScore = Number.isFinite(nearest) ? Math.round(nearest * 10) / 10 : session.deviationScore;
-  session.lastStateAt = new Date().toISOString();
-  session.locationState = {
-    deviationM: Number.isFinite(nearest) ? Math.round(nearest) : null,
-    needRedirect: nearest > threshold,
-  };
-  putSession(session);
+  const savedSession = await saveSessionRecord(session);
   return {
-    sessionId: session.id,
-    routeId: route.id,
-    status: session.status,
-    progressPct,
-    lastPosition: last || route.points[0],
-    deviationM: session.locationState.deviationM,
-    needRedirect: session.locationState.needRedirect,
-    currentAccuracy: session.currentAccuracy,
-    deviationScore: session.deviationScore,
-    updatedAt: session.lastStateAt,
+    session: savedSession,
+    currentState: SESSION_STATUS.RUNNING,
+    nextAction: 'report_location',
+    resumed: false,
   };
 }
 
-function finishRunSession(sessionId, actualPath) {
-  const session = getSession(sessionId);
+async function appendLocation(sessionId, point, userId) {
+  await initStorage();
+  const normalized = normalizePoint(point || {});
+  if (!normalized) {
+    return {
+      accepted: false,
+      reason: 'invalid_point',
+      pointIndex: -1,
+      lagHint: null,
+    };
+  }
+  const result = await appendSessionLocationRecord(sessionId, point, userId);
+  if (!result || !result.session) {
+    return null;
+  }
+  const session = result.session;
+  const route = await getRouteRecord(session.routeId, userId);
+  const state = route ? computeSessionState(session, route) : null;
+  return {
+    accepted: result.accepted,
+    pointIndex: result.pointIndex,
+    lagHint: result.lagHint || null,
+    reason: result.reason || null,
+    routeState: state || null,
+    session,
+  };
+}
+
+async function getRunSessionState(sessionId, userId) {
+  await initStorage();
+  const session = await getSessionRecord(sessionId, userId);
   if (!session) return null;
-  const route = getRoute(session.routeId);
+  const route = await getRouteRecord(session.routeId, userId);
+  if (!route) return null;
+  return computeSessionState(session, route);
+}
+
+async function updateRunSessionState(sessionId, userId, nextStatus) {
+  await initStorage();
+  const session = await getSessionRecord(sessionId, userId);
+  if (!session) return null;
+  if (![SESSION_STATUS.CREATED, SESSION_STATUS.RUNNING, SESSION_STATUS.PAUSED].includes(session.status)) {
+    return null;
+  }
+  if (![SESSION_STATUS.PAUSED, SESSION_STATUS.RUNNING].includes(nextStatus)) {
+    return null;
+  }
+  const payload = { status: nextStatus };
+  if (nextStatus === SESSION_STATUS.PAUSED) {
+    payload.deviationScore = session.deviationScore || 0;
+  }
+  const updated = await updateSessionRecord(sessionId, payload, userId);
+  if (!updated) return null;
+  const route = await getRouteRecord(updated.routeId, userId);
+  const state = route ? computeSessionState(updated, route) : null;
+  return { ...state, status: updated.status };
+}
+
+async function finishRunSession(sessionId, actualPath, userId) {
+  await initStorage();
+  const session = await getSessionRecord(sessionId, userId);
+  if (!session) return null;
+  const route = await getRouteRecord(session.routeId, userId);
   if (!route) return null;
   const incoming = Array.isArray(actualPath) ? actualPath : [];
   const safeActual = incoming
     .map(normalizePoint)
     .filter(Boolean)
-    .map((p) => ({ lat: p.lat, lng: p.lng, ts: Date.now() }));
-  const path = safeActual.length ? safeActual : session.actualPath;
-
-  let totalActual = 0;
-  for (let i = 1; i < path.length; i += 1) {
-    totalActual += pointDistanceMeters(path[i - 1], path[i]);
-  }
-  let deviationSum = 0;
-  path.forEach((p) => {
-    deviationSum += nearestDistanceToRoute(p, route.points);
-  });
-  const avgDeviation = path.length > 0 ? deviationSum / path.length : 0;
-
-  const completionRate = totalActual > 0 ? Math.min(100, Math.round((totalActual / route.meta.distanceM) * 100)) : 0;
-  session.status = 'finished';
-  session.actualPath = path;
-  session.finishedAt = new Date().toISOString();
-  session.metrics = {
-    actualDistanceM: Math.round(totalActual),
-    plannedDistanceM: Math.round(route.meta.distanceM),
-    avgDeviationM: Math.round(avgDeviation),
+    .map((point) => ({ lat: point.lat, lng: point.lng, ts: Date.now() }));
+  const finalPath = safeActual.length ? safeActual : (session.actualPath || []);
+  const actualDistanceM = Math.round(routePathDistanceMeters(finalPath));
+  const plannedDistanceM = Math.round(route.meta?.distanceM || 0);
+  const completionRate = plannedDistanceM > 0 ? Math.min(100, Math.round((actualDistanceM / plannedDistanceM) * 100)) : 0;
+  const avgDeviationM = finalPath.length > 0
+    ? Math.round(finalPath.reduce((sum, point) => sum + nearestDistanceToRoute(point, route.points), 0) / finalPath.length)
+    : 0;
+  const metrics = {
+    actualDistanceM,
+    plannedDistanceM,
+    avgDeviationM,
     completionRate,
-    pointCount: path.length,
+    pointCount: finalPath.length,
+    finishCause: session.status === SESSION_STATUS.FAILED ? 'abnormal_finish' : 'normal',
+    finishedAt: nowIso(),
   };
-  putSession(session);
-  return session;
+  const updated = await updateSessionRecord(sessionId, {
+    status: SESSION_STATUS.FINISHED,
+    metrics,
+    actualPath: finalPath,
+    locationSample: finalPath,
+    finishedAt: nowIso(),
+  }, userId);
+  if (!updated) return null;
+  return {
+    sessionId,
+    routeId: route.id,
+    status: SESSION_STATUS.FINISHED,
+    isTerminal: true,
+    version: updated.version || 1,
+    metrics,
+    summary: {
+      distanceM: actualDistanceM,
+      plannedDistanceM,
+      pointCount: finalPath.length,
+      avgDeviationM,
+      completionRate,
+      timeSec: finalPath.length > 0 ? Math.max(1, Math.round((finalPath[finalPath.length - 1].ts - finalPath[0].ts) / 1000)) : 0,
+    },
+    routeState: computeSessionState(updated, route),
+  };
 }
 
-function listUserRuns(userId) {
-  const ids = (getStore().userRuns || {})[userId] || [];
-  return ids.map((routeId) => getRoute(routeId)).filter(Boolean);
+async function listUserRuns(userId, query = {}) {
+  await initStorage();
+  const page = Number.isFinite(Number(query.page)) ? Number(query.page) : 1;
+  const limit = Number.isFinite(Number(query.limit)) ? Number(query.limit) : 20;
+  return listUserRoutes({
+    userId,
+    page,
+    limit,
+    status: typeof query.status === 'string' ? query.status.trim() : undefined,
+    search: typeof query.search === 'string' ? query.search.trim() : undefined,
+  });
 }
 
 function getMapConfig() {
@@ -440,6 +578,13 @@ function getMapConfig() {
       hasApiKey,
     };
   });
+  const version = crypto.createHash('md5')
+    .update(JSON.stringify({
+      providers,
+      defaultProvider: DEFAULT_PROVIDER,
+      localeMeta: getLocaleMeta(),
+    }))
+    .digest('hex');
 
   return {
     providers,
@@ -449,6 +594,9 @@ function getMapConfig() {
       internal: 'wgs84',
       domesticHint: 'gcj02',
     },
+    mapConfigVersion: version,
+    cacheSeconds: Number(process.env.MAP_CONFIG_CACHE_SECONDS || '300'),
+    updatedAt: nowIso(),
   };
 }
 
@@ -469,8 +617,11 @@ module.exports = {
   listUserRuns,
   getMapConfig,
   normalizeProvider,
+  normalizeLocale,
+  updateRunSessionState,
   getLocaleMeta,
   splitList,
   seedWgs84ToProvider,
-  normalizeLocale,
+  toMsNumber: toPositiveNumber,
+  SESSION_STATUS,
 };
