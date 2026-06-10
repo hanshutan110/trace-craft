@@ -21,7 +21,7 @@ import {
 import { ScreenId } from '../types';
 
 /* ==========================================
-   Screen 2: Map Navigation Screen (瀵艰埅鐣岄潰)
+   Screen 2: Map Navigation Screen (导航界面)
    ========================================== */
 interface MapNavigationScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -428,7 +428,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
         {/* Length markers and goals */}
         <div className="flex items-center justify-between">
           <span className="text-[13px] text-gray-500">
-            棰勮闀垮害: <strong className="text-gray-800 font-extrabold">{calculatedLength} km</strong>
+            预计长度: <strong className="text-gray-800 font-extrabold">{calculatedLength} km</strong>
           </span>
           <span className="text-[11px] text-teal-600 font-semibold bg-teal-50 px-2 py-0.5 rounded-full">
             1:1 姣斾緥閰嶆瘮
@@ -466,7 +466,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
 
 
 /* ==========================================
-   Screen 4: Manual Tracing Editor (鎻忚竟缂栬緫鐣岄潰)
+   Screen 4: Manual Tracing Editor (描边编辑界面)
    ========================================== */
 interface TraceEditorScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -563,7 +563,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
         <button onClick={() => onNavigate('home')} className="p-1.5 rounded-full text-gray-400 active:text-white transition-colors">
           <ArrowLeft size={19} />
         </button>
-        <span className="text-base font-bold text-white tracking-wide">缂栬緫杞ㄨ抗</span>
+        <span className="text-base font-bold text-white tracking-wide">编辑轨迹</span>
         <button 
           onClick={() => onNavigate('loading')} 
           className="text-xs font-bold text-[#4FACFE] bg-[#4FACFE]/10 px-3 py-1.5 rounded-full hover:bg-[#4FACFE]/20 active:opacity-75 transition-colors"

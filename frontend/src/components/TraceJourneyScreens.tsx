@@ -205,7 +205,7 @@ export function MyTracesScreen({
           onClick={() => setActiveTab('run')}
           className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeTab === 'run' ? 'bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600'}`}
         >
-          宸茶窇
+          已跑
         </button>
         <button 
           onClick={() => setActiveTab('unrun')}
@@ -217,7 +217,7 @@ export function MyTracesScreen({
           onClick={() => setActiveTab('fav')}
           className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeTab === 'fav' ? 'bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600'}`}
         >
-          鏀惰棌
+            收藏
         </button>
       </div>
 
@@ -466,7 +466,7 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-red-50 transition-colors text-slate-500 group-hover:text-red-500">
               <Trash2 size={16} />
             </div>
-            <span className="text-[10px] text-slate-500 font-medium leading-none">鍒犻櫎</span>
+            <span className="text-[10px] text-slate-500 font-medium leading-none">删除</span>
           </button>
         </div>
       </div>
@@ -505,7 +505,7 @@ export function RunHistoryScreen({
     },
     {
       id: 'r2',
-      title: '鐖卞績鎸戞垬',
+      title: '爱心挑战',
       date: '2026-06-07',
       dist: '4.18km',
       duration: '28:30',
@@ -519,7 +519,7 @@ export function RunHistoryScreen({
     },
     {
       id: 'r3',
-      title: '鏄熷舰鎸戞垬',
+      title: '星际挑战',
       date: '2026-06-05',
       dist: '5.08km',
       duration: '34:20',
@@ -545,7 +545,7 @@ export function RunHistoryScreen({
           <button onClick={() => miniToast('开启筛选条件')} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Filter size={16} className="text-slate-600" />
           </button>
-          <button onClick={() => miniToast('閫夋嫨鏃ユ湡鑼冨洿')} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => miniToast('选择日期范围')} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Calendar size={16} className="text-slate-600" />
           </button>
         </div>
@@ -703,11 +703,11 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
           <div className="absolute top-2.5 right-2.5 bg-white/95 border border-slate-100 rounded-lg p-2 text-[8px] space-y-1 text-slate-600 scale-90 origin-top-right shadow-sm select-none">
             <div className="flex items-center space-x-1.5">
               <span className="w-4 border-t-2 border-dashed border-[#FF8038]"></span>
-              <span className="font-medium">瑙勫垝杞ㄨ抗</span>
+              <span className="font-medium">规划轨迹</span>
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="w-4 border-t-2 border-[#1D4ED8]"></span>
-              <span className="font-medium">瀹為檯杞ㄨ抗</span>
+              <span className="font-medium">实际轨迹</span>
             </div>
           </div>
         </div>
@@ -717,12 +717,12 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
           <div className="bg-white p-4 rounded-[24px] shadow-[0_6px_20px_rgba(0,0,0,0.05)] border border-slate-100">
             <div className="flex items-center justify-between border-b border-slate-50 pb-2 mb-3">
               <div>
-                <h3 className="text-[17px] font-black text-slate-900">灏忕尗锟?</h3>
-                <span className="text-[11px] text-slate-500 font-mono">2026锟?锟?锟?鏄熸湡锟?</span>
+                <h3 className="text-[17px] font-black text-slate-900">小猫跑</h3>
+                <span className="text-[11px] text-slate-500 font-mono">2026-06-08 周一</span>
               </div>
               <div className="text-right">
                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-extrabold rounded-md border border-emerald-200">
-                  鏋佷匠璐村悎
+                  极佳贴合
                 </span>
               </div>
             </div>
@@ -731,15 +731,15 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             <div className="grid grid-cols-3 gap-2 text-center pb-3 border-b border-slate-50">
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">5.01</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">鎬诲叕锟?(km)</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">总公里(km)</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">32:15</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">鐢ㄦ椂 (锟?锟?</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">用时 (分钟)</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">6'27"</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">骞冲潎閰嶏拷?</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">平均配速</p>
               </div>
             </div>
 
@@ -747,15 +747,15 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             <div className="grid grid-cols-3 gap-2 text-center pt-3 select-none">
               <div>
                 <span className="text-[18px] font-black text-emerald-500 font-mono">94%</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">鍥惧舰璐村悎锟?</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">图形贴合度</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">23m</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">鏈€澶у亸锟?</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">最大偏离</p>
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">8m</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">骞冲潎鍋忕</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">平均偏差</p>
               </div>
             </div>
           </div>
@@ -767,9 +767,9 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             <div className="flex items-center justify-between mb-2">
               <span className="text-[13px] font-extrabold text-slate-900 flex items-center space-x-1">
                 <TrendingUp size={14} className="text-cyan-500" />
-                <span>瀹炴椂閰嶉€熸洸锟?</span>
+                <span>实时配速曲线</span>
               </span>
-              <span className="text-[10px] text-slate-400">鏈€蹇窇锟? 6'15"</span>
+              <span className="text-[10px] text-slate-400">最快跑 6'15"</span>
             </div>
             
             {/* Elegant SVG pace chart */}
@@ -797,7 +797,7 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
                 <circle cx="60" cy="18" r="3" fill="#EEF2F6" stroke="#F59E0B" strokeWidth="2" />
               </svg>
               <div className="absolute top-2 left-10 text-[8px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded leading-none select-none border border-amber-100">
-                鏈€楂橈拷?6'10"
+                最高 6'10"
               </div>
             </div>
             {/* labels axis */}
@@ -812,44 +812,44 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
         {/* Splitted segments data table */}
         <div className="px-4 mt-3">
           <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
-            <span className="text-[13px] font-extrabold text-slate-900 block mb-3">鍒嗘鏁版嵁璇︽儏</span>
+            <span className="text-[13px] font-extrabold text-slate-900 block mb-3">分段数据详情</span>
             <div className="overflow-x-auto scrollbar-none">
               <table className="w-full text-[11px] text-slate-700 font-mono text-left whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-slate-50 text-slate-400 font-sans">
-                    <th className="pb-2 font-bold">娈佃惤</th>
+                    <th className="pb-2 font-bold">段落</th>
                     <th className="pb-2 font-bold">耗时/配速</th>
-                    <th className="pb-2 font-bold text-center">骞冲潎蹇冪巼</th>
-                    <th className="pb-2 font-bold text-right">鎷熷悎绮惧噯</th>
+                    <th className="pb-2 font-bold text-center">平均心率</th>
+                    <th className="pb-2 font-bold text-right">拟合精度</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 leading-relaxed font-semibold">
                   <tr>
-                    <td className="py-2 text-slate-900">锟?1 鍏噷</td>
+                    <td className="py-2 text-slate-900">第 1 公里</td>
                     <td className="py-2 text-slate-800">6'15" /km</td>
                     <td className="py-2 text-center text-slate-600">142 bpm</td>
                     <td className="py-2 text-right text-emerald-500">98%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">锟?2 鍏噷</td>
+                    <td className="py-2 text-slate-900">第 2 公里</td>
                     <td className="py-2 text-slate-800">6'22" /km</td>
                     <td className="py-2 text-center text-slate-600">145 bpm</td>
                     <td className="py-2 text-right text-emerald-500">96%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">锟?3 鍏噷</td>
+                    <td className="py-2 text-slate-900">锟?3 公里</td>
                     <td className="py-2 text-slate-800">6'30" /km</td>
                     <td className="py-2 text-center text-slate-600">148 bpm</td>
                     <td className="py-2 text-right text-emerald-500 font-bold">93%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">锟?4 鍏噷</td>
+                    <td className="py-2 text-slate-900">锟?4 公里</td>
                     <td className="py-2 text-slate-800">6'35" /km</td>
                     <td className="py-2 text-center text-slate-600">150 bpm</td>
                     <td className="py-2 text-right text-amber-500 font-bold">91%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">锟?5 鍏噷</td>
+                    <td className="py-2 text-slate-900">第 5 公里</td>
                     <td className="py-2 text-slate-800">6'28" /km</td>
                     <td className="py-2 text-center text-slate-600">147 bpm</td>
                     <td className="py-2 text-right text-emerald-500">95%</td>
@@ -867,7 +867,7 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
               onClick={() => onNavigate('trace_share')}
               className="py-3 px-4 border border-slate-200 text-slate-700 hover:bg-neutral-50 active:bg-neutral-100 text-xs font-black rounded-full text-center tracking-wider transition-all"
             >
-              鍒嗕韩璺戞鎴愮哗
+              分享跑步成绩
             </button>
             <button 
               onClick={() => {
@@ -876,14 +876,14 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
               }}
               className="py-3 px-4 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 hover:shadow-cyan-400/25 text-white text-xs font-black rounded-full text-center tracking-wider transition-all shadow-md"
             >
-              鎴戣鍐嶈窇涓€锟?            </button>
+              我要再跑一次            </button>
           </div>
           
           <button
             onClick={() => onNavigate('run_history')}
             className="w-full text-center text-xs text-slate-400 hover:text-slate-600 font-semibold underline underline-offset-4"
           >
-            杩斿洖鍘嗗彶璁板綍鍒楄〃
+            返回历史记录列表
           </button>
         </div>
       </div>

@@ -30,7 +30,7 @@ function miniToast(msg: string) {
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 23: Trace Share Preview (杞ㄨ抗鍒嗕韩棰勮椤
+// SCREEN 23: Trace Share Preview (轨迹分享预览页)
 // ----------------------------------------------------------------------
 export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [description, setDescription] = useState('');
@@ -378,7 +378,7 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 25: Community Post Detail (浣滃搧璇︽儏椤-绀惧尯)
+// SCREEN 25: Community Post Detail (作品详情页-社区)
 // ----------------------------------------------------------------------
 export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [isFollowing, setIsFollowing] = useState(false);
@@ -598,7 +598,7 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 26: Message notification Screen (娑堟伅閫氱煡椤
+// SCREEN 26: Message notification Screen (消息通知页)
 // ----------------------------------------------------------------------
 export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [activeTab, setActiveTab] = useState<'all' | 'like' | 'comment' | 'follow' | 'sys'>('all');

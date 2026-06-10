@@ -31,7 +31,7 @@ function miniToast(msg: string) {
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 19: Favorites (鏀惰棌妯℃澘锟?
+// SCREEN 19: Favorites (收藏模板)
 // ----------------------------------------------------------------------
 export function FavoritesScreen({
   onNavigate,
@@ -62,7 +62,7 @@ export function FavoritesScreen({
         <button onClick={() => onNavigate('profile')} className="p-1 hover:bg-neutral-100 rounded-full">
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
-        <span className="text-[16px] font-bold text-slate-900">鎴戠殑鏀惰棌</span>
+        <span className="text-[16px] font-bold text-slate-900">我的收藏</span>
         <button 
           onClick={() => {
             setShowEmpty(!showEmpty);
@@ -70,13 +70,13 @@ export function FavoritesScreen({
           }}
           className="text-xs text-cyan-600 font-extrabold hover:underline"
         >
-          {showEmpty ? '鎭㈠鏁版嵁' : '缃┖妯℃嫙'}
+          {showEmpty ? '恢复数据' : '置空模拟'}
         </button>
       </div>
 
       <div className="bg-cyan-50/50 py-2 border-b border-cyan-100/40 text-center shrink-0">
         <p className="text-[11px] text-cyan-600 font-bold select-none">
-          锟?宸叉敹锟?{showEmpty ? 0 : favoriteList.length} 涓建杩规ā锟?路 鍙屽嚮绉婚櫎
+          已收{showEmpty ? 0 : favoriteList.length} 个轨迹模板 双击移除
         </p>
       </div>
 
@@ -89,16 +89,16 @@ export function FavoritesScreen({
               <Star size={36} fill="none" className="stroke-[1.5]" />
             </div>
             <div>
-              <p className="text-[16px] font-bold text-slate-800">鏆傛棤鏀惰棌</p>
+              <p className="text-[16px] font-bold text-slate-800">暂无收藏</p>
               <p className="text-[12px] text-slate-400 mt-1 max-w-xs">
-                鍘诲叕寮€骞垮満鎴栬€呭鑸帹鑽愰噷鎵句竴鎵剧編涓界殑璺嚎鐏垫劅鍚э紒
+                去广场或者推荐里找一找美丽的路线灵感吧！
               </p>
             </div>
             <button 
               onClick={() => onNavigate('square')}
               className="px-5 py-2.5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-95 transition-all text-white font-extrabold text-xs rounded-full shadow-md shadow-cyan-400/20"
             >
-              鍘诲箍鍦哄彂鐜扮伒锟?            </button>
+              去广场发现灵感            </button>
           </div>
         ) : (
           /* 2x2 GRID VIEW */
@@ -152,7 +152,7 @@ export function FavoritesScreen({
                     }}
                     className="px-2.5 py-1 border border-cyan-500 text-cyan-500 hover:bg-cyan-50 active:scale-95 text-[10px] font-black rounded-full transition-all"
                   >
-                    寮€锟?                  </button>
+                    开始                  </button>
                 </div>
 
                 {/* Double click helper label */}
@@ -184,7 +184,7 @@ export function FavoritesScreen({
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 20: Template Detail (妯℃澘璇︽儏锟?
+// SCREEN 20: Template Detail (模板详情)
 // ----------------------------------------------------------------------
 export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [favorite, setFavorite] = useState(true);
@@ -196,9 +196,9 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
         <button onClick={() => onNavigate('favorites')} className="p-1 hover:bg-neutral-100 rounded-full">
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
-        <span className="text-[16px] font-bold text-slate-900">妯℃澘璇︽儏</span>
+        <span className="text-[16px] font-bold text-slate-900">模板详情</span>
         <div className="flex space-x-1.5">
-          <button onClick={() => miniToast('鍒嗕韩妯℃澘鏁版嵁')} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => miniToast('分享模板数据')} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <ExternalLink size={16} className="text-slate-600" />
           </button>
           <button onClick={() => { setFavorite(!favorite); miniToast(favorite ? '取消收藏' : '已添加收藏'); }} className="p-1.5 hover:bg-neutral-100 rounded-full">
@@ -218,8 +218,8 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
             </svg>
           </div>
 
-          <h3 className="text-[20px] font-black text-slate-900 mt-4">鐖卞績鎸戞垬</h3>
-          <p className="text-[11px] text-[#4FACFE] font-bold mt-1">鉂わ笍 瀹樻柟鎺ㄨ崘璺戞鎵撳崱鑹烘湳缁忓吀璺嚎</p>
+          <h3 className="text-[20px] font-black text-slate-900 mt-4">爱心挑战</h3>
+          <p className="text-[11px] text-[#4FACFE] font-bold mt-1">❤️ 官方推荐跑步打卡艺术经典路线</p>
         </div>
 
         {/* Info detail block list */}
@@ -237,7 +237,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
             <div className="flex items-center justify-between text-[13px] border-b border-slate-50 pb-2.5">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-500">棰勮鏃堕暱</span>
+                <span className="text-slate-500">预计时长</span>
               </div>
                 <strong className="text-slate-900 font-bold">25 分钟</strong>
             </div>
@@ -253,9 +253,9 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
             <div className="flex items-center justify-between text-[13px]">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-500">鍒涘缓锟?</span>
+                <span className="text-slate-500">创建者</span>
               </div>
-              <span className="font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">瀹樻柟璁よ瘉妯℃澘</span>
+              <span className="font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">官方认证模板</span>
             </div>
 
           </div>
@@ -263,7 +263,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
 
         {/* Filter tags bubble pills info banner */}
         <div className="px-4 mt-3 flex flex-wrap gap-2">
-          <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-500 border border-red-100">馃敟 鐑棬鎺ㄨ崘</span>
+          <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-500 border border-red-100">🔥 热门推荐</span>
           <span className="px-3 py-1 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-500 border border-rose-100">鉂わ笍 鐢滃害楗辨弧</span>
           <span className="px-3 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">锟?鏂版墜鍙嬪ソ</span>
         </div>
@@ -302,21 +302,21 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
         <div className="px-4 mt-5 grid grid-cols-2 gap-3">
           <button 
             onClick={() => {
-              miniToast('涓烘偍妯℃嫙鐢熸垚澶у湴鍥惧疄鏅锟?..');
+              miniToast('为您模拟生成大地图实景预览..');
               onNavigate('trace_detail');
             }}
             className="py-3 px-4 border border-slate-200 text-slate-700 bg-white hover:bg-neutral-50 active:scale-98 text-xs font-black rounded-full transition-all text-center uppercase tracking-wider"
           >
-            棰勮瀹屾暣璺嚎
+            预览完整路线
           </button>
           <button 
             onClick={() => {
-              miniToast('宸插鍏ヨ妯℃澘锛岃閰嶇疆璋冭妭鍙樻崲');
+              miniToast('已导入该模板，请配置调节变换');
               onNavigate('param_adjust');
             }}
             className="py-3 px-4 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-98 text-white text-xs font-black rounded-full shadow-md shadow-cyan-400/20 transition-all text-center uppercase tracking-wider"
           >
-            鐩存帴浣跨敤姝ゆā锟?          </button>
+            直接使用此模板
         </div>
 
       </div>
@@ -361,7 +361,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
                 handleSearchTrigger(query);
               }
             }}
-            placeholder="鎼滅储杞ㄨ抗銆佹ā鏉挎垨鐢ㄦ埛"
+            placeholder="鎼滅储轨迹銆佹ā鏉挎垨鐢ㄦ埛"
             className="bg-transparent border-none text-[12px] placeholder:text-slate-450 focus:outline-none w-full font-medium"
           />
         </div>
@@ -376,7 +376,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
           }}
           className="text-[13px] text-cyan-600 font-extrabold px-1"
         >
-          {query.trim() ? '鎼滅储' : '鍙栨秷'}
+          {query.trim() ? '鎼滅储' : '取消'}
         </button>
       </div>
 
@@ -452,7 +452,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
         {/* Popular recommendation preview list */}
         <div>
-          <span className="text-[13px] font-black text-slate-900 block mb-2">鐑棬鎺ㄨ崘</span>
+          <span className="text-[13px] font-black text-slate-900 block mb-2">热门推荐</span>
           <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-none">
             {['方形', '心形'].map((name, i) => (
               <div 
@@ -501,23 +501,23 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
         
-        {/* Simulated input representing "浜旇锟? */}
+        {/* Simulated input representing '五角星' */}
         <div 
           onClick={() => onNavigate('search')}
           className="flex-1 mx-3 bg-slate-50 px-3 py-1.5 rounded-full flex items-center space-x-1 border border-slate-100/80 cursor-pointer"
         >
           <Search size={13} className="text-slate-400" />
-          <span className="text-[12px] font-bold text-slate-900">浜旇锟?</span>
+          <span className="text-[12px] font-bold text-slate-900">五角星</span>
         </div>
 
         <button onClick={() => onNavigate('home')} className="text-[12px] text-slate-500 hover:text-slate-700 font-semibold">
-          鍙栨秷
+          取消
         </button>
       </div>
 
       {/* Filter panel info */}
       <div className="px-4 py-1.5 bg-slate-50 flex items-center justify-between text-[11px] text-slate-500 shrink-0 font-semibold border-b border-slate-100/50">
-        <span>鎵惧埌 23 涓惈鏈夆€滀簲瑙掓槦鈥濈殑缁撴灉</span>
+        <span>找到 23 个含有'五角星'的结果</span>
         <div className="flex space-x-2">
           <button onClick={() => miniToast('查看收藏夹')} className="hover:text-cyan-600">打开收藏夹</button>
           <button onClick={() => { miniToast('关闭'); }} className="hover:text-cyan-600">关闭</button>
@@ -537,8 +537,8 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
             }`}
           >
             {tab === 'all' && '鍏ㄩ儴'}
-            {tab === 'trace' && '杞ㄨ抗'}
-            {tab === 'template' && '妯℃澘'}
+            {tab === 'trace' && '轨迹'}
+            {tab === 'template' && '模板'}
             {tab === 'user' && '鐢ㄦ埛'}
           </button>
         ))}
@@ -562,8 +562,8 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
               <div className="text-left">
                 <h4 className="text-[14px] font-black text-slate-900">浜旇鏄熸寫锟?</h4>
                 <div className="flex items-center space-x-1.5 mt-0.5">
-                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">杞ㄨ抗</span>
-                  <span className="text-[11px] text-slate-500 font-medium font-mono">5.0 鍏噷 路 128 娆′娇锟?</span>
+                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">轨迹</span>
+                  <span className="text-[11px] text-slate-500 font-medium font-mono">5.0 公里 路 128 次使用</span>
                 </div>
               </div>
             </div>
@@ -593,10 +593,10 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 </svg>
               </div>
               <div className="text-left">
-                <h4 className="text-[14px] font-black text-slate-900">鏄熷舰妯℃澘</h4>
+                <h4 className="text-[14px] font-black text-slate-900">鏄熷舰模板</h4>
                 <div className="flex items-center space-x-1.5 mt-0.5">
-                  <span className="px-1 py-0.2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded text-[8px] font-bold">妯℃澘</span>
-                  <span className="text-[11px] text-slate-500 font-medium font-mono">5.0 鍏噷 路 瀹樻柟璁よ瘉</span>
+                  <span className="px-1 py-0.2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded text-[8px] font-bold">模板</span>
+                  <span className="text-[11px] text-slate-500 font-medium font-mono">5.0 公里 路 瀹樻柟璁よ瘉</span>
                 </div>
               </div>
             </div>
@@ -628,8 +628,8 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 <User size={24} />
               </div>
               <div className="text-left">
-                <h4 className="text-[14px] font-black text-slate-900">璺戣€呭皬锟?</h4>
-                <p className="text-[11px] text-slate-500 mt-0.5">128 绮変笣 路 15 涓建杩瑰垱锟?</p>
+                <h4 className="text-[14px] font-black text-slate-900">跑者小王</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">128 粉丝 · 15 个轨迹创作</p>
               </div>
             </div>
             
@@ -640,7 +640,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
               }}
               className="px-3 py-1 border border-cyan-500 hover:bg-cyan-50 active:scale-95 text-[10.5px] text-cyan-600 font-extrabold rounded-full transition-all"
             >
-              鍏虫敞
+              关注
             </button>
           </div>
         )}
@@ -659,10 +659,10 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 </svg>
               </div>
               <div className="text-left">
-                <h4 className="text-[14px] font-black text-slate-900">鍏竟褰㈡垬锟?</h4>
+                <h4 className="text-[14px] font-black text-slate-900">六边形挑战</h4>
                 <div className="flex items-center space-x-1.5 mt-0.5">
-                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">杞ㄨ抗</span>
-                  <span className="text-[11px] text-slate-500 font-medium font-mono">4.8鍏噷 路 67 娆′娇锟?</span>
+                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">轨迹</span>
+                  <span className="text-[11px] text-slate-500 font-medium font-mono">4.8公里 路 67 次使用</span>
                 </div>
               </div>
             </div>
@@ -681,7 +681,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
 
         {/* loader */}
         <p className="text-[11px] text-slate-400 py-4 text-center">
-          鈥旓拷?鍒板簳鍟︼紒涓婃媺鍔犺浇鏇村缁撴灉 鈥旓拷?        </p>
+          —— 到底啦！上拉加载更多结果 ——        </p>
 
       </div>
     </div>
