@@ -18,6 +18,135 @@ import { ScreenId } from '../types';
 import { historyRecords } from '../data';
 import { BottomNavBar } from './common/BottomNavBar';
 
+const QUICK_TEMPLATE_CARDS = [
+  {
+    id: 'heart',
+    title: '爱心路线',
+    distance: '约4.2km',
+    gradient: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)',
+    icon: <Heart size={44} className="fill-white stroke-none text-white/90" />,
+    tagColor: 'bg-rose-500/20 text-white'
+  },
+  {
+    id: 'star',
+    title: '星形挑战',
+    distance: '约5km',
+    gradient: 'linear-gradient(135deg, #FFD166 0%, #FFB347 100%)',
+    icon: <Star size={44} className="fill-white stroke-none text-white/95" />,
+    tagColor: 'bg-amber-600/20 text-white'
+  },
+  {
+    id: 'circle',
+    title: '环湖路线',
+    distance: '约3.5km',
+    gradient: 'linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%)',
+    icon: <Circle size={40} className="stroke-[3.5] text-white" />,
+    tagColor: 'bg-blue-600/20 text-white'
+  },
+  {
+    id: 'triangle',
+    title: '三角冲刺',
+    distance: '约3km',
+    gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A24 100%)',
+    icon: <Triangle size={40} className="stroke-[3.5] text-white" />,
+    tagColor: 'bg-red-650/20 text-white'
+  },
+  {
+    id: 'square',
+    title: '方形地图',
+    distance: '约4km',
+    gradient: 'linear-gradient(135deg, #A8E6CF 0%, #3BAC6A 100%)',
+    icon: <Square size={40} className="stroke-[3.5] text-white" />,
+    tagColor: 'bg-emerald-650/15 text-white'
+  }
+];
+
+const FULL_LIBRARY_TABS = [
+  { id: 'recommend', label: '推荐' },
+  { id: 'base', label: '基础图形' },
+  { id: 'animal', label: '动物' },
+  { id: 'text', label: '文字' },
+  { id: 'holiday', label: '节日' },
+] as const;
+
+const FULL_LIBRARY_GRID_ITEMS = [
+  {
+    id: 'circle',
+    title: '圆形',
+    bg: 'from-[#FF6B6B] to-[#FF8E53]',
+    icon: <Circle size={28} className="stroke-[3] text-white" />,
+    km: '约3.5km',
+    badge: 'star'
+  },
+  {
+    id: 'triangle',
+    title: '三角形',
+    bg: 'from-[#FF9F43] to-[#FFC575]',
+    icon: <Triangle size={28} className="stroke-[3] text-white" />,
+    km: '约3.0km',
+    badge: 'star'
+  },
+  {
+    id: 'star',
+    title: '五角星',
+    bg: 'from-[#FFD166] to-[#FFB347]',
+    icon: <Star size={28} className="fill-white stroke-none text-white/95" />,
+    km: '约5km',
+    badge: 'hot'
+  },
+  {
+    id: 'square',
+    title: '正方形',
+    bg: 'from-[#3BAC6A] to-[#68D391]',
+    icon: <Square size={28} className="stroke-[3] text-white" />,
+    km: '约4公里',
+    badge: 'star'
+  },
+  {
+    id: 'heart',
+    title: '心形',
+    bg: 'from-[#FF758C] to-[#FF7EB3]',
+    icon: <Heart size={28} className="fill-white stroke-none text-white/95" />,
+    km: '约4.2km',
+    badge: 'hot'
+  },
+  {
+    id: 'hexagon',
+    title: '六边形',
+    bg: 'from-[#A29BFE] to-[#6C5CE7]',
+    icon: <span className="font-bold text-white text-base">六</span>,
+    km: '约4.8km',
+    badge: 'star'
+  }
+] as const;
+
+const FULL_LIBRARY_VARIANT_ITEMS = {
+  animal: [
+    { id: 'cat', title: '小猫路线', bg: 'from-blue-400 to-indigo-500', icon: <span className="text-2xl">🐱</span>, km: '5.1km', badge: 'hot' },
+    { id: 'panda', title: '熊猫脚印', bg: 'from-gray-700 to-slate-900', icon: <span className="text-2xl">🐼</span>, km: '6.5km', badge: 'star' },
+  ],
+  text: [
+    { id: 'love', title: 'LOVE字母', bg: 'from-pink-500 to-rose-400', icon: <span className="font-sans font-black text-xl text-white">L-O-V-E</span>, km: '8.2km', badge: 'hot' },
+    { id: 'star_t', title: 'RUN', bg: 'from-orange-400 to-red-500', icon: <span className="font-sans font-black text-xl text-white">R-U-N</span>, km: '4.5km', badge: 'star' },
+  ],
+  holiday: [
+    { id: 'tree', title: '圣诞树', bg: 'from-green-600 to-emerald-800', icon: <span className="text-2xl">🎄</span>, km: '6.4km', badge: 'star' },
+    { id: 'moon', title: '中秋圆月', bg: 'from-amber-300 to-orange-400', icon: <span className="text-2xl">🌙</span>, km: '3.8km', badge: 'hot' },
+  ],
+} as const;
+
+const getLibraryItems = (activeTab: 'base' | 'recommend' | 'animal' | 'text' | 'holiday') => {
+  if (activeTab === 'recommend') {
+    return FULL_LIBRARY_GRID_ITEMS.filter((item) => item.badge === 'hot');
+  }
+
+  if (activeTab === 'animal' || activeTab === 'text' || activeTab === 'holiday') {
+    return FULL_LIBRARY_VARIANT_ITEMS[activeTab];
+  }
+
+  return FULL_LIBRARY_GRID_ITEMS;
+};
+
 interface HomeScreenProps {
   onNavigate: (screen: ScreenId) => void;
   onSelectShape: (shapeId: string) => void;
@@ -250,48 +379,7 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
   onNavigate,
   onSelectShape,
 }) => {
-  const cards = [
-    {
-      id: 'heart',
-      title: '爱心跑',
-      distance: '约4.2km',
-      gradient: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)',
-      icon: <Heart size={44} className="fill-white stroke-none text-white/90" />,
-      tagColor: 'bg-rose-500/20 text-white'
-    },
-    {
-      id: 'star',
-      title: '星形挑战',
-      distance: '约5km',
-      gradient: 'linear-gradient(135deg, #FFD166 0%, #FFB347 100%)',
-      icon: <Star size={44} className="fill-white stroke-none text-white/95" />,
-      tagColor: 'bg-amber-600/20 text-white'
-    },
-    {
-      id: 'circle',
-      title: '环湖跑',
-      distance: '约3.5km',
-      gradient: 'linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%)',
-      icon: <Circle size={40} className="stroke-[3.5] text-white" />,
-      tagColor: 'bg-blue-600/20 text-white'
-    },
-    {
-      id: 'triangle',
-      title: '三角冲刺',
-      distance: '约3km',
-      gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A24 100%)',
-      icon: <Triangle size={40} className="stroke-[3.5] text-white" />,
-      tagColor: 'bg-red-650/20 text-white'
-    },
-    {
-      id: 'square',
-      title: '方形圈',
-      distance: '约4km',
-      gradient: 'linear-gradient(135deg, #A8E6CF 0%, #3BAC6A 100%)',
-      icon: <Square size={40} className="stroke-[3.5] text-white" />,
-      tagColor: 'bg-emerald-650/15 text-white'
-    }
-  ];
+  const cards = QUICK_TEMPLATE_CARDS;
 
   return (
     <div className="flex flex-col h-full bg-white select-none">
@@ -389,92 +477,9 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
   onSelectShape,
 }) => {
   const [activeTab, setActiveTab] = useState<'base' | 'recommend' | 'animal' | 'text' | 'holiday'>('base');
-  const tabs: { id: typeof activeTab; label: string }[] = [
-    { id: 'recommend', label: '推荐' },
-    { id: 'base', label: '基础图形' },
-    { id: 'animal', label: '动物' },
-    { id: 'text', label: '文字' },
-    { id: 'holiday', label: '节日' },
-  ];
+  const tabs = FULL_LIBRARY_TABS;
 
-  const gridItems = [
-    {
-      id: 'circle',
-      title: '圆形',
-      bg: 'from-[#FF6B6B] to-[#FF8E53]',
-      icon: <Circle size={28} className="stroke-[3] text-white" />,
-      km: '约3.5km',
-      badge: 'star'
-    },
-    {
-      id: 'triangle',
-      title: '三角形',
-      bg: 'from-[#FF9F43] to-[#FFC575]',
-      icon: <Triangle size={28} className="stroke-[3] text-white" />,
-      km: '约3.0km',
-      badge: 'star'
-    },
-    {
-      id: 'star',
-      title: '五角星',
-      bg: 'from-[#FFD166] to-[#FFB347]',
-      icon: <Star size={28} className="fill-white stroke-none text-white/95" />,
-      km: '约5km',
-      badge: 'hot'
-    },
-    {
-      id: 'square',
-      title: '正方形',
-      bg: 'from-[#3BAC6A] to-[#68D391]',
-      icon: <Square size={28} className="stroke-[3] text-white" />,
-      km: '约4k公里',
-      badge: 'star'
-    },
-    {
-      id: 'heart',
-      title: '心形',
-      bg: 'from-[#FF758C] to-[#FF7EB3]',
-      icon: <Heart size={28} className="fill-white stroke-none text-white/95" />,
-      km: '约4.2km',
-      badge: 'hot'
-    },
-    {
-      id: 'hexagon',
-      title: '六边形',
-      bg: 'from-[#A29BFE] to-[#6C5CE7]',
-      icon: <span className="font-bold text-white text-base">⬡</span>,
-      km: '约4.8km',
-      badge: 'star'
-    }
-  ];
-
-  // Modify data display dynamically based on Tabs
-  const getFilteredItems = () => {
-    if (activeTab === 'recommend') {
-      return gridItems.filter(i => i.badge === 'hot');
-    }
-    if (activeTab === 'animal') {
-      return [
-        { id: 'cat', title: '小猫跑', bg: 'from-blue-400 to-indigo-500', icon: <span className="text-2xl">🐱</span>, km: '5.1km', badge: 'hot' },
-        { id: 'panda', title: '熊猫脸', bg: 'from-gray-700 to-slate-900', icon: <span className="text-2xl">🐼</span>, km: '6.5km', badge: 'star' },
-      ];
-    }
-    if (activeTab === 'text') {
-      return [
-        { id: 'love', title: 'LOVE字母', bg: 'from-pink-500 to-rose-400', icon: <span className="font-sans font-black text-xl text-white">L-O-V-E</span>, km: '8.2km', badge: 'hot' },
-        { id: 'star_t', title: 'RUN', bg: 'from-orange-400 to-red-500', icon: <span className="font-sans font-black text-xl text-white">R-U-N</span>, km: '4.5km', badge: 'star' },
-      ];
-    }
-    if (activeTab === 'holiday') {
-      return [
-        { id: 'tree', title: '圣诞树', bg: 'from-green-600 to-emerald-800', icon: <span className="text-2xl">🎄</span>, km: '6.4km', badge: 'star' },
-        { id: 'moon', title: '中秋圆月', bg: 'from-amber-300 to-orange-400', icon: <span className="text-2xl">🌙</span>, km: '3.8km', badge: 'hot' },
-      ];
-    }
-    return gridItems;
-  };
-
-  const currentItems = getFilteredItems();
+  const currentItems = getLibraryItems(activeTab);
 
   return (
     <div className="flex flex-col h-full bg-white select-none">

@@ -469,74 +469,101 @@ interface TraceEditorScreenProps {
   onNavigate: (screen: ScreenId) => void;
 }
 
+type Point = { x: number; y: number };
+type Stroke = Point[];
+
+const INITIAL_STROKES: Stroke[] = [
+  // Starter pre-guided panda layout lines
+  [
+    { x: 50, y: 70 }, { x: 55, y: 55 }, { x: 74, y: 48 }, { x: 90, y: 56 },
+    { x: 104, y: 72 }, { x: 106, y: 92 }, { x: 92, y: 110 }
+  ],
+  [
+    { x: 154, y: 70 }, { x: 149, y: 55 }, { x: 130, y: 48 }, { x: 114, y: 56 },
+    { x: 100, y: 72 }, { x: 98, y: 92 }, { x: 112, y: 110 }
+  ]
+];
+
 export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({ 
   onNavigate 
 }) => {
   const [brushSize, setBrushSize] = useState(6); // width tracker
   const [activeTool, setActiveTool] = useState<'draw' | 'erase' | 'smooth'>('draw');
-  
-  // Custom drawn strokes for manual corrections!
-  const [lines, setLines] = useState<Array<Array<{x: number, y: number}>>>([
-    // Starter pre-guided panda layout lines
-    [
-      { x: 50, y: 70 }, { x: 55, y: 55 }, { x: 74, y: 48 }, { x: 90, y: 56 },
-      { x: 104, y: 72 }, { x: 106, y: 92 }, { x: 92, y: 110 }
-    ],
-    [
-      { x: 154, y: 70 }, { x: 149, y: 55 }, { x: 130, y: 48 }, { x: 114, y: 56 },
-      { x: 100, y: 72 }, { x: 98, y: 92 }, { x: 112, y: 110 }
-    ]
-  ]);
-  const [currentLine, setCurrentLine] = useState<Array<{x: number, y: number}>>([]);
+  // Custom drawn strokes for manual corrections.
+  const [lines, setLines] = useState<Stroke[]>(INITIAL_STROKES);
+  const [currentLine, setCurrentLine] = useState<Stroke>([]);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const linesRef = useRef<Stroke[]>(INITIAL_STROKES);
+  const historyRef = useRef<Stroke[][]>([]);
+  const currentLineRef = useRef<Stroke>([]);
 
   // Undo/redo logs trace
-  const [history, setHistory] = useState<Array<typeof lines>>([]);
+  const [history, setHistory] = useState<Stroke[][]>([]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
-    // Save current backup to history first
-    setHistory([...history, lines]);
-    setCurrentLine([{ x, y }]);
+
+    // Save current backup to history first.
+    const nextHistory = [...historyRef.current, linesRef.current];
+    historyRef.current = nextHistory;
+    setHistory(nextHistory);
+
+    const nextLine: Stroke = [{ x, y }];
+    currentLineRef.current = nextLine;
+    setCurrentLine(nextLine);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (currentLine.length === 0 || !canvasRef.current) return;
+    if (currentLineRef.current.length === 0 || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
     if (activeTool === 'erase') {
       // Find and remove points close to cursor
-      setLines(lines.map(line => 
-        line.filter(p => Math.hypot(p.x - x, p.y - y) > brushSize * 2)
-      ).filter(line => line.length > 0));
+      const nextLines = linesRef.current
+        .map((line) => line.filter((p) => Math.hypot(p.x - x, p.y - y) > brushSize * 2))
+        .filter((line) => line.length > 0);
+
+      linesRef.current = nextLines;
+      setLines(nextLines);
     } else {
-      setCurrentLine([...currentLine, { x, y }]);
+      setCurrentLine((prev) => {
+        const nextLine = [...prev, { x, y }];
+        currentLineRef.current = nextLine;
+        return nextLine;
+      });
     }
   };
 
   const handlePointerUp = () => {
-    if (activeTool === 'draw' && currentLine.length > 0) {
-      setLines([...lines, currentLine]);
+    if (activeTool === 'draw' && currentLineRef.current.length > 0) {
+      const nextLines = [...linesRef.current, currentLineRef.current];
+      linesRef.current = nextLines;
+      setLines(nextLines);
     }
+    currentLineRef.current = [];
     setCurrentLine([]);
   };
 
   const handleUndo = () => {
-    if (history.length === 0) return;
-    const last = history[history.length - 1];
-    setHistory(history.slice(0, -1));
+    if (historyRef.current.length === 0) return;
+
+    const nextHistory = historyRef.current.slice(0, -1);
+    const last = historyRef.current[historyRef.current.length - 1];
+
+    historyRef.current = nextHistory;
+    linesRef.current = last;
+    setHistory(nextHistory);
     setLines(last);
   };
 
   const handleAutoOptimize = () => {
     // Smooth points by averaging neighbors
-    const smoothed = lines.map(line => {
+    const smoothed = linesRef.current.map((line) => {
       if (line.length < 3) return line;
       return line.map((p, idx) => {
         if (idx === 0 || idx === line.length - 1) return p;
@@ -548,7 +575,11 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
         };
       });
     });
-    setHistory([...history, lines]);
+
+    const nextHistory = [...historyRef.current, linesRef.current];
+    historyRef.current = nextHistory;
+    linesRef.current = smoothed;
+    setHistory(nextHistory);
     setLines(smoothed);
   };
 
@@ -630,7 +661,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 
           {/* Small Simulated Finger indicator helping touch cues */}
           <div className="absolute top-[82px] left-[78px] text-[15px] pointer-events-none animate-pulse">
-            馃憜 <span className="bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded ml-1 font-bold">手势微调中</span>
+            👆 <span className="bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded ml-1 font-bold">手势微调中</span>
           </div>
         </div>
 
@@ -705,9 +736,14 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 
           <button
             onClick={() => {
-              // Stub clear action as redo
-              setHistory([...history, lines]);
+              // Clear canvas but keep a recoverable snapshot in history.
+              const nextHistory = [...historyRef.current, linesRef.current];
+              historyRef.current = nextHistory;
+              linesRef.current = [];
+              currentLineRef.current = [];
+              setHistory(nextHistory);
               setLines([]);
+              setCurrentLine([]);
             }}
             className="flex flex-col items-center justify-center py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 active:scale-95 transition-transform"
           >

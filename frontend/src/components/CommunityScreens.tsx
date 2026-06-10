@@ -15,6 +15,138 @@ import {
 } from 'lucide-react';
 import { ScreenId } from '../types';
 
+const SQUARE_CARDS = [
+  {
+    id: 'post_1',
+    author: '跑者小美',
+    title: '爱心跑',
+    likes: 128,
+    comments: 23,
+    dist: '5.0km',
+    height: 'h-[110px]',
+    svg: (
+      <svg className="w-16 h-16 text-rose-500 animate-pulse" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
+        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
+      </svg>
+    )
+  },
+  {
+    id: 'post_2',
+    author: '星星行者',
+    title: '星形挑战',
+    likes: 95,
+    comments: 12,
+    dist: '5.0km',
+    height: 'h-[100px]',
+    svg: (
+      <svg className="w-16 h-16 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
+        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
+      </svg>
+    )
+  },
+  {
+    id: 'post_3',
+    author: '猫跑',
+    title: '小猫跑',
+    likes: 203,
+    comments: 45,
+    dist: '5.0km',
+    height: 'h-[120px]',
+    svg: (
+      <svg className="w-16 h-16 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
+        <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" />
+      </svg>
+    )
+  },
+  {
+    id: 'post_4',
+    author: '环湖高手',
+    title: '环湖跑',
+    likes: 67,
+    comments: 8,
+    dist: '3.5km',
+    height: 'h-[95px]',
+    svg: (
+      <svg className="w-16 h-16 text-blue-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
+        <circle cx="50" cy="50" r="28" />
+      </svg>
+    )
+  }
+];
+
+const POST_COMMENTS = [
+  { id: 'c1', user: '设计小王', avatar: 'M', time: '1小时前', text: '这条路线的配色很喜欢，建议加点动态滤镜看看。' },
+  { id: 'c2', user: '旅行助手', avatar: 'X', time: '30分钟前', text: '很实用的路线分享，细节很到位！' }
+];
+
+const NOTIFICATION_MESSAGES = [
+  {
+    id: 'n1',
+    type: 'like',
+    author: '小明',
+    actionText: '点赞了你的作品',
+    target: '作品已更新',
+    time: '5分钟前',
+    unread: true,
+    hasThumbnail: true,
+    thumbnailSvg: (
+      <svg className="w-7 h-7 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
+        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
+      </svg>
+    )
+  },
+  {
+    id: 'n2',
+    type: 'comment',
+    author: '旅行者',
+    actionText: '评论了你的作品',
+    target: '可以看看下面这个路线吗？',
+    time: '1小时前',
+    unread: true,
+    hasThumbnail: true,
+    thumbnailSvg: (
+      <svg className="w-7 h-7 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
+        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
+      </svg>
+    )
+  },
+  {
+    id: 'n3',
+    type: 'follow',
+    author: '活动创作者',
+    actionText: '关注了你',
+    target: '',
+    time: '2小时前',
+    unread: false,
+    hasThumbnail: false
+  },
+  {
+    id: 'n4',
+    type: 'sys',
+    author: '系统通知',
+    actionText: '',
+    target: '欢迎加入 TraceCraft 最新版本',
+    time: '5分钟前',
+    unread: true,
+    hasThumbnail: false
+  },
+  {
+    id: 'n5',
+    type: 'like',
+    author: '系统推荐',
+    actionText: '点赞了你的作品',
+    target: '你的路线被推荐',
+    time: '2小时前',
+    unread: false,
+    hasThumbnail: true,
+    thumbnailSvg: (
+      <svg className="w-7 h-7 text-blue-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
+        <circle cx="50" cy="50" r="28" />
+      </svg>
+    )
+  }
+];
+
 // ----------------------------------------------------------------------
 // SCREEN 23: Trace Share Preview (轨迹分享预览页)
 // ----------------------------------------------------------------------
@@ -214,7 +346,7 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [activeTab, setActiveTab] = useState<'recommend' | 'hot' | 'latest' | 'follow'>('recommend');
 
-  const cards = [
+  const cards = SQUARE_CARDS; /*
     {
       id: 'post_1',
       author: '跑者小美',
@@ -271,7 +403,7 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
         </svg>
       )
     }
-  ];
+  */
 
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between text-slate-800 animate-fadeIn select-none">

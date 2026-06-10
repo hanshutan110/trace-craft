@@ -273,7 +273,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
                   {val === 1 ? '舒适' : val === 2 ? '节奏' : '竞技'}
                 </span>
                 <span className="text-[8px] bg-emerald-100/60 text-emerald-600 rounded px-1 scale-95 leading-none">
-                  9{val === 1 ? '7' : val === 2 ? '5' : '4'}% 鍚诲悎
+                  9{val === 1 ? '7' : val === 2 ? '5' : '4'}% 吻合
                 </span>
               </div>
             ))}

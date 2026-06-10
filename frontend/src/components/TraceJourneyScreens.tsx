@@ -20,8 +20,99 @@ import {
 import { ScreenId } from '../types';
 import { BottomNavBar } from './common/BottomNavBar';
 
+const MY_TRACES_ITEMS = [
+  {
+    id: 'cat_trace_1',
+    title: '猫咪轨迹',
+    distance: '5.0km',
+    date: '2026-06-09',
+    status: 'unrun',
+    isFavorite: true,
+    svgPath: (
+      <svg className="w-10 h-10 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
+        <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="20" cy="80" r="4" fill="green" />
+        <circle cx="80" cy="80" r="4" fill="red" />
+      </svg>
+    )
+  },
+  {
+    id: 'heart_trace_2',
+    title: '心形徽标',
+    distance: '4.2km',
+    date: '2026-06-07',
+    status: 'completed',
+    isFavorite: true,
+    svgPath: (
+      <svg className="w-10 h-10 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
+        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="50" cy="75" r="4" fill="red" />
+      </svg>
+    )
+  },
+  {
+    id: 'star_trace_3',
+    title: '五角徽标',
+    distance: '5.0km',
+    date: '2026-06-05',
+    status: 'unrun',
+    isFavorite: false,
+    svgPath: (
+      <svg className="w-10 h-10 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
+        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="50" cy="15" r="4" fill="green" />
+      </svg>
+    )
+  }
+] as const;
+
+const RUN_HISTORY_RECORDS = [
+  {
+    id: 'r1',
+    title: '猫咪之路',
+    date: '2026-06-09',
+    dist: '5.01km',
+    duration: '32:15',
+    pace: '6:27/km',
+    accuracy: 94,
+    svg: (
+      <svg className="w-10 h-10 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
+        <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  {
+    id: 'r2',
+    title: '爱心挑战',
+    date: '2026-06-07',
+    dist: '4.18km',
+    duration: '28:30',
+    pace: '6:49/km',
+    accuracy: 97,
+    svg: (
+      <svg className="w-10 h-10 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
+        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
+      </svg>
+    )
+  },
+  {
+    id: 'r3',
+    title: '星际挑战',
+    date: '2026-06-05',
+    dist: '5.08km',
+    duration: '34:20',
+    pace: '6:45/km',
+    accuracy: 91,
+    svg: (
+      <svg className="w-10 h-10 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
+        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
+      </svg>
+    )
+  }
+] as const;
+
 // ----------------------------------------------------------------------
-  // SCREEN 14: Splash Screen (启动页)
+// SCREEN 14: Splash Screen (启动页)
 // ----------------------------------------------------------------------
 export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [loadingStep, setLoadingStep] = useState(0);
@@ -107,54 +198,7 @@ export function MyTracesScreen({
 }) {
   const [activeTab, setActiveTab] = useState<'all' | 'run' | 'unrun' | 'fav'>('all');
 
-  const items = [
-    {
-      id: 'cat_trace_1',
-      title: '猫咪轨迹',
-      distance: '5.0km',
-      date: '2026-06-09',
-      status: 'unrun', // unrun or completed
-      isFavorite: true,
-      svgPath: (
-        <svg className="w-10 h-10 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-          {/* cat-like shape trail */}
-          <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="20" cy="80" r="4" fill="green" />
-          <circle cx="80" cy="80" r="4" fill="red" />
-        </svg>
-      )
-    },
-    {
-      id: 'heart_trace_2',
-      title: '心形徽标',
-      distance: '4.2km',
-      date: '2026-06-07',
-      status: 'completed',
-      isFavorite: true,
-      svgPath: (
-        <svg className="w-10 h-10 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-          {/* heart shape */}
-          <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="50" cy="75" r="4" fill="red" />
-        </svg>
-      )
-    },
-    {
-      id: 'star_trace_3',
-      title: '五角徽标',
-      distance: '5.0km',
-      date: '2026-06-05',
-      status: 'unrun',
-      isFavorite: false,
-      svgPath: (
-        <svg className="w-10 h-10 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-          {/* star shape */}
-          <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="50" cy="15" r="4" fill="green" />
-        </svg>
-      )
-    }
-  ];
+  const items = MY_TRACES_ITEMS;
 
   const filtered = items.filter(item => {
     if (activeTab === 'run') return item.status === 'completed';
@@ -476,50 +520,7 @@ export function RunHistoryScreen({
 }) {
   const [activeTab, setActiveTab] = useState<'all' | 'month' | 'week' | 'custom'>('all');
 
-  const records = [
-    {
-      id: 'r1',
-      title: '猫咪之路',
-      date: '2026-06-09',
-      dist: '5.01km',
-      duration: '32:15',
-      pace: '6:27/km',
-      accuracy: 94,
-      svg: (
-        <svg className="w-10 h-10 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-          <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    },
-    {
-      id: 'r2',
-      title: '爱心挑战',
-      date: '2026-06-07',
-      dist: '4.18km',
-      duration: '28:30',
-      pace: '6:49/km',
-      accuracy: 97,
-      svg: (
-        <svg className="w-10 h-10 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-          <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-        </svg>
-      )
-    },
-    {
-      id: 'r3',
-      title: '星际挑战',
-      date: '2026-06-05',
-      dist: '5.08km',
-      duration: '34:20',
-      pace: '6:45/km',
-      accuracy: 91,
-      svg: (
-        <svg className="w-10 h-10 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-          <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
-        </svg>
-      )
-    }
-  ];
+  const records = RUN_HISTORY_RECORDS;
 
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between text-slate-800 animate-fadeIn">

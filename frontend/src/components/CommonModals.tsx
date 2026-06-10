@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Check,
   ArrowRight,
@@ -22,15 +22,19 @@ interface SuccessScreenProps {
 
 export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
   // Simulate particles representing colorful paper confetti drop
-  const confettiParticles = Array.from({ length: 48 }).map((_, i) => ({
-    id: i,
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * -100}px`,
-    delay: `${Math.random() * 2}s`,
-    color: ['#FF6B35', '#4FACFE', '#00F2FE', '#10B981', '#F59E0B', '#EC4899'][i % 6],
-    size: Math.random() * 8 + 4,
-    rotation: `${Math.random() * 360}deg`,
-  }));
+  const confettiParticles = useMemo(
+    () =>
+      Array.from({ length: 48 }).map((_, i) => ({
+        id: i,
+        left: `${Math.random() * 100}%`,
+        top: `${Math.random() * -100}px`,
+        delay: `${Math.random() * 2}s`,
+        color: ['#FF6B35', '#4FACFE', '#00F2FE', '#10B981', '#F59E0B', '#EC4899'][i % 6],
+        size: Math.random() * 8 + 4,
+        rotation: `${Math.random() * 360}deg`,
+      })),
+    [],
+  );
 
   return (
     <div className="flex flex-col h-full bg-white select-none relative overflow-hidden">
