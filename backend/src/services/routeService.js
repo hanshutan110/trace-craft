@@ -15,7 +15,7 @@ const {
 } = require('./storage');
 
 const DEFAULT_PROVIDER = process.env.MAP_PROVIDER_DEFAULT || 'amap';
-const MAP_PROVIDER_LIST = (process.env.MAP_PROVIDER_LIST || 'amap,google,baidu,tencent')
+const MAP_PROVIDER_LIST = (process.env.MAP_PROVIDER_LIST || 'amap,google,baidu')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
@@ -72,14 +72,12 @@ const PROVIDER_FEATURES = {
   amap: { supportPoi: true, offlineTile: false, navHints: true, geocode: true },
   google: { supportPoi: true, offlineTile: false, navHints: true, geocode: true },
   baidu: { supportPoi: true, offlineTile: false, navHints: true },
-  tencent: { supportPoi: true, offlineTile: false, navHints: true },
 };
 
 const PROVIDER_KEY_ENV = {
   amap: 'AMAP_KEY',
   google: 'GOOGLE_MAPS_KEY',
   baidu: 'BAIDU_MAP_KEY',
-  tencent: 'TENCENT_MAP_KEY',
 };
 
 function randomSeedFromString(value) {
