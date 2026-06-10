@@ -209,7 +209,7 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 }
 
 // ----------------------------------------------------------------------
-// SCREEN 24: Square / Community Feed (鍏紑骞垮満)
+// SCREEN 24: Square / Community Feed (公开广场)
 // ----------------------------------------------------------------------
 export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const [activeTab, setActiveTab] = useState<'recommend' | 'hot' | 'latest' | 'follow'>('recommend');

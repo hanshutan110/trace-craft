@@ -743,7 +743,7 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
               </div>
               <div>
                 <span className="text-[18px] font-black text-slate-900 font-mono">8m</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">平均偏差</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">平均偏差</p>
               </div>
             </div>
           </div>

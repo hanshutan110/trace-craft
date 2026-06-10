@@ -519,10 +519,10 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 : 'bg-slate-50 text-slate-600 border border-slate-100 hover:bg-slate-100'
             }`}
           >
-            {tab === 'all' && '鍏ㄩ儴'}
+            {tab === 'all' && '全部'}
             {tab === 'trace' && '轨迹'}
             {tab === 'template' && '模板'}
-            {tab === 'user' && '鐢ㄦ埛'}
+            {tab === 'user' && '用户'}
           </button>
         ))}
       </div>
