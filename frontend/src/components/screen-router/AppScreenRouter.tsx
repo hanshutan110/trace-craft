@@ -1,12 +1,27 @@
-﻿import React, { Suspense, useCallback, lazy } from 'react';
+﻿/**
+ * 应用屏幕路由器
+ *
+ * 根据 activeScreen 决定渲染哪个屏幕组件：
+ * - 核心屏幕（首页、引导、登录）使用即时加载
+ * - 其他屏幕使用 React.lazy 懒加载，按功能域分组
+ *   - NavigationAndEditor：导航、参数调节、轨迹编辑
+ *   - CommonModals：成功、加载中弹窗
+ *   - HomeAndLibrary：快速模板、图形库
+ *   - ProfileAndSettings：个人中心、设置
+ *   - TraceJourneyScreens：启动页、我的轨迹、轨迹详情、跑步记录
+ *   - DiscoveryScreens：收藏、模板详情、搜索
+ *   - CommunityScreens：分享、广场、消息
+ */
+import React, { Suspense, useCallback, lazy } from 'react';
 import { ScreenId } from '../../types';
 import { ErrorBoundary } from '../ErrorBoundary';
 
-// Eager imports for core screens (always needed)
+// 核心屏幕即时加载（首页、引导、登录）
 import { HomeScreen } from '../HomeAndLibrary';
 import { OnboardingScreen, LoginScreen } from '../AuthScreens';
 
-// Lazy imports for secondary screen groups
+// 二级屏幕按功能域懒加载，减少首屏体积
+// 懒加载路由组件：导航/参数调节/编辑器
 const NavigationAndEditor = lazy(() =>
   import('../NavigationAndEditor').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
@@ -18,6 +33,7 @@ const NavigationAndEditor = lazy(() =>
   })),
 );
 
+// 懒加载路由组件：成功/加载中弹窗
 const LazyModals = lazy(() =>
   import('../CommonModals').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
@@ -28,6 +44,7 @@ const LazyModals = lazy(() =>
   })),
 );
 
+// 懒加载路由组件：快速模板/图形库
 const LazyHomeExtra = lazy(() =>
   import('../HomeAndLibrary').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
@@ -38,6 +55,7 @@ const LazyHomeExtra = lazy(() =>
   })),
 );
 
+// 懒加载路由组件：个人中心/设置
 const LazyProfileAndSettings = lazy(() =>
   import('../ProfileAndSettings').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
@@ -48,6 +66,7 @@ const LazyProfileAndSettings = lazy(() =>
   })),
 );
 
+// 懒加载路由组件：轨迹旅程（启动页/我的轨迹/详情/历史）
 const LazyTraceJourney = lazy(() =>
   import('../TraceJourneyScreens').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
@@ -61,6 +80,7 @@ const LazyTraceJourney = lazy(() =>
   })),
 );
 
+// 懒加载路由组件：发现页（收藏/模板详情/搜索）
 const LazyDiscovery = lazy(() =>
   import('../DiscoveryScreens').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
@@ -73,6 +93,7 @@ const LazyDiscovery = lazy(() =>
   })),
 );
 
+// 懒加载路由组件：社区页（分享/广场/消息）
 const LazyCommunity = lazy(() =>
   import('../CommunityScreens').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
@@ -100,6 +121,7 @@ interface AppScreenRouterProps {
   onSuccessNavigate?: () => void;
 }
 
+// 懒加载组件加载中的旋转动画回退
 const LoadingFallback = () => (
   <div className="flex-1 flex items-center justify-center bg-white">
     <div className="w-8 h-8 border-3 border-tc-primary border-t-transparent rounded-full animate-spin" />
@@ -120,12 +142,13 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
   openBottomSheet,
   onSuccessNavigate,
 }) => {
-  // Extracted named navigation callbacks to reduce anonymous function creation
+  // 提取具名导航回调，减少匿名函数创建
   const navigate = useCallback(
     (screen: ScreenId) => setActiveScreen(screen),
     [setActiveScreen],
   );
 
+  // 导航并触发成功回调（关闭底部弹窗）
   const navigateWithSuccess = useCallback(
     (screen: ScreenId) => {
       setActiveScreen(screen);
@@ -137,7 +160,7 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
   return (
     <ErrorBoundary>
       <div className="flex-1 overflow-hidden relative">
-        {/* ===== Eager core screens ===== */}
+        {/* ===== 核心屏幕（即时加载） ===== */}
         {activeScreen === 'home' && (
           <HomeScreen
             onNavigate={navigate}
@@ -156,7 +179,7 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
           <LoginScreen onNavigate={onNavigateFromLogin} />
         )}
 
-        {/* ===== Lazy-loaded screen groups ===== */}
+        {/* ===== 懒加载屏幕组 ===== */}
         <Suspense fallback={<LoadingFallback />}>
           {(activeScreen === 'nav' || activeScreen === 'param_adjust' || activeScreen === 'editor') && (
             <NavigationAndEditor

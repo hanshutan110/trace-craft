@@ -1,3 +1,12 @@
+/**
+ * TraceCraft 国际化模块
+ *
+ * 功能：
+ *   1. 提供中英文翻译文案（zh-CN / en-US）
+ *   2. 从后端 /v1/maps/config 接口获取语言配置
+ *   3. 使用 React Context 提供 useI18n() 钩子
+ *   4. 语言偏好持久化到 localStorage
+ */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 export type Language = 'cn' | 'en';
@@ -10,7 +19,9 @@ export interface LocaleConfig {
   labels: Record<Language, string>;
 }
 
+// localStorage 语言偏好存储键
 const STORAGE_KEY = 'tracecraft_language';
+// 后端语言配置接口地址
 const CONFIG_ENDPOINTS = ['/v1/maps/config'];
 const DEFAULT_LANGUAGE_OPTIONS: Language[] = ['cn', 'en'];
 const DEFAULT_LANGUAGE_LABELS: Record<Language, string> = {
@@ -23,6 +34,7 @@ const DEFAULT_LOCALE_CONFIG: LocaleConfig = {
   labels: DEFAULT_LANGUAGE_LABELS,
 };
 
+/** 将后端 locale 代码（如 zh-CN）映射为前端 Language 类型（cn/en） */
 function mapBackendLocaleToLanguage(locale: unknown): Language | null {
   if (typeof locale !== 'string') return null;
   const lower = locale.toLowerCase();
@@ -31,10 +43,16 @@ function mapBackendLocaleToLanguage(locale: unknown): Language | null {
   return null;
 }
 
+/** 语言列表去重 */
 function dedupeLanguages(values: Language[]): Language[] {
   return values.filter((value, index, arr) => arr.indexOf(value) === index);
 }
 
+/**
+ * 清洗后端返回的语言配置
+ * 提取支持语言列表、回退语言、语言标签
+ * 异常数据时回退到默认配置
+ */
 function sanitizeLocaleConfig(raw: unknown): LocaleConfig {
   if (!raw || typeof raw !== 'object') {
     return DEFAULT_LOCALE_CONFIG;
@@ -82,6 +100,7 @@ function sanitizeLocaleConfig(raw: unknown): LocaleConfig {
   };
 }
 
+/** 从后端接口获取语言配置，失败时使用本地默认值 */
 export const resolveLocaleConfig = async (): Promise<LocaleConfig> => {
   for (const endpoint of CONFIG_ENDPOINTS) {
     try {
@@ -98,6 +117,7 @@ export const resolveLocaleConfig = async (): Promise<LocaleConfig> => {
   return DEFAULT_LOCALE_CONFIG;
 };
 
+/** 从 localStorage 读取已保存的语言偏好 */
 function getPersistedLanguage(): Language | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -108,6 +128,7 @@ function getPersistedLanguage(): Language | null {
   }
 }
 
+// ===== 中文翻译文案 =====
 const zhCN: TextMap = {
   'app.title': 'TraceCraft',
   'app.subtitle': '释放城市中的运动体验',
@@ -222,6 +243,7 @@ const zhCN: TextMap = {
   'splash.tap_to_enter': '跳过并进入应用',
 };
 
+// ===== 英文翻译文案 =====
 const enUS: TextMap = {
   'app.title': 'TraceCraft',
   'app.subtitle': 'Generate your running route from city images',
@@ -336,6 +358,7 @@ const enUS: TextMap = {
   'splash.tap_to_enter': 'Skip to Home',
 };
 
+// 翻译字典：按语言索引
 const translations: Record<Language, TextMap> = {
   cn: zhCN,
   en: enUS,
@@ -357,6 +380,14 @@ const I18nContext = createContext<I18nContextValue>({
   languageLabels: DEFAULT_LANGUAGE_LABELS,
 });
 
+/**
+ * I18n Provider 组件
+ *
+ * 1. 初始化时从后端获取语言配置
+ * 2. 恢复 localStorage 中保存的语言偏好
+ * 3. 提供 t() 翻译函数和 setLanguage() 切换函数
+ * 4. 同步更新 document.documentElement.lang 属性
+ */
 export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   const [languageOptions, setLanguageOptions] = useState<LocaleConfig['supportedLanguages']>(DEFAULT_LANGUAGE_OPTIONS);
   const [languageLabels, setLanguageLabels] = useState<LocaleConfig['labels']>(DEFAULT_LANGUAGE_LABELS);
@@ -390,6 +421,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
+  /** 翻译函数：根据 key 查找当前语言的文案，未找到时使用 fallback 或 key 本身 */
   const t = useCallback(
     (key: string, fallback?: string) => {
       return translations[language][key] || fallback || key;
@@ -397,6 +429,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
     [language],
   );
 
+  /** 切换语言并持久化到 localStorage，同时更新 HTML lang 属性 */
   const handleSetLanguage = (lang: Language) => {
     setLanguage(lang);
     try {

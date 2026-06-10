@@ -1,26 +1,195 @@
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
+/**
+ * TraceCraft 存储层模块（TypeScript 版）
+ *
+ * 支持两种存储模式：
+ *   1. MemoryStorage —— 内存 + JSON 文件持久化（默认，MVP 阶段使用）
+ *   2. PostgresStorage —— PostgreSQL 数据库（生产环境推荐）
+ *
+ * 通过环境变量 TRACECRAFT_STORAGE 控制切换：
+ *   - memory：强制内存模式
+ *   - postgres / postgres-auto：尝试连接 PostgreSQL，失败回退到内存模式
+ *
+ * IStorage 接口定义了统一的存储契约，所有实现必须满足
+ */
 
-let pgPool = null;
-let usePostgres = false;
-const configuredMode = (process.env.TRACECRAFT_STORAGE || '').toLowerCase();
-const connectionString =
-  process.env.DATABASE_URL || process.env.PG_URL || process.env.PG_CONNECTION_STRING;
-const DATA_FILE = process.env.TRACECRAFT_DATA_FILE || path.join(__dirname, '../../data/state.json');
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import type { GeoPoint } from '../utils/geo';
 
-function nowIso() {
+// ===== 类型定义 =====
+
+/** 路线数据结构 */
+export interface Route {
+  id: string;
+  userId: string;
+  locale: string;
+  source: {
+    filename: string;
+    createdBy: string;
+    seed: number;
+  };
+  createdBy: string;
+  points: GeoPoint[];
+  version: number;
+  anchorVersion: number;
+  providerHint: string;
+  crsHint: string;
+  startPoint: GeoPoint | null;
+  endPoint: GeoPoint | null;
+  bounds: RouteBounds | null;
+  meta: RouteMeta;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  targetKm: number | null;
+  actualDistanceM: number;
+  adjustedDistanceKm?: number;
+  adjustedAt?: string;
+  rebaseStrategy?: string;
+  shapeType?: string;
+  [key: string]: unknown;
+}
+
+/** 路线边界框 */
+export interface RouteBounds {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+/** 路线元数据 */
+export interface RouteMeta {
+  distanceM: number;
+  start: GeoPoint;
+  end: GeoPoint;
+}
+
+/** 路线版本快照 */
+export interface RouteVersion {
+  id: string;
+  routeId: string;
+  version: number;
+  snapshot: Route;
+  changedBy: string | undefined;
+  changeReason: string;
+  createdAt: string;
+}
+
+/** 跑步会话数据结构 */
+export interface Session {
+  id: string;
+  routeId: string;
+  userId: string;
+  provider: string;
+  status: string;
+  createdAt: string;
+  startedAt: string;
+  lastStateAt: string;
+  cursor: number;
+  currentAccuracy: number | null;
+  deviationScore: number;
+  pathVersion: number;
+  locationSample: LocationEntry[];
+  actualPath: GeoPoint[];
+  metadata: SessionMetadata;
+  metrics: SessionMetrics;
+  version: number;
+  finishedAt?: string | null;
+  pausedAt?: string | null;
+  updatedAt?: string;
+}
+
+/** 位置上报条目 */
+export interface LocationEntry extends GeoPoint {
+  accuracy: number | null;
+}
+
+/** 会话元数据 */
+export interface SessionMetadata {
+  idempotencyKey: string | null;
+  routeVersion: number;
+  provider: string;
+  [key: string]: unknown;
+}
+
+/** 会话统计指标 */
+export interface SessionMetrics {
+  actualDistanceM?: number;
+  plannedDistanceM?: number;
+  avgDeviationM?: number;
+  completionRate?: number;
+  pointCount?: number;
+  finishCause?: string;
+  finishedAt?: string;
+  [key: string]: unknown;
+}
+
+/** 路线写入上下文（乐观锁 + 审计） */
+export interface RouteContext {
+  userId?: string;
+  changeReason?: string;
+  expectedVersion?: number | null;
+}
+
+/** 路线列表查询参数 */
+export interface ListRunsQuery {
+  userId: string;
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+}
+
+/** 路线列表返回结果 */
+export interface ListRunsResult {
+  total: number;
+  runs: Route[];
+  page: number;
+  limit: number;
+}
+
+/** 位置追加结果 */
+export interface AppendLocationResult {
+  session: Session;
+  accepted: boolean;
+  reason: string | null;
+  pointIndex: number;
+  lagHint: string | null;
+}
+
+// ===== IStorage 接口：所有存储实现必须满足的契约 =====
+
+export interface IStorage {
+  init(): Promise<void>;
+  createRoute(route: Route, ctx?: RouteContext): Promise<Route>;
+  getRoute(routeId: string, userId: string | null): Promise<Route | null>;
+  listUserRuns(query: ListRunsQuery): Promise<ListRunsResult>;
+  createSession(session: Session): Promise<Session>;
+  getSession(sessionId: string, userId: string | null): Promise<Session | null>;
+  saveSession(session: Session): Promise<Session>;
+  appendLocation(sessionId: string, point: GeoPoint, userId: string | null): Promise<AppendLocationResult | null>;
+  updateSession(sessionId: string, payload: Partial<Session>, userId: string | null): Promise<Session | null>;
+  close?(): Promise<void>;
+}
+
+// ===== 通用工具函数 =====
+
+function nowIso(): string {
   return new Date().toISOString();
 }
 
-function newId(prefix) {
+function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
-function normalizePoint(point) {
+/** 标准化坐标点：验证经纬度合法性，保留 8 位小数精度 */
+export function normalizePoint(point: unknown): GeoPoint | null {
   if (!point || typeof point !== 'object') return null;
-  const lat = Number(point.lat);
-  const lng = Number(point.lng);
+  const p = point as Record<string, unknown>;
+  const lat = Number(p.lat);
+  const lng = Number(p.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return {
     lat: Number(lat.toFixed(8)),
@@ -28,43 +197,55 @@ function normalizePoint(point) {
   };
 }
 
-function toJson(value, fallback) {
+function toJson(value: unknown, fallback: string): string {
   try {
     return JSON.stringify(value);
-  } catch (_err) {
+  } catch {
     return fallback;
   }
 }
 
-function clonePayload(value) {
+function clonePayload<T>(value: T): T {
   try {
     return JSON.parse(JSON.stringify(value));
-  } catch (_err) {
+  } catch {
     return value;
   }
 }
 
-function nowTimestamp() {
+function nowTimestamp(): string {
   return nowIso();
 }
 
-const memoryState = {
+// ===== 内存状态 =====
+
+interface MemoryState {
+  routes: Record<string, Route>;
+  routeVersions: Record<string, RouteVersion[]>;
+  sessions: Record<string, Session>;
+  users: Set<string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const memoryState: MemoryState = {
   routes: {},
   routeVersions: {},
   sessions: {},
-  users: new Set(),
+  users: new Set<string>(),
   createdAt: nowTimestamp(),
   updatedAt: nowTimestamp(),
 };
 
-function ensureDir(filePath) {
+function ensureDir(filePath: string): void {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
 
-function loadMemoryState() {
+/** 从 JSON 文件加载内存状态（应用启动时调用） */
+function loadMemoryState(): void {
   try {
     if (!fs.existsSync(DATA_FILE)) {
       return;
@@ -86,12 +267,13 @@ function loadMemoryState() {
     }
     memoryState.createdAt = parsed.createdAt || nowTimestamp();
     memoryState.updatedAt = parsed.updatedAt || nowTimestamp();
-  } catch (_err) {
+  } catch {
     // keep current in-memory defaults
   }
 }
 
-function saveMemoryState() {
+/** 将内存状态保存到 JSON 文件（原子写入：先写临时文件再重命名） */
+function saveMemoryState(): void {
   ensureDir(DATA_FILE);
   const payload = {
     ...memoryState,
@@ -103,7 +285,15 @@ function saveMemoryState() {
   fs.renameSync(tmp, DATA_FILE);
 }
 
-function listUserRoutesFromMemory(userId, { page = 1, limit = 20, status, search }) {
+/**
+ * 从内存中查询用户路线列表
+ * 支持按状态过滤、关键词搜索（文件名/routeId/形状类型）
+ * 按更新时间降序排序，支持分页
+ */
+function listUserRoutesFromMemory(
+  userId: string,
+  { page = 1, limit = 20, status, search }: { page?: number; limit?: number; status?: string; search?: string }
+): ListRunsResult {
   const normalizedSearch = (search || '').trim().toLowerCase();
   let routes = Object.values(memoryState.routes).filter((route) => route.userId === userId);
   if (status) {
@@ -111,13 +301,15 @@ function listUserRoutesFromMemory(userId, { page = 1, limit = 20, status, search
   }
   if (normalizedSearch) {
     routes = routes.filter((route) => {
-      const fileName = String(route.source && route.source.filename || '').toLowerCase();
+      const fileName = String(route.source?.filename || '').toLowerCase();
       const routeId = String(route.id || '').toLowerCase();
       const shape = String(route.shapeType || '').toLowerCase();
       return fileName.includes(normalizedSearch) || routeId.includes(normalizedSearch) || shape.includes(normalizedSearch);
     });
   }
-  routes = routes.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  routes = routes.sort(
+    (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+  );
   const normalizedLimit = Math.max(1, Math.min(100, Number(limit) || 20));
   const normalizedPage = Math.max(1, Number(page) || 1);
   const start = (normalizedPage - 1) * normalizedLimit;
@@ -129,17 +321,27 @@ function listUserRoutesFromMemory(userId, { page = 1, limit = 20, status, search
   };
 }
 
-function pickSessionSnapshot(session) {
+/** 提取会话快照，确保数组字段为安全类型 */
+function pickSessionSnapshot(session: Session): Session {
   return {
     ...session,
     locationSample: Array.isArray(session.locationSample) ? session.locationSample : [],
     actualPath: Array.isArray(session.actualPath) ? session.actualPath : [],
-    metadata: session.metadata && typeof session.metadata === 'object' ? session.metadata : {},
+    metadata: session.metadata && typeof session.metadata === 'object' ? session.metadata : { idempotencyKey: null, routeVersion: 1, provider: '' },
     metrics: session.metrics && typeof session.metrics === 'object' ? session.metrics : {},
   };
 }
 
-function pushRouteVersion(state, route, changeBy, reason) {
+/**
+ * 记录路线版本历史
+ * 每次路线变更时保存快照，最多保留 200 条历史记录
+ */
+function pushRouteVersion(
+  state: MemoryState,
+  route: Route,
+  changeBy: string | undefined,
+  reason: string
+): void {
   const snapshot = clonePayload(route);
   state.routeVersions[route.id] = state.routeVersions[route.id] || [];
   state.routeVersions[route.id].push({
@@ -156,23 +358,31 @@ function pushRouteVersion(state, route, changeBy, reason) {
   }
 }
 
-function toPgTimestamp(value) {
+function toPgTimestamp(value: unknown): Date | null {
   if (!value) return null;
-  return new Date(value);
+  return new Date(value as string | Date);
 }
 
-class MemoryStorage {
-  init() {
+// ===== MemoryStorage 实现 =====
+
+/**
+ * 内存存储实现
+ * 数据存储在 memoryState 对象中，变更时写入 JSON 文件
+ * 适用于开发和 MVP 阶段
+ */
+class MemoryStorage implements IStorage {
+  init(): Promise<void> {
     loadMemoryState();
     return Promise.resolve();
   }
 
-  getStore() {
+  getStore(): MemoryState {
     return memoryState;
   }
 
-  async createRoute(route, ctx = {}) {
-    const expectedVersion = Number.isFinite(Number(ctx.expectedVersion)) ? Number(ctx.expectedVersion) : null;
+  async createRoute(route: Route, ctx: RouteContext = {}): Promise<Route> {
+    const expectedVersion =
+      Number.isFinite(Number(ctx.expectedVersion)) ? Number(ctx.expectedVersion) : null;
     const existing = memoryState.routes[route.id];
     if (existing) {
       if (expectedVersion !== null && Number(existing.version) !== expectedVersion) {
@@ -183,7 +393,9 @@ class MemoryStorage {
     memoryState.routes[route.id] = {
       ...route,
       updatedAt: route.updatedAt || nowTimestamp(),
-      version: Number.isFinite(Number(route.version)) ? Number(route.version) : Number(existing ? existing.version || 1 : 1),
+      version: Number.isFinite(Number(route.version))
+        ? Number(route.version)
+        : Number(existing ? existing.version || 1 : 1),
       userId: route.userId || existing?.userId,
     };
     if (!memoryState.users.has(memoryState.routes[route.id].userId)) {
@@ -206,31 +418,38 @@ class MemoryStorage {
     return clonePayload(memoryState.routes[route.id]);
   }
 
-  async getRoute(routeId, userId) {
+  async getRoute(routeId: string, userId: string | null): Promise<Route | null> {
     const route = memoryState.routes[routeId];
     if (!route) return null;
     if (userId && route.userId !== userId) return null;
     return clonePayload(route);
   }
 
-  async listUserRuns({ userId, page = 1, limit = 20, status, search }) {
-    return listUserRoutesFromMemory(userId, { page, limit, status, search });
+  async listUserRuns(query: ListRunsQuery): Promise<ListRunsResult> {
+    return listUserRoutesFromMemory(query.userId, {
+      page: query.page,
+      limit: query.limit,
+      status: query.status,
+      search: query.search,
+    });
   }
 
-  async createSession(session) {
-    const idem = session?.metadata && session.metadata.idempotencyKey;
+  async createSession(session: Session): Promise<Session> {
+    const idem = session?.metadata?.idempotencyKey;
     if (session.id && memoryState.sessions[session.id]) {
       return clonePayload(memoryState.sessions[session.id]);
     }
     if (idem) {
-      const existed = Object.values(memoryState.sessions).find((item) => item.userId === session.userId && item.metadata && item.metadata.idempotencyKey === idem);
+      const existed = Object.values(memoryState.sessions).find(
+        (item) => item.userId === session.userId && item.metadata?.idempotencyKey === idem
+      );
       if (existed) {
         return clonePayload(existed);
       }
     }
     memoryState.sessions[session.id] = pickSessionSnapshot({
       ...session,
-      metadata: { ...(session.metadata || {}), idempotencyKey: idem || null },
+      metadata: { ...(session.metadata || { idempotencyKey: null, routeVersion: 1, provider: '' }), idempotencyKey: idem || null },
       version: Number.isFinite(Number(session.version)) ? Number(session.version) : 1,
       updatedAt: nowTimestamp(),
       createdAt: session.createdAt || nowTimestamp(),
@@ -239,24 +458,30 @@ class MemoryStorage {
     return clonePayload(memoryState.sessions[session.id]);
   }
 
-  async getSession(sessionId, userId) {
+  async getSession(sessionId: string, userId: string | null): Promise<Session | null> {
     const session = memoryState.sessions[sessionId];
     if (!session) return null;
     if (userId && session.userId !== userId) return null;
     return clonePayload(pickSessionSnapshot(session));
   }
 
-  async saveSession(session) {
+  async saveSession(session: Session): Promise<Session> {
     memoryState.sessions[session.id] = {
       ...pickSessionSnapshot(session),
       updatedAt: nowTimestamp(),
-      version: Number.isFinite(Number(session.version)) ? Number(session.version) : (memoryState.sessions[session.id]?.version || 0) + 1,
+      version: Number.isFinite(Number(session.version))
+        ? Number(session.version)
+        : (memoryState.sessions[session.id]?.version || 0) + 1,
     };
     saveMemoryState();
     return clonePayload(memoryState.sessions[session.id]);
   }
 
-  async appendLocation(sessionId, point, userId) {
+  async appendLocation(
+    sessionId: string,
+    point: GeoPoint,
+    userId: string | null
+  ): Promise<AppendLocationResult | null> {
     const session = memoryState.sessions[sessionId];
     if (!session) {
       return null;
@@ -290,12 +515,18 @@ class MemoryStorage {
         lagHint: session.status === 'paused' ? 'paused' : 'not_running',
       };
     }
-    const accuracy = Number.isFinite(point.accuracy) ? point.accuracy : null;
+    const accuracy = Number.isFinite((point as unknown as Record<string, unknown>).accuracy as number)
+      ? ((point as unknown as Record<string, unknown>).accuracy as number)
+      : null;
     const ts = Date.now();
-    const locationEntry = { lat: pointNorm.lat, lng: pointNorm.lng, accuracy, ts };
-    const actualEntry = { lat: pointNorm.lat, lng: pointNorm.lng, ts };
-    session.locationSample = Array.isArray(session.locationSample) ? [...session.locationSample, locationEntry] : [locationEntry];
-    session.actualPath = Array.isArray(session.actualPath) ? [...session.actualPath, actualEntry] : [actualEntry];
+    const locationEntry: LocationEntry = { lat: pointNorm.lat, lng: pointNorm.lng, accuracy, ts };
+    const actualEntry: GeoPoint = { lat: pointNorm.lat, lng: pointNorm.lng, ts };
+    session.locationSample = Array.isArray(session.locationSample)
+      ? [...session.locationSample, locationEntry]
+      : [locationEntry];
+    session.actualPath = Array.isArray(session.actualPath)
+      ? [...session.actualPath, actualEntry]
+      : [actualEntry];
     session.cursor = session.locationSample.length;
     session.currentAccuracy = accuracy;
     session.version = (session.version || 1) + 1;
@@ -307,12 +538,17 @@ class MemoryStorage {
     return {
       session: clonePayload(session),
       accepted: true,
+      reason: null,
       pointIndex: session.locationSample.length - 1,
       lagHint: null,
     };
   }
 
-  async updateSession(sessionId, payload, userId) {
+  async updateSession(
+    sessionId: string,
+    payload: Partial<Session>,
+    userId: string | null
+  ): Promise<Session | null> {
     const session = memoryState.sessions[sessionId];
     if (!session) {
       return null;
@@ -338,17 +574,49 @@ class MemoryStorage {
   }
 }
 
-function getPg() {
+// ===== PostgresStorage 实现 =====
+
+/** 数据库行类型（snake_case） */
+interface SessionDbRow {
+  id: string;
+  route_id: string;
+  user_id: string;
+  status: string;
+  provider: string | null;
+  cursor: number;
+  current_accuracy: number | null;
+  deviation_score: number;
+  path_version: number;
+  started_at: Date | null;
+  finished_at: Date | null;
+  paused_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  last_state_at: Date | null;
+  metadata: Record<string, unknown>;
+  location_sample: LocationEntry[];
+  actual_path: GeoPoint[];
+  metrics: SessionMetrics;
+  version: number;
+}
+
+/** 尝试加载 pg 模块，未安装时返回 null */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+function getPg(): typeof import('pg') | null {
   try {
-    // eslint-disable-next-line global-require
     return require('pg');
-  } catch (_err) {
+  } catch {
     return null;
   }
 }
 
-class PostgresStorage {
-  async init() {
+/**
+ * PostgreSQL 存储实现
+ * 使用连接池管理数据库连接，支持事务操作
+ * 表结构：users、routes、route_versions、run_sessions、run_location_events、run_audit_logs
+ */
+class PostgresStorage implements IStorage {
+  async init(): Promise<void> {
     if (pgPool) return;
     const pg = getPg();
     if (!pg || !connectionString) {
@@ -363,12 +631,12 @@ class PostgresStorage {
     await this.ensureIndexes();
   }
 
-  async query(sql, params = []) {
-    const result = await pgPool.query(sql, params);
+  private async query(sql: string, params: unknown[] = []): Promise<Record<string, unknown>[]> {
+    const result = await pgPool!.query(sql, params);
     return result.rows || [];
   }
 
-  async ensureSchema() {
+  private async ensureSchema(): Promise<void> {
     const statements = [
       `
       CREATE TABLE IF NOT EXISTS users (
@@ -452,11 +720,11 @@ class PostgresStorage {
       `,
     ];
     for (const sql of statements) {
-      await pgPool.query(sql);
+      await pgPool!.query(sql);
     }
   }
 
-  async ensureIndexes() {
+  private async ensureIndexes(): Promise<void> {
     const sqls = [
       `CREATE INDEX IF NOT EXISTS idx_routes_user_created ON routes(user_id, updated_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_sessions_user_updated ON run_sessions(user_id, updated_at DESC)`,
@@ -469,12 +737,12 @@ class PostgresStorage {
       `ALTER TABLE run_sessions ADD COLUMN IF NOT EXISTS idempotency_key TEXT`,
     ];
     for (const sql of sqls) {
-      await pgPool.query(sql);
+      await pgPool!.query(sql);
     }
   }
 
-  async ensureUser(userId) {
-    await pgPool.query(
+  private async ensureUser(userId: string): Promise<void> {
+    await pgPool!.query(
       `
       INSERT INTO users (id)
       VALUES ($1)
@@ -484,24 +752,25 @@ class PostgresStorage {
     );
   }
 
-  mapSessionDbRow(row) {
+  /** 将数据库行映射为前端使用的 camelCase 会话对象 */
+  private mapSessionDbRow(row: SessionDbRow): Session {
     return {
       id: row.id,
       routeId: row.route_id,
       userId: row.user_id,
       status: row.status,
-      provider: row.provider,
+      provider: row.provider || '',
       cursor: row.cursor,
       currentAccuracy: row.current_accuracy,
       deviationScore: row.deviation_score,
       pathVersion: row.path_version,
-      startedAt: toPgTimestamp(row.started_at) ? row.started_at.toISOString() : null,
-      finishedAt: toPgTimestamp(row.finished_at) ? row.finished_at.toISOString() : null,
-      pausedAt: toPgTimestamp(row.paused_at) ? row.paused_at.toISOString() : null,
+      startedAt: toPgTimestamp(row.started_at) ? row.started_at!.toISOString() : '',
+      finishedAt: toPgTimestamp(row.finished_at) ? row.finished_at!.toISOString() : null,
+      pausedAt: toPgTimestamp(row.paused_at) ? row.paused_at!.toISOString() : null,
       createdAt: toPgTimestamp(row.created_at) ? row.created_at.toISOString() : nowTimestamp(),
       updatedAt: toPgTimestamp(row.updated_at) ? row.updated_at.toISOString() : nowTimestamp(),
-      lastStateAt: toPgTimestamp(row.last_state_at) ? row.last_state_at.toISOString() : null,
-      metadata: row.metadata || {},
+      lastStateAt: toPgTimestamp(row.last_state_at) ? row.last_state_at!.toISOString() : '',
+      metadata: row.metadata as SessionMetadata,
       locationSample: row.location_sample || [],
       actualPath: row.actual_path || [],
       metrics: row.metrics || {},
@@ -509,85 +778,74 @@ class PostgresStorage {
     };
   }
 
-  async createRoute(route, ctx = {}) {
-    const expectedVersion = Number.isFinite(Number(ctx.expectedVersion)) ? Number(ctx.expectedVersion) : null;
+  async createRoute(route: Route, ctx: RouteContext = {}): Promise<Route> {
+    const expectedVersion =
+      Number.isFinite(Number(ctx.expectedVersion)) ? Number(ctx.expectedVersion) : null;
     const existing = await this.getRoute(route.id, null);
     if (!existing) {
       await this.ensureUser(route.userId);
-      await pgPool.query(
+      await pgPool!.query(
         `
-        INSERT INTO routes (id,user_id,version,anchor_version,status,created_at,updated_at,payload)
+        INSERT INTO routes (id, user_id, version, anchor_version, status, created_at, updated_at, payload)
         VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
         `,
-        [route.id, route.userId, route.version || 1, route.anchorVersion || 1, route.status || 'active', route]
+        [route.id, route.userId, route.version || 1, route.anchorVersion || 1, route.status || 'active', JSON.stringify(route)]
       );
-      await pgPool.query(
+      await pgPool!.query(
         `
         INSERT INTO route_versions (id, route_id, version, snapshot, changed_by, change_reason, created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
         `,
-        [newId('rv'), route.id, route.version || 1, route, route.userId, ctx.changeReason || 'create']
+        [newId('rv'), route.id, route.version || 1, JSON.stringify(route), route.userId, ctx.changeReason || 'create']
       );
       return clonePayload(route);
     }
     const rows = await this.query(
-      `
-      SELECT payload, version, user_id
-      FROM routes
-      WHERE id = $1
-      `,
+      `SELECT payload, version, user_id FROM routes WHERE id = $1`,
       [route.id]
     );
-    const current = rows[0];
-    if (!current) return null;
+    const current = rows[0] as { payload: Route; version: number; user_id: string } | undefined;
+    if (!current) return null!;
     const currentVersion = Number(current.version || 0);
     const routeUser = current.user_id;
     if (routeUser && routeUser !== route.userId) {
-      return null;
+      return null!;
     }
     if (expectedVersion !== null && currentVersion !== expectedVersion) {
       throw new Error('route_version_conflict');
     }
-    await pgPool.query(
+    await pgPool!.query(
       `
       INSERT INTO route_versions (id, route_id, version, snapshot, changed_by, change_reason, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, NOW())
       ON CONFLICT (route_id, version) DO NOTHING
       `,
-      [newId('rv'), route.id, currentVersion, current.payload, routeUser, ctx.changeReason || 'update']
+      [newId('rv'), route.id, currentVersion, JSON.stringify(current.payload), routeUser, ctx.changeReason || 'update']
     );
-    await pgPool.query(
+    await pgPool!.query(
       `
       UPDATE routes
-      SET
-        version = $2,
-        anchor_version = $3,
-        updated_at = NOW(),
-        payload = $4,
-        status = $5
+      SET version = $2, anchor_version = $3, updated_at = NOW(), payload = $4, status = $5
       WHERE id = $1
       `,
-      [route.id, route.version, route.anchorVersion, route, route.status || 'active']
+      [route.id, route.version, route.anchorVersion, JSON.stringify(route), route.status || 'active']
     );
     return clonePayload(route);
   }
 
-  async getRoute(routeId, userId) {
+  async getRoute(routeId: string, userId: string | null): Promise<Route | null> {
     const rows = await this.query(
-      `
-      SELECT payload, user_id
-      FROM routes
-      WHERE id = $1
-      `,
+      `SELECT payload, user_id FROM routes WHERE id = $1`,
       [routeId]
     );
     if (!rows.length) return null;
-    const item = rows[0];
+    const item = rows[0] as { payload: string; user_id: string };
     if (userId && item.user_id !== userId) return null;
-    return clonePayload(item.payload);
+    return clonePayload(JSON.parse(typeof item.payload === 'string' ? item.payload : JSON.stringify(item.payload)));
   }
 
-  async listUserRuns({ userId, page = 1, limit = 20, status, search }) {
+  async listUserRuns(query: ListRunsQuery): Promise<ListRunsResult> {
+    const { userId, page = 1, limit = 20, status, search } = query;
     const normalizedLimit = Math.max(1, Math.min(100, Number(limit) || 20));
     const normalizedPage = Math.max(1, Number(page) || 1);
     const offset = (normalizedPage - 1) * normalizedLimit;
@@ -620,15 +878,18 @@ class PostgresStorage {
     );
     return {
       total: Number(countRows[0]?.total || 0),
-      runs: rows.map((row) => clonePayload(row.payload)),
+      runs: rows.map((row) => {
+        const payload = (row as { payload: string }).payload;
+        return clonePayload(JSON.parse(typeof payload === 'string' ? payload : JSON.stringify(payload)));
+      }),
       page: normalizedPage,
       limit: normalizedLimit,
     };
   }
 
-  async createSession(session) {
+  async createSession(session: Session): Promise<Session> {
     await this.ensureUser(session.userId);
-    const metadata = session.metadata || {};
+    const metadata = session.metadata || ({} as SessionMetadata);
     const idempotencyKey = metadata.idempotencyKey || null;
     const payload = {
       id: session.id,
@@ -650,7 +911,7 @@ class PostgresStorage {
       idempotencyKey,
     };
     try {
-      await pgPool.query(
+      await pgPool!.query(
         `
         INSERT INTO run_sessions (
           id, route_id, user_id, status, provider, cursor, current_accuracy, deviation_score,
@@ -677,17 +938,17 @@ class PostgresStorage {
           payload.idempotencyKey,
         ]
       );
-    } catch (err) {
-      if (err && err.code === '23505') {
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === '23505') {
         const existed = await this.getSession(session.id, session.userId);
         if (existed) return existed;
       }
       throw err;
     }
-    return this.getSession(payload.id, session.userId);
+    return this.getSession(payload.id, session.userId) as Promise<Session>;
   }
 
-  async getSession(sessionId, userId) {
+  async getSession(sessionId: string, userId: string | null): Promise<Session | null> {
     const rows = await this.query(
       `
       SELECT
@@ -700,29 +961,35 @@ class PostgresStorage {
       [sessionId]
     );
     if (!rows.length) return null;
-    const row = rows[0];
+    const row = rows[0] as unknown as SessionDbRow;
     if (userId && row.user_id !== userId) return null;
     return this.mapSessionDbRow(row);
   }
 
-  async appendLocation(sessionId, point, userId) {
+  async appendLocation(
+    sessionId: string,
+    point: GeoPoint,
+    userId: string | null
+  ): Promise<AppendLocationResult | null> {
     const normalized = normalizePoint(point);
     if (!normalized) {
       return {
+        session: null!,
         accepted: false,
         reason: 'invalid point',
         pointIndex: -1,
         lagHint: null,
       };
     }
-    const accuracy = Number.isFinite(point.accuracy) ? point.accuracy : null;
-    const client = await pgPool.connect();
+    const accuracy = Number.isFinite((point as unknown as Record<string, unknown>).accuracy as number)
+      ? ((point as unknown as Record<string, unknown>).accuracy as number)
+      : null;
+    const client = await pgPool!.connect();
     try {
       await client.query('BEGIN');
       const rows = await client.query(
         `
-        SELECT
-          id, user_id, status, cursor, location_sample, actual_path, version
+        SELECT id, user_id, status, cursor, location_sample, actual_path, version
         FROM run_sessions
         WHERE id = $1
         FOR UPDATE
@@ -733,11 +1000,11 @@ class PostgresStorage {
         await client.query('ROLLBACK');
         return null;
       }
-      const sessionRow = rows.rows[0];
+      const sessionRow = rows.rows[0] as Record<string, unknown>;
       if (userId && sessionRow.user_id !== userId) {
         await client.query('ROLLBACK');
         return {
-          session: this.mapSessionDbRow(sessionRow),
+          session: this.mapSessionDbRow(sessionRow as unknown as SessionDbRow),
           accepted: false,
           reason: 'forbidden',
           pointIndex: -1,
@@ -746,9 +1013,11 @@ class PostgresStorage {
       }
       if (sessionRow.status !== 'running' && sessionRow.status !== 'created') {
         await client.query('ROLLBACK');
-        const pointCount = Array.isArray(sessionRow.location_sample) ? sessionRow.location_sample.length : 0;
+        const pointCount = Array.isArray(sessionRow.location_sample)
+          ? sessionRow.location_sample.length
+          : 0;
         return {
-          session: this.mapSessionDbRow(sessionRow),
+          session: this.mapSessionDbRow(sessionRow as unknown as SessionDbRow),
           accepted: false,
           reason: sessionRow.status === 'paused' ? 'session_paused' : 'session_not_active',
           pointIndex: pointCount,
@@ -765,15 +1034,14 @@ class PostgresStorage {
         [sessionId]
       );
       const seq = Number(seqResult.rows[0]?.seq || 1);
-      const locationSample = Array.isArray(sessionRow.location_sample) ? [...sessionRow.location_sample] : [];
-      const actualPath = Array.isArray(sessionRow.actual_path) ? [...sessionRow.actual_path] : [];
+      const locationSample: LocationEntry[] = Array.isArray(sessionRow.location_sample)
+        ? [...(sessionRow.location_sample as LocationEntry[])]
+        : [];
+      const actualPath: GeoPoint[] = Array.isArray(sessionRow.actual_path)
+        ? [...(sessionRow.actual_path as GeoPoint[])]
+        : [];
       const ts = Date.now();
-      const sampleEntry = {
-        lat: normalized.lat,
-        lng: normalized.lng,
-        accuracy,
-        ts,
-      };
+      const sampleEntry: LocationEntry = { lat: normalized.lat, lng: normalized.lng, accuracy, ts };
       locationSample.push(sampleEntry);
       actualPath.push({ lat: normalized.lat, lng: normalized.lng, ts });
 
@@ -803,8 +1071,9 @@ class PostgresStorage {
       await client.query('COMMIT');
       const session = await this.getSession(sessionId, userId);
       return {
-        session,
+        session: session!,
         accepted: true,
+        reason: null,
         pointIndex: locationSample.length - 1,
         lagHint: null,
       };
@@ -816,73 +1085,59 @@ class PostgresStorage {
     }
   }
 
-  async updateSession(sessionId, payload, userId) {
-    const client = await pgPool.connect();
+  async updateSession(
+    sessionId: string,
+    payload: Partial<Session>,
+    userId: string | null
+  ): Promise<Session | null> {
+    const client = await pgPool!.connect();
     try {
       await client.query('BEGIN');
-      const rows = await client.query(
-        `
-        SELECT *
-        FROM run_sessions
-        WHERE id = $1
-        FOR UPDATE
-        `,
-        [sessionId]
-      );
+      const rows = await client.query(`SELECT * FROM run_sessions WHERE id = $1 FOR UPDATE`, [sessionId]);
       if (!rows.rows.length) {
         await client.query('ROLLBACK');
         return null;
       }
-      const base = rows.rows[0];
+      const base = rows.rows[0] as Record<string, unknown>;
       if (userId && base.user_id !== userId) {
         await client.query('ROLLBACK');
         return null;
       }
 
-      const sets = [];
-      const params = [];
+      const sets: string[] = [];
+      const params: unknown[] = [];
       let i = 2;
 
-      const setField = (key, value) => {
+      const setField = (key: string, value: unknown): void => {
         sets.push(`${key} = $${i}`);
         params.push(value);
         i += 1;
       };
 
-      if (payload.status) {
-        setField('status', payload.status);
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'currentAccuracy')) {
+      if (payload.status) setField('status', payload.status);
+      if (Object.prototype.hasOwnProperty.call(payload, 'currentAccuracy'))
         setField('current_accuracy', payload.currentAccuracy);
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'deviationScore')) {
+      if (Object.prototype.hasOwnProperty.call(payload, 'deviationScore'))
         setField('deviation_score', payload.deviationScore);
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'cursor')) {
+      if (Object.prototype.hasOwnProperty.call(payload, 'cursor'))
         setField('cursor', payload.cursor);
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'metadata')) {
+      if (Object.prototype.hasOwnProperty.call(payload, 'metadata'))
         setField('metadata', toJson(payload.metadata, '{}'));
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'metrics')) {
+      if (Object.prototype.hasOwnProperty.call(payload, 'metrics'))
         setField('metrics', toJson(payload.metrics, '{}'));
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'locationSample')) {
+      if (Object.prototype.hasOwnProperty.call(payload, 'locationSample'))
         setField('location_sample', toJson(payload.locationSample, '[]'));
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'actualPath')) {
+      if (Object.prototype.hasOwnProperty.call(payload, 'actualPath'))
         setField('actual_path', toJson(payload.actualPath, '[]'));
-      }
-      if (Object.prototype.hasOwnProperty.call(payload, 'finishedAt')) {
-        setField('finished_at', new Date(payload.finishedAt));
-      }
+      if (Object.prototype.hasOwnProperty.call(payload, 'finishedAt'))
+        setField('finished_at', new Date(payload.finishedAt!));
 
       if (payload.status === 'paused') {
         setField('paused_at', nowTimestamp());
       }
       setField('updated_at', new Date());
       setField('last_state_at', new Date());
-      setField('version', base.version + 1);
+      setField('version', Number(base.version) + 1);
 
       const query = `
         UPDATE run_sessions
@@ -894,7 +1149,7 @@ class PostgresStorage {
       `;
       const rowsUpdated = await client.query(query, [sessionId, ...params]);
       await client.query('COMMIT');
-      return this.mapSessionDbRow(rowsUpdated.rows[0]);
+      return this.mapSessionDbRow(rowsUpdated.rows[0] as unknown as SessionDbRow);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -903,24 +1158,48 @@ class PostgresStorage {
     }
   }
 
-  async close() {
+  async close(): Promise<void> {
     if (pgPool) {
       await pgPool.end();
     }
   }
+
+  /** PostgresStorage 未实现 saveSession，直接抛出不支持错误 */
+  async saveSession(_session: Session): Promise<Session> {
+    throw new Error('PostgresStorage.saveSession not implemented - use createSession instead');
+  }
 }
 
-let storage = null;
-let initPromise = null;
+// ===== 存储实例管理 =====
 
-async function detectPostgres() {
+// PostgreSQL 连接池（全局单例）
+let pgPool: import('pg').Pool | null = null;
+// 当前是否使用 PostgreSQL
+let usePostgres = false;
+// 存储模式配置
+const configuredMode = (process.env.TRACECRAFT_STORAGE || '').toLowerCase();
+// PostgreSQL 连接字符串
+const connectionString =
+  process.env.DATABASE_URL || process.env.PG_URL || process.env.PG_CONNECTION_STRING;
+// JSON 数据文件路径
+const DATA_FILE = process.env.TRACECRAFT_DATA_FILE || path.join(__dirname, '../../data/state.json');
+
+let storage: IStorage | null = null;
+let initPromise: Promise<IStorage> | null = null;
+
+/** 检测是否应使用 PostgreSQL */
+async function detectPostgres(): Promise<boolean> {
   if (configuredMode === 'memory') return false;
   if (configuredMode === 'postgres') return Boolean(connectionString);
   if (configuredMode === 'postgres-auto') return Boolean(connectionString);
   return Boolean(connectionString);
 }
 
-async function createStorage() {
+/**
+ * 创建存储实例（单例模式）
+ * 优先尝试 PostgreSQL，失败时回退到内存模式
+ */
+async function createStorage(): Promise<IStorage> {
   if (storage) return storage;
   const shouldUsePg = await detectPostgres();
   if (!shouldUsePg) {
@@ -935,7 +1214,7 @@ async function createStorage() {
     storage = pgStorage;
     usePostgres = true;
     return storage;
-  } catch (_err) {
+  } catch {
     storage = new MemoryStorage();
     await storage.init();
     usePostgres = false;
@@ -943,73 +1222,101 @@ async function createStorage() {
   }
 }
 
-async function initStorage() {
+/** 初始化存储层（仅执行一次，后续调用等待同一个 Promise） */
+export async function initStorage(): Promise<void> {
   if (!initPromise) {
     initPromise = createStorage();
   }
   await initPromise;
 }
 
-async function getStorage() {
+async function getStorage(): Promise<IStorage> {
   await initStorage();
-  return storage;
+  return storage!;
 }
 
-module.exports = {
-  normalizePoint,
-  newId,
-  initStorage,
-  storageMode: () => (usePostgres ? 'postgres' : 'memory'),
-  createRouteRecord: async (route, ctx) => {
-    const repo = await getStorage();
-    return repo.createRoute(route, ctx);
-  },
-  upsertRouteRecord: async (route, ctx) => {
-    const repo = await getStorage();
-    return repo.createRoute(route, ctx);
-  },
-  getRouteRecord: async (routeId, userId) => {
-    const repo = await getStorage();
-    return repo.getRoute(routeId, userId);
-  },
-  saveSessionRecord: async (session) => {
-    const repo = await getStorage();
-    return repo.createSession(session);
-  },
-  getSessionRecord: async (sessionId, userId) => {
-    const repo = await getStorage();
-    return repo.getSession(sessionId, userId);
-  },
-  updateSessionRecord: async (sessionId, payload, userId) => {
-    const repo = await getStorage();
-    return repo.updateSession(sessionId, payload, userId);
-  },
-  appendSessionLocationRecord: async (sessionId, point, userId) => {
-    const repo = await getStorage();
-    return repo.appendLocation(sessionId, point, userId);
-  },
-  listUserRuns: async ({ userId, page = 1, limit = 20, status, search }) => {
-    const repo = await getStorage();
-    return repo.listUserRuns({ userId, page, limit, status, search });
-  },
-  getStore() {
-    if (!storage && configuredMode === 'memory') {
-      loadMemoryState();
-    }
-    return {
-      routes: memoryState.routes,
-      sessions: memoryState.sessions,
-      users: Array.from(memoryState.users),
-      createdAt: memoryState.createdAt,
-      updatedAt: memoryState.updatedAt,
-    };
-  },
-  listUserRunIds: () => Object.keys(memoryState.routes || {}),
-  normalizePoints(points) {
-    if (!Array.isArray(points)) return [];
-    return points
-      .map(normalizePoint)
-      .filter(Boolean)
-      .map((point) => ({ lat: point.lat, lng: point.lng, ts: Date.now() }));
-  },
+/** 当前存储模式 */
+export function storageMode(): string {
+  return usePostgres ? 'postgres' : 'memory';
+}
+
+// ===== 对外暴露的存储操作函数 =====
+
+export const createRouteRecord = async (route: Route, ctx: RouteContext): Promise<Route> => {
+  const repo = await getStorage();
+  return repo.createRoute(route, ctx);
 };
+
+export const upsertRouteRecord = async (route: Route, ctx: RouteContext): Promise<Route> => {
+  const repo = await getStorage();
+  return repo.createRoute(route, ctx);
+};
+
+export const getRouteRecord = async (routeId: string, userId: string | null): Promise<Route | null> => {
+  const repo = await getStorage();
+  return repo.getRoute(routeId, userId);
+};
+
+export const saveSessionRecord = async (session: Session): Promise<Session> => {
+  const repo = await getStorage();
+  return repo.createSession(session);
+};
+
+export const getSessionRecord = async (sessionId: string, userId: string | null): Promise<Session | null> => {
+  const repo = await getStorage();
+  return repo.getSession(sessionId, userId);
+};
+
+export const updateSessionRecord = async (
+  sessionId: string,
+  payload: Partial<Session>,
+  userId: string | null
+): Promise<Session | null> => {
+  const repo = await getStorage();
+  return repo.updateSession(sessionId, payload, userId);
+};
+
+export const appendSessionLocationRecord = async (
+  sessionId: string,
+  point: GeoPoint,
+  userId: string | null
+): Promise<AppendLocationResult | null> => {
+  const repo = await getStorage();
+  return repo.appendLocation(sessionId, point, userId);
+};
+
+export const listUserRuns = async (query: ListRunsQuery): Promise<ListRunsResult> => {
+  const repo = await getStorage();
+  return repo.listUserRuns(query);
+};
+
+export function getStore(): {
+  routes: Record<string, Route>;
+  sessions: Record<string, Session>;
+  users: string[];
+  createdAt: string;
+  updatedAt: string;
+} {
+  if (!storage && configuredMode === 'memory') {
+    loadMemoryState();
+  }
+  return {
+    routes: memoryState.routes,
+    sessions: memoryState.sessions,
+    users: Array.from(memoryState.users),
+    createdAt: memoryState.createdAt,
+    updatedAt: memoryState.updatedAt,
+  };
+}
+
+export function listUserRunIds(): string[] {
+  return Object.keys(memoryState.routes || {});
+}
+
+export function normalizePoints(points: unknown[]): GeoPoint[] {
+  if (!Array.isArray(points)) return [];
+  return points
+    .map(normalizePoint)
+    .filter((p): p is GeoPoint => p !== null)
+    .map((p) => ({ lat: p.lat, lng: p.lng, ts: Date.now() }));
+}

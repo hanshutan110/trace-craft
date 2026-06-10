@@ -1,17 +1,36 @@
+/**
+ * TraceCraft 后台管理 Demo
+ *
+ * 当前为纯前端 Mock 模式，所有数据存储在 localStorage 中
+ * 三大管理模块：
+ *   1. 用户管理（users）—— 增删改查、角色分配、启用/禁用
+ *   2. 内容管理（contents）—— 公告/FAQ/帮助/政策，草稿/发布/归档
+ *   3. 模板管理（templates）—— 地图/路线/UI 模板，启用/禁用/设为默认
+ *
+ * 未来将替换为后端 API 调用，保留 service 方法签名做最小侵入替换
+ */
+
+// localStorage 存储键名
 const STORAGE_KEY = 'tracecraft-admin-mock-db-v2';
 
+// ===== 工具函数 =====
+
+/** 获取当前 ISO 时间戳 */
 function now() {
   return new Date().toISOString();
 }
 
+/** 深拷贝对象 */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+/** 模拟网络延迟 */
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ===== Mock 默认数据 =====
 const DEFAULT_DB = {
   users: [
     {
@@ -116,6 +135,7 @@ const DEFAULT_DB = {
   ],
 };
 
+// ===== 各模块配置（搜索字段、状态选项、标签等） =====
 const moduleConfig = {
   users: {
     label: 'Users',
@@ -167,17 +187,25 @@ const moduleConfig = {
   },
 };
 
+// ===== 全局状态 =====
 let state = loadState();
+// 当前选中的管理模块
 let currentModule = 'users';
+// 搜索关键词
 let searchKeyword = '';
+// 状态筛选条件
 let filterStatus = '';
+// 弹窗状态
 let modalState = {open: false, module: 'users', mode: 'create', editingId: ''};
 
+// ===== Mock 数据服务层（未来替换为后端 API 调用） =====
 const service = {
+  /** 查询列表 */
   async list(moduleKey) {
     await delay(120);
     return clone(state[moduleKey]);
   },
+  /** 创建记录 */
   async create(moduleKey, payload) {
     await delay(160);
     const prefix = moduleKey === 'users' ? 'u' : moduleKey === 'contents' ? 'c' : 't';
@@ -190,6 +218,7 @@ const service = {
     persistState();
     return clone(record);
   },
+  /** 更新记录 */
   async update(moduleKey, id, payload) {
     await delay(160);
     const list = clone(state[moduleKey]);
@@ -202,6 +231,7 @@ const service = {
     persistState();
     return clone(list[index]);
   },
+  /** 删除记录 */
   async remove(moduleKey, id) {
     await delay(120);
     const list = clone(state[moduleKey]);
@@ -216,6 +246,7 @@ const service = {
   },
 };
 
+/** 从 localStorage 加载状态，首次使用时初始化为默认数据 */
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -235,10 +266,18 @@ function loadState() {
   }
 }
 
+/** 将状态持久化到 localStorage */
 function persistState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+// ===== DOM 工具函数 =====
+
+/**
+ * 轻量级 DOM 构建器
+ * 简化动态创建 DOM 元素的代码
+ * 支持 className、事件绑定（on*）、属性设置
+ */
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   Object.entries(attrs).forEach(([key, value]) => {
@@ -266,10 +305,14 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+// ===== 渲染逻辑 =====
+
+/** 获取当前模块的配置 */
 function currentConfig() {
   return moduleConfig[currentModule];
 }
 
+/** 获取当前模块的过滤后列表（搜索 + 状态筛选） */
 function getCurrentList() {
   const cfg = currentConfig();
   const source = state[cfg.stateKey] || [];
@@ -287,6 +330,7 @@ function getCurrentList() {
   });
 }
 
+/** 切换管理模块，重置搜索和筛选 */
 function setModule(module) {
   currentModule = module;
   searchKeyword = '';
@@ -294,6 +338,7 @@ function setModule(module) {
   renderShell();
 }
 
+/** 渲染整体布局（侧边栏 + 主内容区 + 弹窗） */
 function renderShell() {
   const root = document.getElementById('admin-root');
   if (!root) return;
@@ -326,6 +371,7 @@ function renderShell() {
   renderMain(main.querySelector('#main-body'));
 }
 
+/** 根据当前模块渲染对应的内容区 */
 function renderMain(container) {
   if (!container) return;
   if (currentModule === 'users') {
@@ -337,6 +383,7 @@ function renderMain(container) {
   }
 }
 
+/** 渲染工具栏（标题、搜索、筛选、新建、重置按钮） */
 function renderToolbar(buttonText, onAdd) {
   const cfg = currentConfig();
   return el('div', {className: 'toolbar'}, [
@@ -389,6 +436,7 @@ function renderToolbar(buttonText, onAdd) {
   ]);
 }
 
+/** 渲染用户管理表格 */
 function renderUsers(container) {
   const list = getCurrentList();
   const cfg = currentConfig();
@@ -448,6 +496,7 @@ function renderUsers(container) {
   );
 }
 
+/** 渲染内容管理表格 */
 function renderContents(container) {
   const list = getCurrentList();
   const cfg = currentConfig();
@@ -502,6 +551,7 @@ function renderContents(container) {
   );
 }
 
+/** 渲染模板管理表格 */
 function renderTemplates(container) {
   const list = getCurrentList();
   const cfg = currentConfig();
@@ -572,6 +622,9 @@ function renderTemplates(container) {
   );
 }
 
+// ===== 弹窗相关 =====
+
+/** 构建模态弹窗 DOM 结构 */
 function buildModal() {
   return el('div', {className: 'modal-mask', id: 'admin-modal-mask'}, [
     el('div', {className: 'modal'}, [
@@ -586,6 +639,7 @@ function buildModal() {
   ]);
 }
 
+/** 构建表单字段（文本框/下拉框/复选框/文本域） */
 function buildField(label, name, attrs = {}) {
   const wrap = el('div', {className: 'form-field'});
   const {
@@ -629,6 +683,7 @@ function buildField(label, name, attrs = {}) {
   return wrap;
 }
 
+/** 构建角色选择器（复选框组） */
 function buildRoleEditor(selected = []) {
   const wrap = el('div', {className: 'form-field'});
   wrap.append(el('label', {}, 'Roles'));
@@ -648,6 +703,7 @@ function buildRoleEditor(selected = []) {
   return wrap;
 }
 
+/** 根据模块类型生成对应的表单字段 */
 function renderFormByModule(module, item) {
   const rows = [];
   if (module === 'users') {
@@ -724,6 +780,7 @@ function renderFormByModule(module, item) {
   return rows;
 }
 
+/** 打开弹窗（新建/编辑模式） */
 function openModal(module, mode, id = '') {
   const wrap = document.getElementById('admin-modal-form-wrap');
   const title = document.getElementById('admin-modal-title');
@@ -743,6 +800,7 @@ function openModal(module, mode, id = '') {
   document.getElementById('admin-modal-mask').classList.add('show');
 }
 
+/** 关闭弹窗 */
 function closeModal() {
   const mask = document.getElementById('admin-modal-mask');
   const wrap = document.getElementById('admin-modal-form-wrap');
@@ -750,6 +808,7 @@ function closeModal() {
   if (wrap) wrap.innerHTML = '';
 }
 
+/** 读取表单数据并校验，返回 null 表示校验失败 */
 function readFormPayload() {
   const module = modalState.module;
   const form = document.getElementById('admin-modal-form');
@@ -823,6 +882,7 @@ function readFormPayload() {
   return values;
 }
 
+/** 保存弹窗表单（新建或更新） */
 async function saveModal() {
   const module = modalState.module;
   const cfg = moduleConfig[module];
@@ -839,6 +899,7 @@ async function saveModal() {
   renderMain(document.getElementById('main-body'));
 }
 
+/** 删除记录（带确认提示） */
 async function removeItem(module, id) {
   const cfg = moduleConfig[module];
   const ok = window.confirm(`Delete this ${cfg.singular.toLowerCase()} ?`);
@@ -848,6 +909,7 @@ async function removeItem(module, id) {
   renderMain(document.getElementById('main-body'));
 }
 
+// ===== 初始化入口 =====
 function init() {
   renderShell();
 }

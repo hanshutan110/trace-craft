@@ -1,10 +1,11 @@
 /**
- * Shared utility functions for TraceCraft frontend.
+ * TraceCraft 前端通用工具函数
  */
 
 /**
- * Lightweight toast notification that appears at the bottom of the screen.
- * Automatically removes itself after 2 seconds.
+ * 轻量级 Toast 提示
+ * 在屏幕底部显示一条短暂消息，2 秒后自动消失
+ * 用于替代 alert()，提供更友好的用户反馈
  */
 export function miniToast(msg: string): void {
   const t = document.createElement('div');

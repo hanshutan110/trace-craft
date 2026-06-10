@@ -122,7 +122,7 @@ export function FavoritesScreen({
 
                 <div className="flex items-center justify-between pt-1 border-t border-slate-50">
                   <span className="text-[10px] text-rose-500 font-bold flex items-center gap-0.5">
-                    鉂わ笍 {item.usage}
+                    ❤️ {item.usage}
                   </span>
                   
                   {/* use button */}
@@ -211,7 +211,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
             <div className="flex items-center justify-between text-[13px] border-b border-slate-50 pb-2.5">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-500">棰勪及璺戣窛</span>
+                <span className="text-slate-500">预计跑距</span>
               </div>
                 <strong className="text-slate-900 font-bold">4.2 公里</strong>
             </div>
@@ -397,7 +397,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
             {hotList.map((tag) => (
               <span 
                 key={tag}
-                onClick={() => handleSearchTrigger(tag.replace('馃敟 ', ''))}
+                onClick={() => handleSearchTrigger(tag.replace('🔥 ', ''))}
                 className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-100 text-[11px] text-slate-600 font-bold rounded-full cursor-pointer transition-colors"
               >
                 {tag}

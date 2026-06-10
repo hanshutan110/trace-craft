@@ -1,8 +1,19 @@
-﻿import React from 'react';
+﻿/**
+ * 底部导航栏组件
+ *
+ * 固定在屏幕底部，包含三个标签页：
+ *   - 首页（home）
+ *   - 我的轨迹（traces）
+ *   - 个人中心（profile）
+ *
+ * 支持国际化标签文案，当前选中标签高亮为主题色
+ */
+import React from 'react';
 import { Home, Activity, User } from 'lucide-react';
 import { ScreenId } from '../../types';
 import { useI18n } from '../../i18n';
 
+/** 底部导航栏标签类型 */
 type BottomNavTab = 'home' | 'traces' | 'profile';
 
 interface BottomNavBarProps {

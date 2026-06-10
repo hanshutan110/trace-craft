@@ -1,3 +1,9 @@
+/**
+ * TraceCraft 前端静态数据
+ *
+ * 包含预设图形模板和跑步历史记录的 Mock 数据
+ * 未来替换为后端 API 获取
+ */
 import { PresetShape, HistoryRecord } from './types';
 
 export const presetShapes: PresetShape[] = [

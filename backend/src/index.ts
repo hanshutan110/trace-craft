@@ -1,9 +1,20 @@
-const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
-const crypto = require('crypto');
+/**
+ * TraceCraft 后端入口文件（TypeScript 版）
+ *
+ * 核心职责：
+ *   1. 定义 RESTful API 路由（路线生成、导航会话、地图配置等）
+ *   2. 中间件：CORS、JSON 解析、用户鉴权、请求追踪
+ *   3. 统一的成功/失败响应格式
+ *
+ * 业务流程：上传图片 → 生成路线 → 调整参数 → 开始导航 → 实时上报位置 → 完成跑步
+ */
 
-const {
+import express, { type Request, type Response, type NextFunction } from 'express';
+import cors from 'cors';
+import multer from 'multer';
+import crypto from 'crypto';
+
+import {
   createRouteFromImage,
   adjustRouteDistance,
   rebaseRoute,
@@ -16,13 +27,32 @@ const {
   normalizeProvider,
   updateRunSessionState,
   SESSION_STATUS,
-} = require('./services/routeService');
-const { initStorage, storageMode } = require('./services/storage');
+} from './services/routeService';
+import type { SessionState } from './services/routeService';
+import type { GeoPoint } from './utils/geo';
+import { initStorage, storageMode } from './services/storage';
+
+// ===== Express Request 类型扩展 =====
+
+/** 扩展 Express Request，注入追踪 ID、用户身份和幂等键 */
+declare global {
+  namespace Express {
+    interface Request {
+      traceId?: string;
+      userId?: string | null;
+      idempotencyKey?: string;
+    }
+  }
+}
 
 const app = express();
+// multer 使用内存存储，图片上传后暂存到 buffer，不落盘
 const upload = multer({ storage: multer.memoryStorage() });
 
-function buildTraceId(req) {
+// ===== 工具函数 =====
+
+/** 构建请求追踪 ID，优先使用客户端传入的 header，否则自动生成 */
+function buildTraceId(req: Request): string {
   const headerId = req.headers['x-request-id'] || req.headers['x-trace-id'];
   if (typeof headerId === 'string' && headerId.trim()) {
     return headerId.trim();
@@ -30,8 +60,8 @@ function buildTraceId(req) {
   return `trace-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
-function parseUserId(req) {
-  // 统一解析用户身份来源：优先 header，再回退到 body/query，避免不同调用端行为分歧。
+/** 解析用户身份，优先 Authorization header，再回退到 body/query */
+function parseUserId(req: Request): string | null {
   const auth = req.headers.authorization;
   if (typeof auth === 'string') {
     const token = auth.replace(/^Bearer\s+/i, '').trim();
@@ -42,7 +72,7 @@ function parseUserId(req) {
       try {
         const decoded = Buffer.from(token, 'base64').toString('utf8');
         return decoded.startsWith('user:') ? decoded.slice(5) : decoded;
-      } catch (_err) {
+      } catch {
         return token;
       }
     }
@@ -59,21 +89,29 @@ function parseUserId(req) {
   return null;
 }
 
-function asPositiveInt(value, fallback, min = 1, max = 100) {
+/** 将参数安全转换为正整数，并限制在 [min, max] 范围内 */
+function asPositiveInt(value: unknown, fallback: number, min: number = 1, max: number = 100): number {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   const clamped = Math.max(min, Math.min(max, Math.floor(num)));
   return clamped;
 }
 
-function successPayload(data) {
+/** 统一成功响应格式 */
+function successPayload(data: Record<string, unknown>): Record<string, unknown> {
   return {
     ok: true,
     ...data,
   };
 }
 
-function errorPayload(message, code, status = 500, extra = {}) {
+/** 统一失败响应格式 */
+function errorPayload(
+  message: string,
+  code: string,
+  status: number = 500,
+  extra: Record<string, unknown> = {}
+): Record<string, unknown> {
   return {
     ok: false,
     code,
@@ -83,9 +121,9 @@ function errorPayload(message, code, status = 500, extra = {}) {
   };
 }
 
-function normalizeLocationBody(body) {
-  // 仅保留可解析的经纬度时间字段，防止脏数据写入 session 路径导致下游计算异常。
-  if (!body || typeof body !== 'object') return {};
+/** 标准化位置上报数据 */
+function normalizeLocationBody(body: Record<string, unknown> | null): { lat: number; lng: number; accuracy: number | null; ts: number } {
+  if (!body || typeof body !== 'object') return { lat: NaN, lng: NaN, accuracy: null, ts: Date.now() };
   return {
     lat: Number(body.lat),
     lng: Number(body.lng),
@@ -94,23 +132,28 @@ function normalizeLocationBody(body) {
   };
 }
 
-function parseJsonField(value) {
+/** 尝试将字符串解析为 JSON，失败则原样返回 */
+function parseJsonField<T>(value: T): T {
   if (typeof value !== 'string') return value;
   try {
-    return JSON.parse(value);
-  } catch (_err) {
+    return JSON.parse(value as string) as T;
+  } catch {
     return value;
   }
 }
 
-function requireAuth(req, res, next) {
+// ===== 中间件 =====
+
+/** 鉴权中间件：未识别到用户身份时返回 401 */
+function requireAuth(req: Request, res: Response, next: NextFunction): void | Response {
   if (!req.userId) {
     return res.status(401).json(errorPayload('user not authenticated', 'auth_required', 401));
   }
   return next();
 }
 
-function applyIfMatch(req, res, next) {
+/** ETag 缓存中间件：客户端携带 If-None-Match 且配置未变更时返回 304 */
+function applyIfMatch(req: Request, res: Response, next: NextFunction): void | Response {
   const etag = req.headers['if-none-match'];
   if (!etag) return next();
   const config = getMapConfig();
@@ -121,24 +164,30 @@ function applyIfMatch(req, res, next) {
   return next();
 }
 
+// ===== 全局中间件 =====
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-app.use((req, _res, next) => {
+// 为每个请求注入追踪 ID、用户身份和幂等键
+app.use((req: Request, _res: Response, next: NextFunction) => {
   req.traceId = buildTraceId(req);
   req.userId = parseUserId(req) || null;
-  req.idempotencyKey = req.headers['idempotency-key'];
+  req.idempotencyKey = req.headers['idempotency-key'] as string | undefined;
   next();
 });
 
-app.get('/health', (_req, res) => {
+// ===== API 路由定义 =====
+
+// 健康检查接口
+app.get('/health', (_req: Request, res: Response) => {
   res.json(successPayload({
     service: 'tracecraft-backend',
     storage: storageMode(),
   }));
 });
 
-app.get('/v1/maps/config', applyIfMatch, (req, res) => {
+// 地图配置接口，支持 ETag 缓存
+app.get('/api/maps/config', applyIfMatch, (req: Request, res: Response) => {
   const config = getMapConfig();
   res.set('Cache-Control', `public,max-age=${config.cacheSeconds},must-revalidate`);
   res.set('ETag', `"${config.mapConfigVersion}"`);
@@ -148,17 +197,18 @@ app.get('/v1/maps/config', applyIfMatch, (req, res) => {
   }));
 });
 
-app.post('/v1/routes/from-image', requireAuth, upload.single('image'), async (req, res) => {
+// 核心接口：上传图片生成路线
+app.post('/api/routes', upload.single('image'), requireAuth, async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json(errorPayload('missing image file', 'missing_image', 400));
     }
     const body = { ...req.body };
     const route = await createRouteFromImage({
-      userId: req.userId,
+      userId: req.userId ?? null,
       filename: req.file.originalname || 'upload',
       buffer: req.file.buffer,
-      provider: normalizeProvider(body.provider),
+      provider: body.provider,
       locale: body.locale,
       targetKm: Number(body.targetKm),
       startPoint: parseJsonField(body.startPoint),
@@ -178,14 +228,11 @@ app.post('/v1/routes/from-image', requireAuth, upload.single('image'), async (re
   }
 });
 
-app.get('/v1/routes/:routeId', requireAuth, async (req, res) => {
+// 查询单条路线详情
+app.get('/api/routes/:routeId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const routeId = req.params.routeId;
-    const runs = await listUserRuns(req.userId, {
-      page: 1,
-      limit: 1,
-      search: routeId,
-    });
+    const routeId = req.params.routeId as string;
+    const runs = await listUserRuns(req.userId ?? null, { page: 1, limit: 1, search: routeId });
     const route = runs.runs.find((item) => item.id === routeId);
     if (!route) {
       return res.status(404).json(errorPayload('route not found', 'route_not_found', 404));
@@ -197,11 +244,12 @@ app.get('/v1/routes/:routeId', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/v1/routes/:routeId/adjust', requireAuth, async (req, res) => {
+// 调整路线距离
+app.put('/api/routes/:routeId/adjust', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { routeId } = req.params;
+    const routeId = req.params.routeId as string;
     const targetKm = Number(req.body.targetKm);
-    const route = await adjustRouteDistance(routeId, targetKm, req.userId);
+    const route = await adjustRouteDistance(routeId, targetKm, req.userId ?? null);
     if (!route) {
       return res.status(404).json(errorPayload('route not found or invalid target', 'route_not_found', 404));
     }
@@ -215,18 +263,19 @@ app.post('/v1/routes/:routeId/adjust', requireAuth, async (req, res) => {
     }));
   } catch (err) {
     console.error(err);
-    if (err.message === 'route_version_conflict') {
+    if ((err as Error).message === 'route_version_conflict') {
       return res.status(409).json(errorPayload('route version conflict', 'route_version_conflict', 409));
     }
     return res.status(500).json(errorPayload('adjust failed', 'adjust_failed', 500));
   }
 });
 
-app.post('/v1/routes/:routeId/rebase', requireAuth, async (req, res) => {
+// 重映射路线起终点
+app.put('/api/routes/:routeId/rebase', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { routeId } = req.params;
+    const { routeId } = req.params as { routeId: string };
     const { startPoint, endPoint, strategy } = req.body || {};
-    const route = await rebaseRoute(routeId, startPoint, endPoint, strategy, req.userId);
+    const route = await rebaseRoute(routeId, startPoint, endPoint, strategy, req.userId ?? null);
     if (!route) {
       return res.status(404).json(errorPayload('route not found', 'route_not_found', 404));
     }
@@ -240,18 +289,19 @@ app.post('/v1/routes/:routeId/rebase', requireAuth, async (req, res) => {
     }));
   } catch (err) {
     console.error(err);
-    if (err.message === 'route_version_conflict') {
+    if ((err as Error).message === 'route_version_conflict') {
       return res.status(409).json(errorPayload('route version conflict', 'route_version_conflict', 409));
     }
     return res.status(500).json(errorPayload('rebase failed', 'rebase_failed', 500));
   }
 });
 
-app.post('/v1/routes/:routeId/start-run', requireAuth, async (req, res) => {
+// 开始跑步会话
+app.post('/api/routes/:routeId/start', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { routeId } = req.params;
-    const provider = parseJsonField(req.body && req.body.provider);
-    const sessionBundle = await startRunSession(routeId, req.userId, provider, req.idempotencyKey);
+    const { routeId } = req.params as { routeId: string };
+    const provider = parseJsonField(req.body?.provider);
+    const sessionBundle = await startRunSession(routeId, req.userId ?? null, provider, req.idempotencyKey);
     if (!sessionBundle) {
       return res.status(404).json(errorPayload('route not found', 'route_not_found', 404));
     }
@@ -270,10 +320,11 @@ app.post('/v1/routes/:routeId/start-run', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/v1/run/:sessionId/state', requireAuth, async (req, res) => {
+// 查询跑步会话实时状态
+app.get('/api/sessions/:sessionId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.params;
-    const state = await getRunSessionState(sessionId, req.userId);
+    const { sessionId } = req.params as { sessionId: string };
+    const state = await getRunSessionState(sessionId, req.userId ?? null);
     if (!state) {
       return res.status(404).json(errorPayload('session not found', 'session_not_found', 404));
     }
@@ -287,10 +338,11 @@ app.get('/v1/run/:sessionId/state', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/v1/run/:sessionId/pause', requireAuth, async (req, res) => {
+// 暂停跑步会话
+app.post('/api/sessions/:sessionId/pause', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.params;
-    const state = await updateRunSessionState(sessionId, req.userId, SESSION_STATUS.PAUSED);
+    const { sessionId } = req.params as { sessionId: string };
+    const state = await updateRunSessionState(sessionId, req.userId ?? null, SESSION_STATUS.PAUSED);
     if (!state) {
       return res.status(409).json(errorPayload('cannot pause session', 'session_not_pauseable', 409));
     }
@@ -305,10 +357,11 @@ app.post('/v1/run/:sessionId/pause', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/v1/run/:sessionId/resume', requireAuth, async (req, res) => {
+// 恢复跑步会话
+app.post('/api/sessions/:sessionId/resume', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.params;
-    const state = await updateRunSessionState(sessionId, req.userId, SESSION_STATUS.RUNNING);
+    const { sessionId } = req.params as { sessionId: string };
+    const state = await updateRunSessionState(sessionId, req.userId ?? null, SESSION_STATUS.RUNNING);
     if (!state) {
       return res.status(409).json(errorPayload('cannot resume session', 'session_not_resumable', 409));
     }
@@ -323,20 +376,23 @@ app.post('/v1/run/:sessionId/resume', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/v1/run/:sessionId/location', requireAuth, async (req, res) => {
+// 上报实时位置点
+app.post('/api/sessions/:sessionId/location', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.params;
+    const { sessionId } = req.params as { sessionId: string };
     const point = normalizeLocationBody(req.body || {});
-    const updated = await appendLocation(sessionId, point, req.userId);
+    const updated = await appendLocation(sessionId, point as GeoPoint, req.userId ?? null);
     if (!updated) {
       return res.status(404).json(errorPayload('session not found', 'session_not_found', 404));
     }
     if (!updated.accepted) {
-      return res.status(409).json(errorPayload(updated.reason || 'location not accepted', 'location_rejected', 409, {
-        reason: updated.reason,
-        pointIndex: updated.pointIndex,
-        lagHint: updated.lagHint,
-      }));
+      return res.status(409).json(
+        errorPayload(updated.reason || 'location not accepted', 'location_rejected', 409, {
+          reason: updated.reason,
+          pointIndex: updated.pointIndex,
+          lagHint: updated.lagHint,
+        })
+      );
     }
     return res.json(successPayload({
       acceptedAt: new Date().toISOString(),
@@ -352,12 +408,13 @@ app.post('/v1/run/:sessionId/location', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/v1/run/:sessionId/finish', requireAuth, async (req, res) => {
+// 结束跑步会话
+app.post('/api/sessions/:sessionId/finish', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.params;
+    const { sessionId } = req.params as { sessionId: string };
     const body = req.body || {};
     const actualPath = Array.isArray(body.actualPath) ? body.actualPath : [];
-    const result = await finishRunSession(sessionId, actualPath, req.userId);
+    const result = await finishRunSession(sessionId, actualPath, req.userId ?? null);
     if (!result) {
       return res.status(404).json(errorPayload('session not found', 'session_not_found', 404));
     }
@@ -373,15 +430,16 @@ app.post('/v1/run/:sessionId/finish', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/v1/users/me/runs', requireAuth, async (req, res) => {
+// 查询当前用户的路线列表
+app.get('/api/runs', requireAuth, async (req: Request, res: Response) => {
   try {
     const page = asPositiveInt(req.query.page, 1, 1, 200);
     const limit = asPositiveInt(req.query.limit, 20, 1, 100);
-    const payload = await listUserRuns(req.userId, {
+    const payload = await listUserRuns(req.userId ?? null, {
       page,
       limit,
-      status: req.query.status,
-      search: req.query.search,
+      status: req.query.status as string | undefined,
+      search: req.query.search as string | undefined,
     });
     res.json(successPayload({
       userId: req.userId,
@@ -394,14 +452,16 @@ app.get('/v1/users/me/runs', requireAuth, async (req, res) => {
   }
 });
 
-app.use((req, res) => {
+// 兜底 404 处理
+app.use((req: Request, res: Response) => {
   res.status(404).json(errorPayload('route not found', 'not_found', 404));
 });
 
+// ===== 服务启动 =====
 const port = process.env.PORT || 3001;
 (async () => {
   await initStorage();
-  app.listen(port, () => {
+  app.listen(Number(port), () => {
     console.log(`TraceCraft backend listening on port ${port}`);
   });
 })();

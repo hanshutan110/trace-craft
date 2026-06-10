@@ -1,21 +1,54 @@
-function toRad(v) {
+/**
+ * TraceCraft 地理计算工具模块
+ *
+ * 提供：
+ *   - 球面距离计算（Haversine 公式）
+ *   - 路线重采样（按距离/按点数）
+ *   - 角度平滑（去除急转弯点）
+ *   - 路线缩放（保持形状等比缩放）
+ *   - 质心计算
+ *
+ * 所有坐标点统一使用 GeoPoint 接口，保证经纬度类型安全
+ */
+
+/** 地理坐标点，经纬度均为 number 类型 */
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+  ts?: number;
+}
+
+/** 缩放选项，控制输出点数范围 */
+export interface ScaleOptions {
+  minPoints?: number;
+  maxPoints?: number;
+}
+
+/** 角度转弧度 */
+function toRad(v: number): number {
   return (v * Math.PI) / 180;
 }
 
-function pointDistanceMeters(a, b) {
+/**
+ * Haversine 公式计算两点间球面距离（米）
+ * 地球半径取 6371000m
+ */
+export function pointDistanceMeters(a: GeoPoint, b: GeoPoint): number {
   const R = 6371000;
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);
   const lat1 = toRad(a.lat);
   const lat2 = toRad(b.lat);
-  const s1 = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const s1 =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(s1), Math.sqrt(1 - s1));
   return R * c;
 }
 
-function cumulativeLen(points) {
-  const lens = [0];
+/** 计算路径累计距离数组及总距离 */
+function cumulativeLen(points: GeoPoint[]): { lens: number[]; total: number } {
+  const lens: number[] = [0];
   let total = 0;
   for (let i = 1; i < points.length; i += 1) {
     total += pointDistanceMeters(points[i - 1], points[i]);
@@ -24,11 +57,15 @@ function cumulativeLen(points) {
   return { lens, total };
 }
 
-function resampleByDistance(points, spacingMeters = 8) {
+/**
+ * 按指定间距（米）重采样路线点集
+ * 在相邻原始点之间线性插值，确保相邻点间距均匀
+ */
+export function resampleByDistance(points: GeoPoint[], spacingMeters: number = 8): GeoPoint[] {
   if (!Array.isArray(points) || points.length < 2 || spacingMeters <= 0) {
     return points || [];
   }
-  const result = [points[0]];
+  const result: GeoPoint[] = [points[0]];
   const { lens, total } = cumulativeLen(points);
   for (let d = spacingMeters; d < total; d += spacingMeters) {
     let i = 1;
@@ -53,12 +90,16 @@ function resampleByDistance(points, spacingMeters = 8) {
   return result;
 }
 
-function resampleByCount(points, targetCount = 120) {
+/**
+ * 按目标点数降采样路线点集
+ * 均匀间隔取点，用于控制输出点数范围
+ */
+export function resampleByCount(points: GeoPoint[], targetCount: number = 120): GeoPoint[] {
   if (!Array.isArray(points) || points.length <= targetCount) {
     return points;
   }
   const step = Math.floor(points.length / targetCount);
-  const out = [];
+  const out: GeoPoint[] = [];
   for (let i = 0; i < points.length; i += step) {
     out.push(points[i]);
     if (out.length >= targetCount) {
@@ -68,12 +109,17 @@ function resampleByCount(points, targetCount = 120) {
   return out;
 }
 
-function angleSmooth(points) {
+/**
+ * 角度平滑：去除转角过大的急弯点
+ * 当相邻两段转角差 > 110° 时判定为急弯，移除中间点
+ * 保留首尾点
+ */
+export function angleSmooth(points: GeoPoint[]): GeoPoint[] {
   if (!Array.isArray(points) || points.length < 3) {
     return points || [];
   }
-  const out = [points[0]];
-  const toDeg = (v) => (v * 180) / Math.PI;
+  const out: GeoPoint[] = [points[0]];
+  const toDeg = (v: number): number => (v * 180) / Math.PI;
   for (let i = 1; i < points.length - 1; i += 1) {
     const prev = points[i - 1];
     const cur = points[i];
@@ -89,12 +135,21 @@ function angleSmooth(points) {
   return out;
 }
 
-function scalePathPreserveShape(points, targetMeters, opts = {}) {
+/**
+ * 等比缩放路线以匹配目标距离
+ * 以路线质心为中心缩放，保持整体形状不变
+ * 缩放后平滑 + 重采样控制点数范围
+ */
+export function scalePathPreserveShape(
+  points: GeoPoint[],
+  targetMeters: number,
+  opts: ScaleOptions = {}
+): GeoPoint[] {
   if (!Array.isArray(points) || points.length < 2 || targetMeters <= 0) {
     return points || [];
   }
-  const minPts = Number.isFinite(opts.minPoints) ? opts.minPoints : 3;
-  const maxPts = Number.isFinite(opts.maxPoints) ? opts.maxPoints : points.length;
+  const minPts = Number.isFinite(opts.minPoints) ? opts.minPoints! : 3;
+  const maxPts = Number.isFinite(opts.maxPoints) ? opts.maxPoints! : points.length;
   let cur = 0;
   for (let i = 1; i < points.length; i += 1) {
     cur += pointDistanceMeters(points[i - 1], points[i]);
@@ -104,20 +159,21 @@ function scalePathPreserveShape(points, targetMeters, opts = {}) {
   }
   const ratio = targetMeters / cur;
   const center = latLngCentroid(points);
-  const scaled = points.map((p, index) => {
+  const scaled: GeoPoint[] = points.map((p, index) => {
     const nx = center.lat + (p.lat - center.lat) * ratio;
     const ny = center.lng + (p.lng - center.lng) * ratio;
     return {
       lat: nx,
       lng: ny,
-      ts: points[index].ts || Date.now() + index * 1000,
+      ts: p.ts || Date.now() + index * 1000,
     };
   });
   const smoothed = angleSmooth(scaled);
   return resampleByCount(smoothed, Math.min(Math.max(minPts, smoothed.length), maxPts));
 }
 
-function latLngCentroid(points) {
+/** 计算点集的经纬度质心（简单算术平均） */
+export function latLngCentroid(points: GeoPoint[]): GeoPoint {
   const sum = points.reduce(
     (acc, p) => {
       acc.lat += p.lat;
@@ -131,13 +187,3 @@ function latLngCentroid(points) {
     lng: sum.lng / points.length,
   };
 }
-
-module.exports = {
-  pointDistanceMeters,
-  scalePathPreserveShape,
-  latLngCentroid,
-  resampleByCount,
-  resampleByDistance,
-  angleSmooth,
-};
-

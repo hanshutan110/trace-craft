@@ -1,4 +1,11 @@
-﻿import React from 'react';
+﻿/**
+ * 应用视口组件
+ *
+ * 负责组合屏幕路由器和底部弹窗宿主，构成应用主界面框架
+ * - AppScreenRouter：根据 activeScreen 渲染对应屏幕组件
+ * - AppBottomSheetHost：图形选择底部弹窗
+ */
+import React from 'react';
 import { ScreenId } from '../types';
 import { AppBottomSheetHost } from './layout/AppBottomSheetHost';
 import { AppScreenRouter } from './screen-router/AppScreenRouter';
@@ -34,10 +41,12 @@ export const AppViewport: React.FC<AppViewportProps> = ({
   onNavigateFromLogin,
   onNavigateFromProfileOrSettings,
 }) => {
+  // 关闭底部弹窗但不跳转页面
   const clearBottomSheet = () => {
     setIsBottomSheetOpen(false);
   };
 
+  // 关闭底部弹窗并跳转到参数调节页
   const closeBottomSheet = () => {
     clearBottomSheet();
     setActiveScreen('param_adjust');

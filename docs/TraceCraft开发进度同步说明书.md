@@ -1,8 +1,8 @@
 # TraceCraft 开发进度同步说明书
 
-**版本**：V1.1  
-**适用范围**：TraceCraft 单仓项目（backend + frontend + docs）  
-**更新时间**：2026-06-09  
+**版本**：V1.3  
+**适用范围**：TraceCraft 单仓项目（backend + frontend + shared + docs）  
+**更新时间**：2026-06-10  
 
 ## 1. 目的
 
@@ -13,9 +13,10 @@
 
 - **计划主文档**：`docs/TraceCraft-Project-Plan.md`
 - **进度同步说明书**：`docs/Progress-Sync-Guide.md`（本文件）
-- **API 约定**：`backend/src/index.js`、`backend/src/services/*`
-- **前端交互说明**：`frontend/public/index.html`（MVP 预览）与 `frontend/App.js`（RN 入口）
-- **发布包**：`README.md`、`.github/workflows/ci.yml`
+- **API 约定**：`backend/src/index.ts`、`backend/src/services/*`
+- **共享类型**：`shared/types.ts`（前后端 API 契约权威来源）
+- **前端交互说明**：`frontend/src/App.tsx`（RN 入口）
+- **发布包**：`README.md`
 
 > 一切变更必须有“计划项 -> 实际代码 -> 验证证据”三联关系。
 
@@ -119,32 +120,38 @@
 3. 标注下周高优先级两项  
 4. 列出阻塞项及处理建议
 
-## 11. 最新进度表（2026-06-09）
+## 11. 最新进度表（2026-06-10）
 
 ### 本次同步目标
 
-1. 新增后台管理模块（admin/）——用户管理、内容管理、模板管理（Mock 模式）
-2. 新增数据库设计文档（db/）——PostgreSQL 建表、API 设计、维护清单
-3. 后端扩展：引入 `pg` 依赖，`storage.js` 增加 PostgreSQL 存储层
-4. 前端组件重构：拆分大文件为按功能域划分的独立组件
-5. 新增公共组件 `BottomNavBar`，提取共享导航逻辑
-6. 新增 ESLint 代码规范配置（`.eslintrc.cjs` + `.eslintignore`）
-7. 补充 `.gitignore` 忽略规则（`.codex/`）
-8. 更新 README 与进度文档
+1. 后端全量 TypeScript 迁移，所有 `.js` 文件转为 `.ts`，开启 strict 模式
+2. 定义 IStorage 接口契约，约束 MemoryStorage / PostgresStorage 实现
+3. Express Request 类型扩展，中间件与路由处理器全面类型化
+4. 新建 `shared/types.ts` 前后端共享类型，作为 API 契约的权威来源
+5. 清理项目冗余文件（.github、ESLint 配置、日志、缓存等），释放约 352MB 空间
+6. 更新进度说明书版本至 V1.3
 
 ### 本次交付结果
 
 | 模块 | 事项 | 状态 | 备注 |
 | --- | --- | --- | --- |
-| 后台管理 | 新增 `admin/` 模块：用户/内容/模板管理 Demo（localStorage mock） | 已完成 | 包含 `admin.js`(855行)、`index.html`、`styles.css`、`README.md` |
-| 数据库设计 | 新增 `db/` 目录：`admin-schema.sql`（PostgreSQL 建表+索引+角色回填）、`admin-api-design.md`（API 清单）、`maintenance_checklist.md`（维护单） | 已完成 | 最小可行后台，不破坏现有跑步链路表 |
-| 后端扩展 | `backend/package.json` 新增 `pg` 依赖和 `eslint` devDependency |\ 已完成 | 为后续数据库接入做准备 |
-| 后端逻辑 | `index.js`、`routeService.js`、`storage.js` 大幅扩展（+1886 行） | 已完成 | 增加管理接口路由、PostgreSQL 存储适配、扩展服务逻辑 |
-| 前端重构 | 拆分 `Screens14to18/19to22/23to26.tsx` 为按功能域划分的新文件 | 已完成 | `TraceJourneyScreens.tsx`(894行)、`DiscoveryScreens.tsx`(691行)、`CommunityScreens.tsx`(879行) |
-| 公共组件 | 新增 `components/common/BottomNavBar.tsx` | 已完成 | 提取底部导航栏为可复用组件 |
-| 代码规范 | 新增 `.eslintrc.cjs` + `.eslintignore` | 已完成 | 支持 JS/TS/TSX，分别配置 backend 和 frontend 规则 |
-| 开发工具 | 新增 `.codex/` 目录（Agent 配置） | 已完成 | 已加入 .gitignore |
-| 文档 | 更新 README.md 项目结构（新增 admin/、db/）、更新进度说明书 | 已完成 | |
+| 后端 | `geo.js` → `geo.ts`，定义 GeoPoint/ScaleOptions 接口，函数签名类型化 | 已完成 | Haversine、重采样、角度平滑、等比缩放等 |
+| 后端 | `coordAdapter.js` → `coordAdapter.ts`，定义 CrsType 类型，CRS_CONVERT_MAP Record 类型化 | 已完成 | WGS-84/GCJ-02/BD-09 互转 |
+| 后端 | `storage.js` → `storage.ts`，定义 IStorage 接口 + Route/Session 等 11 个数据类型 | 已完成 | 双存储模式（内存/PostgreSQL）implements IStorage |
+| 后端 | `routeService.js` → `routeService.ts`，定义 CreateRouteParams/SessionState/FinishResult 接口 | 已完成 | 路线生成/调整/重映射/会话管理全面类型化 |
+| 后端 | `index.js` → `index.ts`，Express Request 类型扩展，所有路由处理器类型化 | 已完成 | 鉴权/ETag/统一响应格式等中间件 |
+| 后端 | `tsconfig.json` 创建，strict 模式 + commonjs + ES2022 | 已完成 | 已移除 allowJs，纯 TS 项目 |
+| 后端 | `package.json` 脚本更新：start/dev 使用 tsx，新增 build/typecheck | 已完成 | 开发即类型检查 |
+| 共享 | `shared/types.ts` 新建，定义 GeoPoint/CrsType/MapProvider/ApiResponse/Route/SessionState 等 | 已完成 | 前后端 API 契约权威来源 |
+| 清理 | 删除 `.github/workflows/ci.yml`（无实际 CI 价值） | 已完成 | 连同 .github 目录一并移除 |
+| 清理 | 删除 `.eslintrc.cjs` / `.eslintignore`（已迁移至 TS，ESLint 配置不再适用） | 已完成 | — |
+| 清理 | 删除 `backend/err.log` / `backend/out.log` / `backend/.gitkeep` / `docs/.gitkeep` / `db/api_admin_design.md` | 已完成 | — |
+| 清理 | 删除 `frontend/tmp/` / `frontend/dist/` / `frontend/.npm-cache/`（~352MB） | 已完成 | 释放磁盘空间 |
+| 清理 | 从 `backend/package.json` 移除 lint 脚本和 eslint devDep | 已完成 | — |
+| 配置 | `.gitignore` 新增 `backend/dist/` | 已完成 | TS 编译输出目录 |
+| 验证 | `npx tsc --noEmit` 零错误通过 | 已完成 | strict 模式全量类型检查 |
+| 验证 | 服务启动正常，`/health` 返回 `{"ok":true,"service":"tracecraft-backend","storage":"memory"}` | 已完成 | tsx 直接运行 TS 文件 |
+| 文档 | 进度说明书更新至 V1.3 | 已完成 | 本次同步 |
 
 ### 未完成/待处理
 
@@ -154,11 +161,43 @@
 | 数据库 | 执行 `admin-schema.sql` 建表并验证索引 | 2026-06-12 | 低 |
 | 测试 | 补充本地交互冒烟（关键按钮：开始/暂停/继续/分享/返回） | 2026-06-12 | 中 |
 | 样式 | 严格匹配设计稿，追加字体系统与字号规范化 | 2026-06-15 | 低 |
-| 运维 | ESLint 规则全量通过验证（`npm run lint`） | 2026-06-11 | 低 |
+| 代码质量 | 前端大组件（HomeAndLibrary/NavigationAndEditor 等）补充函数级注释 | 2026-06-15 | 低 |
+| 后端 | shared/types.ts 类型逐步替换各文件内的本地重复定义 | 2026-06-20 | 低 |
 
 ### 版本与里程碑映射
-- 关键改动提交：后台管理模块、数据库设计文档、PostgreSQL 存储层、前端组件拆分、ESLint 配置
-- 下次同步建议：当 admin API 落地或数据库 schema 变更时，需同步更新 `db/` 文档和本说明书
+- 关键改动提交：后端全量 TypeScript 迁移、IStorage 接口契约、shared/types.ts 共享类型、项目冗余文件清理
+- 下次同步建议：当 shared/types.ts 被前后端实际引用替换时，需同步更新本说明书和 API 契约文档
+
+## 2026-06-10：后端 TypeScript 迁移同步
+
+- 本次变更：后端全部 JS 文件迁移为 TypeScript，strict 模式零错误通过
+- 迁移范围：
+  - `backend/src/utils/geo.js` → `geo.ts`：GeoPoint/ScaleOptions 接口定义，全部函数签名类型化
+  - `backend/src/utils/coordAdapter.js` → `coordAdapter.ts`：CrsType 类型定义，CRS_CONVERT_MAP 用 Record 类型约束
+  - `backend/src/services/storage.js` → `storage.ts`：定义 IStorage 接口契约 + 11 个数据类型，MemoryStorage/PostgresStorage implements IStorage
+  - `backend/src/services/routeService.js` → `routeService.ts`：CreateRouteParams/SessionState/FinishResult 接口，核心业务逻辑类型化
+  - `backend/src/index.js` → `index.ts`：Express Request 类型扩展（traceId/userId/idempotencyKey），所有路由处理器类型化
+- 新增文件：
+  - `backend/tsconfig.json`：strict 模式 + commonjs + ES2022，已移除 allowJs
+  - `shared/types.ts`：前后端共享 API 契约类型（GeoPoint/CrsType/MapProvider/ApiResponse/Route/SessionState/FinishResult/MapConfig）
+- 基础设施变更：
+  - 安装依赖：typescript, tsx, @types/node, @types/express, @types/cors, @types/multer, @types/pg
+  - 启动脚本：`node src/index.js` → `tsx src/index.ts`，开发无需预编译
+  - 新增脚本：`npm run build`（tsc 编译）、`npm run typecheck`（tsc --noEmit）
+- 项目清理：
+  - 删除 `.github/workflows/ci.yml`（CI 无实际价值）
+  - 删除 `.eslintrc.cjs` / `.eslintignore`（TS 迁移后不再适用）
+  - 删除 `backend/err.log` / `out.log` / `.gitkeep`、`docs/.gitkeep`、`db/api_admin_design.md`
+  - 删除 `frontend/tmp/` / `dist/` / `.npm-cache/`（~352MB）
+  - 移除 `backend/package.json` 中 lint 脚本和 eslint devDep
+  - `.gitignore` 新增 `backend/dist/`
+- 验证证据：
+  - `npx tsc --noEmit` → 零错误
+  - 服务启动 → `/health` 返回 `{"ok":true,"service":"tracecraft-backend","storage":"memory"}`
+- 下一步动作：
+  - P1：Admin mock service 迁移为后端 API
+  - P2：shared/types.ts 逐步替换各文件内的本地重复类型定义
+  - P3：前端大组件内部补充函数级注释
 
 ## 2026-06-09：全量运行现状同步
 

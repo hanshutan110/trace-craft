@@ -1,4 +1,10 @@
-﻿import { Wifi } from 'lucide-react';
+﻿/**
+ * 应用状态栏组件
+ *
+ * 模拟手机顶部状态栏：时间、网络信号、WiFi、电量
+ * 支持深色/浅色主题切换（编辑器页面为深色）
+ */
+import { Wifi } from 'lucide-react';
 import React from 'react';
 
 interface AppStatusBarProps {
