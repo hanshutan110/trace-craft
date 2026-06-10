@@ -170,7 +170,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
 
       {/* 2.3 FLOATING DIRECTIVE BANNER */}
       <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 bg-linear-to-r from-blue-600/90 to-[#4FACFE]/90 text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-full shadow-md flex items-center space-x-1.5 animate-bounce">
-        <span>鈿?</span>
+        <span>⚡</span>
         <span>直行 150m 后右转跑</span>
       </div>
 
@@ -183,7 +183,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
         <div>
           <p className="text-[9px] uppercase text-gray-400 leading-none">当前心率</p>
           <p className="font-mono text-xs font-bold text-emerald-400 flex items-center mt-0.5">
-            鉂わ笍 {138 + Math.floor(Math.random() * 8)}
+            ❤️ {138 + Math.floor(Math.random() * 8)}
           </p>
         </div>
       </div>
@@ -288,7 +288,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
           onClick={() => { setScale(1.5); setRotate(45); setStretch(1.0); }}
           className="text-xs font-semibold text-[#4FACFE] active:opacity-75"
         >
-          閲嶇疆
+          重置
         </button>
       </div>
 
@@ -385,7 +385,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
 
           {/* Slider 2: Rotate */}
           <div className="flex flex-col items-center">
-            <span className="text-[9px] font-bold text-gray-500">鏃嬭浆</span>
+            <span className="text-[9px] font-bold text-gray-500">旋转</span>
             <div className="relative h-18 my-1 flex items-center justify-center">
               <input 
                 type="range" 
@@ -397,12 +397,12 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
                 className="accent-[#4FACFE] h-1.5 rounded-lg appearance-none cursor-pointer w-16 -rotate-90 vertical-range"
               />
             </div>
-            <span className="text-[9px] font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">{rotate}掳</span>
+            <span className="text-[9px] font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">{rotate}°</span>
           </div>
 
           {/* Slider 3: Stretch */}
           <div className="flex flex-col items-center">
-            <span className="text-[9px] font-bold text-gray-500">鎷変几</span>
+            <span className="text-[9px] font-bold text-gray-500">拉伸</span>
             <div className="relative h-18 my-1 flex items-center justify-center">
               <input 
                 type="range" 
@@ -427,7 +427,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
             预计长度: <strong className="text-gray-800 font-extrabold">{calculatedLength} km</strong>
           </span>
           <span className="text-[11px] text-teal-600 font-semibold bg-teal-50 px-2 py-0.5 rounded-full">
-            1:1 姣斾緥閰嶆瘮
+            1:1 等比匹配
           </span>
         </div>
 
@@ -565,7 +565,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
           onClick={() => onNavigate('loading')} 
           className="text-xs font-bold text-[#4FACFE] bg-[#4FACFE]/10 px-3 py-1.5 rounded-full hover:bg-[#4FACFE]/20 active:opacity-75 transition-colors"
         >
-          淇濆瓨
+          保存
         </button>
       </div>
 
@@ -636,7 +636,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 
         {/* 4.3 FLOATING BRUSH RANGE SLIDER (RIGHT) */}
         <div className="absolute right-3.5 top-8 bottom-8 w-11 bg-[#1F1F1F]/90 backdrop-blur-md rounded-2xl border border-gray-800 flex flex-col justify-around items-center p-2 z-10">
-          <span className="text-[9px] font-bold text-gray-400">绗斿埛</span>
+          <span className="text-[9px] font-bold text-gray-400">笔刷</span>
           <div className="relative h-20 flex items-center justify-center">
             <input 
               type="range" 
@@ -681,7 +681,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             }`}
           >
             <Eraser size={16} />
-            <span className="text-[9px] mt-1 font-medium">鎿﹂櫎</span>
+            <span className="text-[9px] mt-1 font-medium">擦除</span>
           </button>
 
           <button
@@ -691,7 +691,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             }`}
           >
             <Maximize2 size={16} />
-            <span className="text-[9px] mt-1 font-medium">骞虫粦</span>
+            <span className="text-[9px] mt-1 font-medium">平滑</span>
           </button>
 
           <button
@@ -700,7 +700,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             className="flex flex-col items-center justify-center py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-transform"
           >
             <Undo size={16} />
-            <span className="text-[9px] mt-1 font-medium">鎾ら攢</span>
+            <span className="text-[9px] mt-1 font-medium">撤销</span>
           </button>
 
           <button
@@ -712,7 +712,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             className="flex flex-col items-center justify-center py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 active:scale-95 transition-transform"
           >
             <RotateCcw size={16} />
-            <span className="text-[9px] mt-1 font-medium">閲嶇疆</span>
+            <span className="text-[9px] mt-1 font-medium">重置</span>
           </button>
         </div>
 
