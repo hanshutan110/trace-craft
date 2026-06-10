@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@theme {
+  --color-tc-primary: #4FACFE;
+  --color-tc-primary-end: #00F2FE;
+  --color-tc-accent: #F59E0B;
+  --color-tc-success: #10B981;
+  --color-tc-danger: #EF4444;
+}
+
 @layer base {
   /* Premium Apple iOS Style Font mappings */
   body {
@@ -20,7 +28,7 @@
 
 /* Vertical range helper sliders for transformation page */
 .vertical-range {
-  writing-mode: bt-lr; /* IE */
-  -webkit-appearance: slider-vertical; /* WebKit */
+  writing-mode: vertical-lr;
+  -webkit-appearance: slider-vertical;
   transform: rotate(-90deg);
 }

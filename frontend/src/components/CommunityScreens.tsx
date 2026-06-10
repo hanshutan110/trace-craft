@@ -1,33 +1,19 @@
 ﻿import React, { useState } from 'react';
+import { miniToast } from '../utils';
 import { 
   ArrowLeft, 
-  Share2, 
   MoreVertical, 
   Send, 
   Heart, 
   MessageCircle, 
   Star,
   User, 
-  UserPlus, 
-  UserCheck,
   Search, 
   Bell, 
   Settings, 
-  Volume2, 
-  CheckCircle,
-  ExternalLink,
-  ChevronRight,
-  Plus
+  Volume2
 } from 'lucide-react';
 import { ScreenId } from '../types';
-
-function miniToast(msg: string) {
-  const t = document.createElement('div');
-  t.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-900/95 text-slate-100 px-4 py-2 rounded-xl text-xs font-bold shadow-lg z-50 border border-slate-705 whitespace-nowrap animate-bounce';
-  t.innerText = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2000);
-}
 
 // ----------------------------------------------------------------------
 // SCREEN 23: Trace Share Preview (轨迹分享预览页)
@@ -613,7 +599,7 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
     'white': false
   });
 
-  const [msgList, setMsgList] = useState([
+  const [msgList, _setMsgList] = useState([
     {
       id: 'n1',
       type: 'like',

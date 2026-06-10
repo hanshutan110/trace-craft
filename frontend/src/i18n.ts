@@ -11,7 +11,7 @@ export interface LocaleConfig {
 }
 
 const STORAGE_KEY = 'tracecraft_language';
-const CONFIG_ENDPOINTS = ['/v1/maps/config', 'http://localhost:3001/v1/maps/config'];
+const CONFIG_ENDPOINTS = ['/v1/maps/config'];
 const DEFAULT_LANGUAGE_OPTIONS: Language[] = ['cn', 'en'];
 const DEFAULT_LANGUAGE_LABELS: Record<Language, string> = {
   cn: '中文',

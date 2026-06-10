@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
+import { miniToast } from '../utils';
 import { 
   ArrowLeft, 
   Search, 
@@ -14,23 +15,10 @@ import {
   Filter, 
   ChevronRight,
   Maximize2,
-  Clock,
-  Sparkles,
-  MapPin,
-  TrendingUp,
-  Info
+  TrendingUp
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { BottomNavBar } from './common/BottomNavBar';
-
-// Simple lightweight toast helper
-function miniToast(msg: string) {
-  const t = document.createElement('div');
-  t.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-900/95 text-slate-100 px-4 py-2 rounded-xl text-xs font-bold shadow-lg z-50 animate-bounce border border-slate-705 whitespace-nowrap';
-  t.innerText = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2000);
-}
 
 // ----------------------------------------------------------------------
   // SCREEN 14: Splash Screen (启动页)
@@ -837,13 +825,13 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
                     <td className="py-2 text-right text-emerald-500">96%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">锟?3 公里</td>
+                    <td className="py-2 text-slate-900">约3 公里</td>
                     <td className="py-2 text-slate-800">6'30" /km</td>
                     <td className="py-2 text-center text-slate-600">148 bpm</td>
                     <td className="py-2 text-right text-emerald-500 font-bold">93%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-slate-900">锟?4 公里</td>
+                    <td className="py-2 text-slate-900">约4 公里</td>
                     <td className="py-2 text-slate-800">6'35" /km</td>
                     <td className="py-2 text-center text-slate-600">150 bpm</td>
                     <td className="py-2 text-right text-amber-500 font-bold">91%</td>

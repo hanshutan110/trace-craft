@@ -11,12 +11,8 @@ import {
   Eraser, 
   Maximize2, 
   Sparkles, 
-  Activity, 
-  TrendingUp, 
   RotateCw, 
-  Eye, 
-  Undo, 
-  Redo 
+  Undo 
 } from 'lucide-react';
 import { ScreenId } from '../types';
 
@@ -30,11 +26,12 @@ interface MapNavigationScreenProps {
 
 export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({ 
   onNavigate,
-  selectedShapeId,
+  selectedShapeId: _selectedShapeId,
 }) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isVoiceOn, setIsVoiceOn] = useState(true);
-  const [elapsedSeconds, setElapsedSeconds] = useState(1935); // 绾?2鍒?5绉?  const [progress, setProgress] = useState(0.64); // 64% progress
+  const [elapsedSeconds, setElapsedSeconds] = useState(1935); // 约32分15秒
+  const [progress, setProgress] = useState(0.64); // 64% progress
   const [deviation, setDeviation] = useState(8); // 8m deviation
   
   // Dynamic state for simulating the runner's path
@@ -58,7 +55,6 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
   }, [isPlaying]);
 
   const formatTime = (totalSeconds: number) => {
-    const hrs = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = totalSeconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -208,7 +204,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
             <span className="text-[20px] font-extrabold text-gray-800">
               {(3.2 * progress).toFixed(2)}
             </span>
-            <span className="text-xs text-gray-400 ml-0.5">km宸茶窇</span>
+            <span className="text-xs text-gray-400 ml-0.5">km已跑</span>
           </div>
           <div className="text-right">
             <span className="text-[16px] font-semibold text-gray-600 font-mono">
@@ -372,7 +368,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
         <div className="absolute right-3 top-12 bottom-12 w-[64px] bg-white/70 backdrop-blur-md rounded-2xl p-2.5 border border-white/20 shadow-xs flex flex-col justify-around z-20">
           {/* Slider 1: Scale */}
           <div className="flex flex-col items-center">
-            <span className="text-[9px] font-bold text-gray-500">澶у皬</span>
+            <span className="text-[9px] font-bold text-gray-500">大小</span>
             <div className="relative h-18 my-1 cursor-grab flex items-center justify-center">
               <input 
                 type="range" 

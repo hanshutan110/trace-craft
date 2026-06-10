@@ -7,9 +7,6 @@ import {
   Plus, 
   Search, 
   ArrowLeft, 
-  Home, 
-  Activity, 
-  User, 
   Star, 
   Flame, 
   Heart, 
@@ -17,8 +14,9 @@ import {
   Square, 
   Triangle 
 } from 'lucide-react';
-import { PresetShape, HistoryRecord, ScreenId } from '../types';
-import { presetShapes, historyRecords } from '../data';
+import { ScreenId } from '../types';
+import { historyRecords } from '../data';
+import { BottomNavBar } from './common/BottomNavBar';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenId) => void;
@@ -228,38 +226,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       </div>
 
-      {/* Persistent Bottom Nav Bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-[68px] bg-white border-t border-gray-100 flex items-center justify-around px-4 z-10">
-        <button 
-          onClick={() => setActiveNavbarTab('home')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 ${activeNavbarTab === 'home' ? 'text-[#4FACFE]' : 'text-gray-400'}`}
-        >
-          <Home size={20} className={activeNavbarTab === 'home' ? 'stroke-[2.5]' : ''} />
-          <span className="text-[10px] font-medium mt-1">首页</span>
-        </button>
-
-        <button 
-          onClick={() => {
-            setActiveNavbarTab('traces');
-            onNavigate('my_traces');
-          }}
-          className={`flex flex-col items-center justify-center flex-1 py-1 ${activeNavbarTab === 'traces' ? 'text-[#4FACFE]' : 'text-gray-400'}`}
-        >
-          <Activity size={20} />
-          <span className="text-[10px] font-medium mt-1">我的轨迹</span>
-        </button>
-
-        <button 
-          onClick={() => {
-            setActiveNavbarTab('profile');
-            onNavigate('profile');
-          }}
-          className={`flex flex-col items-center justify-center flex-1 py-1 ${activeNavbarTab === 'profile' ? 'text-[#4FACFE]' : 'text-gray-400'}`}
-        >
-          <User size={20} />
-          <span className="text-[10px] font-medium mt-1">个人中心</span>
-        </button>
-      </div>
+      {/* Bottom Nav Bar */}
+      <BottomNavBar
+        onNavigate={onNavigate}
+        activeNavbarTab={activeNavbarTab}
+        setActiveNavbarTab={setActiveNavbarTab}
+      />
 
     </div>
   );
@@ -339,7 +311,7 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
         {/* Horizontal Scrolling Card List */}
         <div>
           <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-none">
-            {cards.map((card, idx) => (
+            {cards.map((card, _idx) => (
               <div
                 key={card.id}
                 onClick={() => {
@@ -417,7 +389,7 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
   onSelectShape,
 }) => {
   const [activeTab, setActiveTab] = useState<'base' | 'recommend' | 'animal' | 'text' | 'holiday'>('base');
-  const tabs = [
+  const tabs: { id: typeof activeTab; label: string }[] = [
     { id: 'recommend', label: '推荐' },
     { id: 'base', label: '基础图形' },
     { id: 'animal', label: '动物' },
@@ -525,7 +497,7 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all shrink-0 ${
                   isSelected 
                     ? 'bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white shadow-[0_2px_8px_rgba(79,172,254,0.3)]' 

@@ -1,4 +1,4 @@
-﻿import { BottomSheetModal } from '../Others';
+﻿import { BottomSheetModal } from '../CommonModals';
 import React from 'react';
 
 interface AppBottomSheetHostProps {

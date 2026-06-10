@@ -1,6 +1,7 @@
 ﻿import React from 'react';
 import { Home, Activity, User } from 'lucide-react';
 import { ScreenId } from '../../types';
+import { useI18n } from '../../i18n';
 
 type BottomNavTab = 'home' | 'traces' | 'profile';
 
@@ -21,6 +22,8 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   className = '',
   labelClassName = 'text-[10px] font-medium mt-1',
 }) => {
+  const { t } = useI18n();
+
   const navClass = (tab: BottomNavTab) =>
     `flex flex-col items-center justify-center flex-1 py-1.5 ${
       activeNavbarTab === tab ? 'text-[#4FACFE]' : 'text-slate-400'
@@ -36,7 +39,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         className={navClass('home')}
       >
         <Home size={iconSize} className="mb-0.5" />
-        <span className={labelClassName}>首页</span>
+        <span className={labelClassName}>{t('home.nav.home', '首页')}</span>
       </button>
 
       <button
@@ -47,7 +50,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         className={navClass('traces')}
       >
         <Activity size={iconSize} className="mb-0.5" />
-        <span className={labelClassName}>我的轨迹</span>
+        <span className={labelClassName}>{t('home.nav.traces', '我的轨迹')}</span>
       </button>
 
       <button
@@ -58,7 +61,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
         className={navClass('profile')}
       >
         <User size={iconSize} className="mb-0.5" />
-        <span className={labelClassName}>个人中心</span>
+        <span className={labelClassName}>{t('home.nav.profile', '个人中心')}</span>
       </button>
     </div>
   );
