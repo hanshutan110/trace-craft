@@ -43,9 +43,12 @@ export interface PresetShape {
   gradient: string;
   description: string;
   distance: number;
-  iconType: 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus';
+  iconType: ShapeType;
   isHot?: boolean;
 }
+
+/** 预设图形类型 */
+export type ShapeType = 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus';
 
 /** 跑步历史记录 */
 export interface HistoryRecord {
@@ -54,5 +57,5 @@ export interface HistoryRecord {
   distance: string;
   time: string;
   date: string;
-  shapeType: string;
+  shapeType: ShapeType;
 }

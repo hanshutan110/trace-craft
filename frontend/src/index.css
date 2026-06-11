@@ -28,7 +28,32 @@
 
 /* Vertical range helper sliders for transformation page */
 .vertical-range {
-  writing-mode: vertical-lr;
   -webkit-appearance: slider-vertical;
-  transform: rotate(-90deg);
+  writing-mode: vertical-lr;
+}
+
+/* Confetti fall animation for SuccessScreen */
+@keyframes confetti-fall {
+  0% { top: -20px; transform: rotate(0deg) translateX(0); opacity: 1; }
+  40% { transform: rotate(180deg) translateX(15px); }
+  100% { top: 410px; transform: rotate(360deg) translateX(-15px); opacity: 0; }
+}
+
+/* Runner indicator animation for LoadingScreen */
+@keyframes runner-anim {
+  0% { left: -10%; }
+  50% { left: 90%; }
+  100% { left: -10%; }
+}
+.animate-runner-indicator {
+  animation: runner-anim 2s infinite ease-in-out;
+}
+
+/* Bottom sheet slide-up animation for BottomSheetModal */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

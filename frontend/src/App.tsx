@@ -13,12 +13,13 @@ import { ScreenId } from './types';
 import { AppViewport } from './components/AppViewport';
 import { I18nProvider } from './i18n';
 
+// localStorage 持久化键名（移至组件外部，避免每次渲染重新创建）
+const STORAGE_KEYS = {
+  onboardingDone: 'tracecraft_onboarding_done',
+  isLoggedIn: 'tracecraft_is_logged_in',
+} as const;
+
 export default function App() {
-  // localStorage 持久化键名
-  const STORAGE_KEYS = {
-    onboardingDone: 'tracecraft_onboarding_done',
-    isLoggedIn: 'tracecraft_is_logged_in',
-  } as const;
 
   // 当前激活的屏幕 ID
   const [activeScreen, setActiveScreen] = useState<ScreenId>('splash');

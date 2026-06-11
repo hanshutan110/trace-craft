@@ -118,10 +118,10 @@ export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
   const [loadingStep, setLoadingStep] = useState(0);
 
   useEffect(() => {
-    const int = setInterval(() => {
+    const intervalId = setInterval(() => {
       setLoadingStep(s => (s + 1) % 4);
     }, 500);
-    return () => clearInterval(int);
+    return () => clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -414,7 +414,7 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
               <div className="flex items-center space-x-2">
                 <span className="text-slate-400 font-bold">配</span>
                 <span>平均配速:</span>
-                <span className="text-slate-900 font-mono">2026-06-09</span>
+                <span className="text-slate-900 font-mono">6'27"/km</span>
               </div>
             </div>
           </div>

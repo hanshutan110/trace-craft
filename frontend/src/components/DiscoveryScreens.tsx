@@ -34,7 +34,7 @@ export function FavoritesScreen({
 
   const handleRemove = (id: string, name: string) => {
     setFavoriteList(prev => prev.filter(item => item.id !== id));
-    miniToast(`delete ${name}`);
+    miniToast(`已删除 ${name}`);
   };
 
   return (

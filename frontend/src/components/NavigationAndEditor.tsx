@@ -489,16 +489,14 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 }) => {
   const [brushSize, setBrushSize] = useState(6); // width tracker
   const [activeTool, setActiveTool] = useState<'draw' | 'erase' | 'smooth'>('draw');
-  // Custom drawn strokes for manual corrections.
-  const [lines, setLines] = useState<Stroke[]>(INITIAL_STROKES);
-  const [currentLine, setCurrentLine] = useState<Stroke>([]);
+  // 使用 ref 作为单一数据源，避免 useState + useRef 双重状态管理
   const canvasRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef<Stroke[]>(INITIAL_STROKES);
   const historyRef = useRef<Stroke[][]>([]);
   const currentLineRef = useRef<Stroke>([]);
-
-  // Undo/redo logs trace
-  const [history, setHistory] = useState<Stroke[][]>([]);
+  // 渲染触发器：ref 变化后需要强制重渲染
+  const [, setRenderTick] = useState(0);
+  const rerender = () => setRenderTick(t => t + 1);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!canvasRef.current) return;
@@ -509,11 +507,9 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
     // Save current backup to history first.
     const nextHistory = [...historyRef.current, linesRef.current];
     historyRef.current = nextHistory;
-    setHistory(nextHistory);
 
-    const nextLine: Stroke = [{ x, y }];
-    currentLineRef.current = nextLine;
-    setCurrentLine(nextLine);
+    currentLineRef.current = [{ x, y }];
+    rerender();
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -524,46 +520,34 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 
     if (activeTool === 'erase') {
       // Find and remove points close to cursor
-      const nextLines = linesRef.current
+      linesRef.current = linesRef.current
         .map((line) => line.filter((p) => Math.hypot(p.x - x, p.y - y) > brushSize * 2))
         .filter((line) => line.length > 0);
-
-      linesRef.current = nextLines;
-      setLines(nextLines);
     } else {
-      setCurrentLine((prev) => {
-        const nextLine = [...prev, { x, y }];
-        currentLineRef.current = nextLine;
-        return nextLine;
-      });
+      currentLineRef.current = [...currentLineRef.current, { x, y }];
     }
+    rerender();
   };
 
   const handlePointerUp = () => {
     if (activeTool === 'draw' && currentLineRef.current.length > 0) {
-      const nextLines = [...linesRef.current, currentLineRef.current];
-      linesRef.current = nextLines;
-      setLines(nextLines);
+      linesRef.current = [...linesRef.current, currentLineRef.current];
     }
     currentLineRef.current = [];
-    setCurrentLine([]);
+    rerender();
   };
 
   const handleUndo = () => {
     if (historyRef.current.length === 0) return;
-
-    const nextHistory = historyRef.current.slice(0, -1);
     const last = historyRef.current[historyRef.current.length - 1];
-
-    historyRef.current = nextHistory;
+    historyRef.current = historyRef.current.slice(0, -1);
     linesRef.current = last;
-    setHistory(nextHistory);
-    setLines(last);
+    rerender();
   };
 
   const handleAutoOptimize = () => {
     // Smooth points by averaging neighbors
-    const smoothed = linesRef.current.map((line) => {
+    linesRef.current = linesRef.current.map((line) => {
       if (line.length < 3) return line;
       return line.map((p, idx) => {
         if (idx === 0 || idx === line.length - 1) return p;
@@ -575,12 +559,8 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
         };
       });
     });
-
-    const nextHistory = [...historyRef.current, linesRef.current];
-    historyRef.current = nextHistory;
-    linesRef.current = smoothed;
-    setHistory(nextHistory);
-    setLines(smoothed);
+    historyRef.current = [...historyRef.current, linesRef.current];
+    rerender();
   };
 
   return (
@@ -631,7 +611,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
           {/* SVG Line Tracks Layer */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none">
             {/* Draw permanent paths */}
-            {lines.map((line, idx) => (
+            {linesRef.current.map((line, idx) => (
               <polyline
                 key={idx}
                 points={line.map(p => `${p.x},${p.y}`).join(' ')}
@@ -646,9 +626,9 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             ))}
 
             {/* Current Active drawing trail */}
-            {currentLine.length > 0 && (
+            {currentLineRef.current.length > 0 && (
               <polyline
-                points={currentLine.map(p => `${p.x},${p.y}`).join(' ')}
+                points={currentLineRef.current.map(p => `${p.x},${p.y}`).join(' ')}
                 fill="none"
                 stroke="#FF6B35"
                 strokeWidth={brushSize}
@@ -727,7 +707,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 
           <button
             onClick={handleUndo}
-            disabled={history.length === 0}
+            disabled={historyRef.current.length === 0}
             className="flex flex-col items-center justify-center py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-transform"
           >
             <Undo size={16} />
@@ -737,13 +717,10 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
           <button
             onClick={() => {
               // Clear canvas but keep a recoverable snapshot in history.
-              const nextHistory = [...historyRef.current, linesRef.current];
-              historyRef.current = nextHistory;
+              historyRef.current = [...historyRef.current, linesRef.current];
               linesRef.current = [];
               currentLineRef.current = [];
-              setHistory(nextHistory);
-              setLines([]);
-              setCurrentLine([]);
+              rerender();
             }}
             className="flex flex-col items-center justify-center py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 active:scale-95 transition-transform"
           >

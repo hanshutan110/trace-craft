@@ -4,7 +4,7 @@
  * 包裹 BottomSheetModal，控制弹窗的显示/隐藏
  * 用于在首页展示图形选择弹窗
  */
-import { BottomSheetModal } from '../CommonModals';
+import { BottomSheetModal } from '../common/BottomSheetModal';
 import React from 'react';
 
 interface AppBottomSheetHostProps {

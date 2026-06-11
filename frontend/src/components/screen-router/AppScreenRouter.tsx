@@ -25,9 +25,9 @@ import { OnboardingScreen, LoginScreen } from '../AuthScreens';
 const NavigationAndEditor = lazy(() =>
   import('../NavigationAndEditor').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'nav') return <m.MapNavigationScreen {...(props as any)} />;
-      if (screen === 'param_adjust') return <m.ParamAdjustScreen {...(props as any)} />;
-      if (screen === 'editor') return <m.TraceEditorScreen {...(props as any)} />;
+      if (screen === 'nav') return <m.MapNavigationScreen {...(props as React.ComponentProps<typeof m.MapNavigationScreen>)} />;
+      if (screen === 'param_adjust') return <m.ParamAdjustScreen {...(props as React.ComponentProps<typeof m.ParamAdjustScreen>)} />;
+      if (screen === 'editor') return <m.TraceEditorScreen {...(props as React.ComponentProps<typeof m.TraceEditorScreen>)} />;
       return null;
     },
   })),
@@ -37,8 +37,8 @@ const NavigationAndEditor = lazy(() =>
 const LazyModals = lazy(() =>
   import('../CommonModals').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'success') return <m.SuccessScreen {...(props as any)} />;
-      if (screen === 'loading') return <m.LoadingScreen {...(props as any)} />;
+      if (screen === 'success') return <m.SuccessScreen {...(props as React.ComponentProps<typeof m.SuccessScreen>)} />;
+      if (screen === 'loading') return <m.LoadingScreen {...(props as React.ComponentProps<typeof m.LoadingScreen>)} />;
       return null;
     },
   })),
@@ -46,10 +46,10 @@ const LazyModals = lazy(() =>
 
 // 懒加载路由组件：快速模板/图形库
 const LazyHomeExtra = lazy(() =>
-  import('../HomeAndLibrary').then((m) => ({
+  import('../HomeExtraScreens').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'quick_cards') return <m.QuickTemplateScreen {...(props as any)} />;
-      if (screen === 'library') return <m.FullLibraryScreen {...(props as any)} />;
+      if (screen === 'quick_cards') return <m.QuickTemplateScreen {...(props as React.ComponentProps<typeof m.QuickTemplateScreen>)} />;
+      if (screen === 'library') return <m.FullLibraryScreen {...(props as React.ComponentProps<typeof m.FullLibraryScreen>)} />;
       return null;
     },
   })),
@@ -59,8 +59,8 @@ const LazyHomeExtra = lazy(() =>
 const LazyProfileAndSettings = lazy(() =>
   import('../ProfileAndSettings').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'profile') return <m.ProfileScreen {...(props as any)} />;
-      if (screen === 'settings') return <m.SettingsScreen {...(props as any)} />;
+      if (screen === 'profile') return <m.ProfileScreen {...(props as React.ComponentProps<typeof m.ProfileScreen>)} />;
+      if (screen === 'settings') return <m.SettingsScreen {...(props as React.ComponentProps<typeof m.SettingsScreen>)} />;
       return null;
     },
   })),
@@ -70,11 +70,11 @@ const LazyProfileAndSettings = lazy(() =>
 const LazyTraceJourney = lazy(() =>
   import('../TraceJourneyScreens').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'splash') return <m.SplashScreen {...(props as any)} />;
-      if (screen === 'my_traces') return <m.MyTracesScreen {...(props as any)} />;
-      if (screen === 'trace_detail') return <m.TraceDetailScreen {...(props as any)} />;
-      if (screen === 'run_history') return <m.RunHistoryScreen {...(props as any)} />;
-      if (screen === 'run_detail') return <m.RunDetailScreen {...(props as any)} />;
+      if (screen === 'splash') return <m.SplashScreen {...(props as React.ComponentProps<typeof m.SplashScreen>)} />;
+      if (screen === 'my_traces') return <m.MyTracesScreen {...(props as React.ComponentProps<typeof m.MyTracesScreen>)} />;
+      if (screen === 'trace_detail') return <m.TraceDetailScreen {...(props as React.ComponentProps<typeof m.TraceDetailScreen>)} />;
+      if (screen === 'run_history') return <m.RunHistoryScreen {...(props as React.ComponentProps<typeof m.RunHistoryScreen>)} />;
+      if (screen === 'run_detail') return <m.RunDetailScreen {...(props as React.ComponentProps<typeof m.RunDetailScreen>)} />;
       return null;
     },
   })),
@@ -84,10 +84,10 @@ const LazyTraceJourney = lazy(() =>
 const LazyDiscovery = lazy(() =>
   import('../DiscoveryScreens').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'favorites') return <m.FavoritesScreen {...(props as any)} />;
-      if (screen === 'template_detail') return <m.TemplateDetailScreen {...(props as any)} />;
-      if (screen === 'search') return <m.SearchScreen {...(props as any)} />;
-      if (screen === 'search_result') return <m.SearchResultScreen {...(props as any)} />;
+      if (screen === 'favorites') return <m.FavoritesScreen {...(props as React.ComponentProps<typeof m.FavoritesScreen>)} />;
+      if (screen === 'template_detail') return <m.TemplateDetailScreen {...(props as React.ComponentProps<typeof m.TemplateDetailScreen>)} />;
+      if (screen === 'search') return <m.SearchScreen {...(props as React.ComponentProps<typeof m.SearchScreen>)} />;
+      if (screen === 'search_result') return <m.SearchResultScreen {...(props as React.ComponentProps<typeof m.SearchResultScreen>)} />;
       return null;
     },
   })),
@@ -97,10 +97,10 @@ const LazyDiscovery = lazy(() =>
 const LazyCommunity = lazy(() =>
   import('../CommunityScreens').then((m) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'trace_share') return <m.TraceShareScreen {...(props as any)} />;
-      if (screen === 'square') return <m.SquareScreen {...(props as any)} />;
-      if (screen === 'post_detail') return <m.PostDetailScreen {...(props as any)} />;
-      if (screen === 'notifications') return <m.NotificationsScreen {...(props as any)} />;
+      if (screen === 'trace_share') return <m.TraceShareScreen {...(props as React.ComponentProps<typeof m.TraceShareScreen>)} />;
+      if (screen === 'square') return <m.SquareScreen {...(props as React.ComponentProps<typeof m.SquareScreen>)} />;
+      if (screen === 'post_detail') return <m.PostDetailScreen {...(props as React.ComponentProps<typeof m.PostDetailScreen>)} />;
+      if (screen === 'notifications') return <m.NotificationsScreen {...(props as React.ComponentProps<typeof m.NotificationsScreen>)} />;
       return null;
     },
   })),

@@ -430,7 +430,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   /** 切换语言并持久化到 localStorage，同时更新 HTML lang 属性 */
-  const handleSetLanguage = (lang: Language) => {
+  const handleSetLanguage = useCallback((lang: Language) => {
     setLanguage(lang);
     try {
       localStorage.setItem(STORAGE_KEY, lang);
@@ -438,7 +438,7 @@ export const I18nProvider = ({ children }: { children: React.ReactNode }) => {
       // ignore storage errors and keep runtime state only
     }
     document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
-  };
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = language === 'en' ? 'en' : 'zh-CN';

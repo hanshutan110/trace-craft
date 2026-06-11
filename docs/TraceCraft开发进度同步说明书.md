@@ -1,6 +1,6 @@
 # TraceCraft 开发进度同步说明书
 
-**版本**：V1.3  
+**版本**：V1.4  
 **适用范围**：TraceCraft 单仓项目（backend + frontend + shared + docs）  
 **更新时间**：2026-06-10  
 
@@ -122,36 +122,40 @@
 
 ## 11. 最新进度表（2026-06-10）
 
-### 本次同步目标
+### 本次同步目标（前端代码审查与优化）
 
-1. 后端全量 TypeScript 迁移，所有 `.js` 文件转为 `.ts`，开启 strict 模式
-2. 定义 IStorage 接口契约，约束 MemoryStorage / PostgresStorage 实现
-3. Express Request 类型扩展，中间件与路由处理器全面类型化
-4. 新建 `shared/types.ts` 前后端共享类型，作为 API 契约的权威来源
-5. 清理项目冗余文件（.github、ESLint 配置、日志、缓存等），释放约 352MB 空间
-6. 更新进度说明书版本至 V1.3
+1. 全面审查前端代码，找出 Bug、类型安全、性能、代码质量等问题
+2. 修复全部 18 项问题（含 2 项构建警告）
+3. 重构大组件拆分，消除 Vite 静态/动态混合导入警告
+4. 构建验证零错误零警告
 
 ### 本次交付结果
 
 | 模块 | 事项 | 状态 | 备注 |
 | --- | --- | --- | --- |
-| 后端 | `geo.js` → `geo.ts`，定义 GeoPoint/ScaleOptions 接口，函数签名类型化 | 已完成 | Haversine、重采样、角度平滑、等比缩放等 |
-| 后端 | `coordAdapter.js` → `coordAdapter.ts`，定义 CrsType 类型，CRS_CONVERT_MAP Record 类型化 | 已完成 | WGS-84/GCJ-02/BD-09 互转 |
-| 后端 | `storage.js` → `storage.ts`，定义 IStorage 接口 + Route/Session 等 11 个数据类型 | 已完成 | 双存储模式（内存/PostgreSQL）implements IStorage |
-| 后端 | `routeService.js` → `routeService.ts`，定义 CreateRouteParams/SessionState/FinishResult 接口 | 已完成 | 路线生成/调整/重映射/会话管理全面类型化 |
-| 后端 | `index.js` → `index.ts`，Express Request 类型扩展，所有路由处理器类型化 | 已完成 | 鉴权/ETag/统一响应格式等中间件 |
-| 后端 | `tsconfig.json` 创建，strict 模式 + commonjs + ES2022 | 已完成 | 已移除 allowJs，纯 TS 项目 |
-| 后端 | `package.json` 脚本更新：start/dev 使用 tsx，新增 build/typecheck | 已完成 | 开发即类型检查 |
-| 共享 | `shared/types.ts` 新建，定义 GeoPoint/CrsType/MapProvider/ApiResponse/Route/SessionState 等 | 已完成 | 前后端 API 契约权威来源 |
-| 清理 | 删除 `.github/workflows/ci.yml`（无实际 CI 价值） | 已完成 | 连同 .github 目录一并移除 |
-| 清理 | 删除 `.eslintrc.cjs` / `.eslintignore`（已迁移至 TS，ESLint 配置不再适用） | 已完成 | — |
-| 清理 | 删除 `backend/err.log` / `backend/out.log` / `backend/.gitkeep` / `docs/.gitkeep` / `db/api_admin_design.md` | 已完成 | — |
-| 清理 | 删除 `frontend/tmp/` / `frontend/dist/` / `frontend/.npm-cache/`（~352MB） | 已完成 | 释放磁盘空间 |
-| 清理 | 从 `backend/package.json` 移除 lint 脚本和 eslint devDep | 已完成 | — |
-| 配置 | `.gitignore` 新增 `backend/dist/` | 已完成 | TS 编译输出目录 |
-| 验证 | `npx tsc --noEmit` 零错误通过 | 已完成 | strict 模式全量类型检查 |
-| 验证 | 服务启动正常，`/health` 返回 `{"ok":true,"service":"tracecraft-backend","storage":"memory"}` | 已完成 | tsx 直接运行 TS 文件 |
-| 文档 | 进度说明书更新至 V1.3 | 已完成 | 本次同步 |
+| Bug | TraceJourneyScreens "平均配速"显示日期而非配速数据 | 已完成 | 字段引用错误修正 |
+| Bug | DiscoveryScreens toast 提示使用英文 | 已完成 | 改为中文提示 |
+| 类型安全 | AppScreenRouter 22 处 `as any` → `React.ComponentProps<typeof X>` | 已完成 | 全面消除类型断言 |
+| 类型安全 | types.ts 提取 `ShapeType` 联合类型 | 已完成 | PresetShape.iconType 和 HistoryRecord.shapeType 使用 |
+| 性能 | i18n.ts `handleSetLanguage` 包裹 `useCallback` | 已完成 | 避免 useMemo 依赖失效 |
+| 性能 | App.tsx `STORAGE_KEYS` 移至组件外部 | 已完成 | 避免每次渲染重新创建 |
+| 清理 | CommunityScreens 删除 58 行注释死代码 + 未使用变量 | 已完成 | `_setMsgList` → 使用常量 |
+| 清理 | TraceJourneyScreens 变量名 `int` → `intervalId` | 已完成 | 避免遮蔽内置类型 |
+| 清理 | CommonModals 移除 3 处内联 `<style>` + 文案笔误 | 已完成 | 动画关键帧移至 index.css |
+| CSS | index.css `vertical-range` 属性冲突修复 | 已完成 | 移除冲突的 rotate 属性 |
+| 配置 | tsconfig.json 移除冗余配置 + 添加 include/exclude | 已完成 | — |
+| 配置 | package.json 依赖分类修正 | 已完成 | `@vitejs/plugin-react` 移至 devDependencies |
+| 重构 | NavigationAndEditor `useRef+useState` 双重状态 → 纯 ref + renderTick | 已完成 | TraceEditorScreen 简化为单一数据源 |
+| 重构 | CommonModals 拆分：BottomSheetModal 提取至 `common/BottomSheetModal.tsx` | 已完成 | 消除静态/动态混合导入警告 |
+| 重构 | HomeAndLibrary 拆分：QuickTemplateScreen + FullLibraryScreen 提取至 `HomeExtraScreens.tsx` | 已完成 | 消除第二个混合导入警告 |
+| 验证 | `vite build` 零错误零警告 | 已完成 | 构建产物正常 |
+
+### 新增文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `frontend/src/components/common/BottomSheetModal.tsx` | 从 CommonModals.tsx 提取的图形选择弹窗组件 |
+| `frontend/src/components/HomeExtraScreens.tsx` | 从 HomeAndLibrary.tsx 提取的快速模板 + 图形库屏幕 |
 
 ### 未完成/待处理
 
@@ -161,14 +165,14 @@
 | 数据库 | 执行 `admin-schema.sql` 建表并验证索引 | 2026-06-12 | 低 |
 | 测试 | 补充本地交互冒烟（关键按钮：开始/暂停/继续/分享/返回） | 2026-06-12 | 中 |
 | 样式 | 严格匹配设计稿，追加字体系统与字号规范化 | 2026-06-15 | 低 |
-| 代码质量 | 前端大组件（HomeAndLibrary/NavigationAndEditor 等）补充函数级注释 | 2026-06-15 | 低 |
+| 代码质量 | 前端大组件（NavigationAndEditor 等）补充函数级注释 | 2026-06-15 | 低 |
 | 后端 | shared/types.ts 类型逐步替换各文件内的本地重复定义 | 2026-06-20 | 低 |
 
 ### 版本与里程碑映射
-- 关键改动提交：后端全量 TypeScript 迁移、IStorage 接口契约、shared/types.ts 共享类型、项目冗余文件清理
+- 关键改动提交：前端全面代码审查与优化（18 项修复），组件拆分消除构建警告，类型安全提升
 - 下次同步建议：当 shared/types.ts 被前后端实际引用替换时，需同步更新本说明书和 API 契约文档
 
-## 2026-06-10：后端 TypeScript 迁移同步
+## 2026-06-10（上午）：后端 TypeScript 迁移同步
 
 - 本次变更：后端全部 JS 文件迁移为 TypeScript，strict 模式零错误通过
 - 迁移范围：
