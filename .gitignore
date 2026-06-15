@@ -83,3 +83,11 @@ Thumbs.db
 
 # Legacy files (pre-Vite React Native entry)
 frontend/App.js
+
+# Android / Capacitor
+local.properties
+.gradle/
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/build/
+frontend/android/capacitor-cordova-android-plugins/build/

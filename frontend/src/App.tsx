@@ -7,7 +7,8 @@
  *   3. 持久化 onboarding/login 状态到 localStorage，重启后恢复
  *   4. 包装 I18nProvider 提供国际化支持
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
 
 import { ScreenId } from './types';
 import { AppViewport } from './components/AppViewport';
@@ -22,19 +23,58 @@ const STORAGE_KEYS = {
 export default function App() {
 
   // 当前激活的屏幕 ID
-  const [activeScreen, setActiveScreen] = useState<ScreenId>('splash');
+  const [activeScreen, setActiveScreenState] = useState<ScreenId>('splash');
   // 当前选中的图形模板 ID
   const [selectedShapeId, setSelectedShapeId] = useState<string>('star');
   // 底部弹窗是否打开
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState<boolean>(false);
   // 底部导航栏当前标签页
-  const [activeNavbarTab, setActiveNavbarTab] = useState<'home' | 'traces' | 'profile'>('home');
+  const [activeNavbarTab, setActiveNavbarTabState] = useState<'home' | 'traces' | 'profile'>('home');
   // 会话是否就绪（初始化完成后置 true）
   const [isSessionReady, setIsSessionReady] = useState<boolean>(false);
   // 是否已完成首次引导
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
   // 是否已登录
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  // 记录页面返回栈，给安卓返回键/右滑返回用
+  const screenHistoryRef = useRef<ScreenId[]>([]);
+  const isBottomSheetOpenRef = useRef<boolean>(false);
+
+  const syncNavbarTab = useCallback((screen: ScreenId) => {
+    if (screen === 'home' || screen === 'editor' || screen === 'nav' || screen === 'param_adjust' || screen === 'quick_cards' || screen === 'library' || screen === 'success' || screen === 'loading') {
+      setActiveNavbarTabState('home');
+      return;
+    }
+
+    if (screen === 'my_traces' || screen === 'trace_detail' || screen === 'run_history' || screen === 'run_detail') {
+      setActiveNavbarTabState('traces');
+      return;
+    }
+
+    if (screen === 'profile' || screen === 'settings') {
+      setActiveNavbarTabState('profile');
+    }
+  }, []);
+
+  const navigateToScreen = useCallback((screen: ScreenId, options?: { replace?: boolean; resetHistory?: boolean }) => {
+    setActiveScreenState((currentScreen) => {
+      if (options?.resetHistory) {
+        screenHistoryRef.current = [];
+      }
+
+      if (currentScreen === screen) {
+        return currentScreen;
+      }
+
+      if (!options?.replace) {
+        screenHistoryRef.current.push(currentScreen);
+      }
+
+      return screen;
+    });
+
+    syncNavbarTab(screen);
+  }, [syncNavbarTab]);
 
   // 从 localStorage 恢复引导和登录状态
   useEffect(() => {
@@ -61,42 +101,84 @@ export default function App() {
     }
   }, [isSessionReady, hasCompletedOnboarding, isLoggedIn]);
 
+  useEffect(() => {
+    isBottomSheetOpenRef.current = isBottomSheetOpen;
+  }, [isBottomSheetOpen]);
+
+  useEffect(() => {
+    let removeListener: (() => void) | undefined;
+
+    const setupBackButton = async () => {
+      try {
+        const handle = await CapacitorApp.addListener('backButton', () => {
+          if (isBottomSheetOpenRef.current) {
+            setIsBottomSheetOpen(false);
+            return;
+          }
+
+          const history = screenHistoryRef.current;
+          if (history.length > 0) {
+            const previousScreen = history.pop() as ScreenId;
+            setActiveScreenState(previousScreen);
+            syncNavbarTab(previousScreen);
+            return;
+          }
+
+          void CapacitorApp.exitApp();
+        });
+
+        removeListener = () => {
+          void handle.remove();
+        };
+      } catch {
+        // 本地 Web 预览或非 Android 环境下忽略。
+      }
+    };
+
+    void setupBackButton();
+
+    return () => {
+      removeListener?.();
+    };
+  }, [syncNavbarTab]);
+
   // 根据登录状态决定跳转目标：已登录→主页，未登录→登录页
   const getPostAuthScreen = (): ScreenId => (isLoggedIn ? 'home' : 'login');
 
   // 从引导页导航：完成引导后跳转主页或登录页
   const handleNavigateFromOnboarding = (screen: ScreenId) => {
     if (screen === 'home') {
-      setActiveNavbarTab('home');
       setHasCompletedOnboarding(true);
-      setActiveScreen(getPostAuthScreen());
+      navigateToScreen(getPostAuthScreen(), { replace: true, resetHistory: true });
       return;
     }
-    setActiveScreen(screen);
+    navigateToScreen(screen);
   };
 
   // 从启动页导航：根据引导状态决定去向
   const handleNavigateFromSplash = (screen: ScreenId) => {
     if (screen === 'login' || screen === 'home') {
-      setActiveScreen(hasCompletedOnboarding ? getPostAuthScreen() : 'onboarding');
+      navigateToScreen(hasCompletedOnboarding ? getPostAuthScreen() : 'onboarding', {
+        replace: true,
+        resetHistory: true,
+      });
       return;
     }
 
     if (screen === 'onboarding') {
-      setActiveScreen('onboarding');
+      navigateToScreen('onboarding', { replace: true, resetHistory: true });
       return;
     }
 
-    setActiveScreen(screen);
+    navigateToScreen(screen);
   };
 
   // 从登录页导航：登录成功后标记为已登录
   const handleNavigateFromLogin = (screen: ScreenId) => {
     if (screen === 'profile' || screen === 'home') {
-      setActiveNavbarTab(screen === 'profile' ? 'profile' : 'home');
       setHasCompletedOnboarding(true);
       setIsLoggedIn(true);
-      setActiveScreen(screen);
+      navigateToScreen(screen, { replace: true, resetHistory: true });
       return;
     }
 
@@ -104,28 +186,30 @@ export default function App() {
       setIsLoggedIn(false);
     }
 
-    setActiveScreen(screen);
+    navigateToScreen(screen);
   };
 
   // 从个人中心/设置页导航：处理退出登录等操作
   const handleNavigateFromProfileOrSettings = (screen: ScreenId) => {
     if (screen === 'login') {
       setIsLoggedIn(false);
-      setActiveNavbarTab('home');
+      setActiveNavbarTabState('home');
+      navigateToScreen('login', { replace: true, resetHistory: true });
+      return;
     } else if (screen === 'profile') {
-      setActiveNavbarTab('profile');
+      setActiveNavbarTabState('profile');
     } else if (screen === 'my_traces') {
-      setActiveNavbarTab('traces');
+      setActiveNavbarTabState('traces');
     }
 
-    setActiveScreen(screen);
+    navigateToScreen(screen);
   };
 
   return (
     <I18nProvider>
       <div
         id="main_wrapper"
-        className="min-h-screen bg-[#0F172A] text-slate-100 font-sans antialiased"
+        className="min-h-[100dvh] bg-[#0F172A] text-slate-100 font-sans antialiased"
       >
         <AppViewport
           activeScreen={activeScreen}
@@ -134,11 +218,11 @@ export default function App() {
           activeNavbarTab={activeNavbarTab}
           onSelectShape={setSelectedShapeId}
           openBottomSheet={() => {
-            setActiveScreen('home');
+            navigateToScreen('home', { replace: true });
             setIsBottomSheetOpen(true);
           }}
-          setActiveScreen={setActiveScreen}
-          setActiveNavbarTab={setActiveNavbarTab}
+          setActiveScreen={navigateToScreen}
+          setActiveNavbarTab={setActiveNavbarTabState}
           setIsBottomSheetOpen={setIsBottomSheetOpen}
           onNavigateFromOnboarding={handleNavigateFromOnboarding}
           onNavigateFromSplash={handleNavigateFromSplash}

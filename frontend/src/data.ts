@@ -1,65 +1,65 @@
 /**
- * TraceCraft 前端静态数据
+ * TraceCraft frontend static data.
  *
- * 包含预设图形模板和跑步历史记录的 Mock 数据
- * 未来替换为后端 API 获取
+ * Mock data for preset shapes and run history.
+ * This file is kept for future backend replacement.
  */
-import { PresetShape, HistoryRecord } from './types';
+import { HistoryRecord, PresetShape } from './types';
 
 export const presetShapes: PresetShape[] = [
   {
     id: 'star',
-    name: '五角星',
+    name: 'Star',
     englishName: 'star',
     gradient: 'linear-gradient(135deg, #FFD166 0%, #FFB347 100%)',
-    description: '跑出璀璨星芒',
+    description: 'Run a shining star route',
     distance: 5.0,
     iconType: 'star',
     isHot: true,
   },
   {
     id: 'heart',
-    name: '心形',
+    name: 'Heart',
     englishName: 'heart',
     gradient: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)',
-    description: '用脚步画出一颗爱心',
+    description: 'Draw a heart with your steps',
     distance: 4.2,
     iconType: 'heart',
     isHot: true,
   },
   {
     id: 'circle',
-    name: '圆形',
+    name: 'Circle',
     englishName: 'circle',
     gradient: 'linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%)',
-    description: '经典的环湖跑圈路线',
+    description: 'Classic loop route around the lake',
     distance: 3.5,
     iconType: 'circle',
   },
   {
     id: 'triangle',
-    name: '三角形',
+    name: 'Triangle',
     englishName: 'triangle',
     gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A24 100%)',
-    description: '几何美感的短程冲刺',
+    description: 'Short sprint with geometric style',
     distance: 3.0,
     iconType: 'triangle',
   },
   {
     id: 'square',
-    name: '正方形',
+    name: 'Square',
     englishName: 'square',
     gradient: 'linear-gradient(135deg, #A8E6CF 0%, #3BAC6A 100%)',
-    description: '规则的街区环绕路线',
+    description: 'A clean block-around route',
     distance: 4.0,
     iconType: 'square',
   },
   {
     id: 'hexagon',
-    name: '六边形',
+    name: 'Hexagon',
     englishName: 'hexagon',
     gradient: 'linear-gradient(135deg, #A29BFE 0%, #6C5CE7 100%)',
-    description: '蜂巢结构的中长跑路线',
+    description: 'A mid-distance route shaped like a honeycomb',
     distance: 4.8,
     iconType: 'hexagon',
   },
@@ -68,7 +68,7 @@ export const presetShapes: PresetShape[] = [
 export const historyRecords: HistoryRecord[] = [
   {
     id: 'hist1',
-    name: '小猫跑',
+    name: 'Cat Run',
     distance: '5.01km',
     time: '32:15',
     date: '2026-06-08',
@@ -76,7 +76,7 @@ export const historyRecords: HistoryRecord[] = [
   },
   {
     id: 'hist2',
-    name: '星形极限速跑',
+    name: 'Star Speed Run',
     distance: '3.62km',
     time: '22:40',
     date: '2026-05-30',
@@ -84,7 +84,7 @@ export const historyRecords: HistoryRecord[] = [
   },
   {
     id: 'hist3',
-    name: '爱心跑表白',
+    name: 'Heart Run',
     distance: '4.25km',
     time: '28:10',
     date: '2026-05-24',

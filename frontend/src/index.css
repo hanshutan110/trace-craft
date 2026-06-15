@@ -10,6 +10,13 @@
 
 @layer base {
   /* Premium Apple iOS Style Font mappings */
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
   body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", "Helvetica", "Arial", "PingFang SC", sans-serif;
     -webkit-font-smoothing: antialiased;

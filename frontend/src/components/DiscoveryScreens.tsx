@@ -10,7 +10,50 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { ScreenId } from '../types';
+import { useI18n } from '../i18n';
 import { BottomNavBar } from './common/BottomNavBar';
+
+const SEARCH_HISTORY = [
+  { cn: '历史A', en: 'History A' },
+  { cn: '历史B', en: 'History B' },
+  { cn: '历史C', en: 'History C' },
+  { cn: '历史D', en: 'History D' }
+] as const;
+
+const SEARCH_HOT = [
+  { cn: '🔥 方形', en: '🔥 Square', queryCn: '方形', queryEn: 'Square' },
+  { cn: '🔥 心形', en: '🔥 Heart', queryCn: '心形', queryEn: 'Heart' },
+  { cn: '圆形', en: 'Circle', queryCn: '圆形', queryEn: 'Circle' },
+  { cn: '三角', en: 'Triangle', queryCn: '三角', queryEn: 'Triangle' },
+  { cn: '五角', en: 'Pentagram', queryCn: '五角', queryEn: 'Pentagram' }
+] as const;
+
+const SEARCH_CATEGORIES = [
+  { cn: '地形', en: 'Terrain' },
+  { cn: '风景', en: 'Scenery' },
+  { cn: '文字', en: 'Text' },
+  { cn: '情侣', en: 'Couple' },
+  { cn: '自定义', en: 'Custom' }
+] as const;
+
+const SEARCH_RECOMMENDED = [
+  {
+    cn: '方形',
+    en: 'Square',
+    titleCn: '热门方形',
+    titleEn: 'Hot Square',
+    countCn: '1288 次',
+    countEn: '1,288 runs'
+  },
+  {
+    cn: '心形',
+    en: 'Heart',
+    titleCn: '热门心形',
+    titleEn: 'Hot Heart',
+    countCn: '980 次',
+    countEn: '980 runs'
+  }
+] as const;
 
 // ----------------------------------------------------------------------
 // SCREEN 19: Favorites (收藏模板)
@@ -24,6 +67,8 @@ export function FavoritesScreen({
   activeNavbarTab: 'home' | 'traces' | 'profile';
   setActiveNavbarTab: (tab: 'home' | 'traces' | 'profile') => void;
 }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [showEmpty, setShowEmpty] = useState<boolean>(false);
   const [favoriteList, setFavoriteList] = useState([
     { id: 'f1', title: 'heart', dist: '2.2km', usage: '128', icon: 'heart', color: 'text-rose-500' },
@@ -34,7 +79,7 @@ export function FavoritesScreen({
 
   const handleRemove = (id: string, name: string) => {
     setFavoriteList(prev => prev.filter(item => item.id !== id));
-    miniToast(`已删除 ${name}`);
+    miniToast(text(`已删除 ${name}`, `Removed ${name}`));
   };
 
   return (
@@ -44,26 +89,26 @@ export function FavoritesScreen({
         <button onClick={() => onNavigate('profile')} className="p-1 hover:bg-neutral-100 rounded-full">
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
-        <span className="text-[16px] font-bold text-slate-900">我的收藏</span>
+        <span className="text-[16px] font-bold text-slate-900">{text('我的收藏', 'My Favorites')}</span>
         <button 
           onClick={() => {
             setShowEmpty(!showEmpty);
-            miniToast(showEmpty ? '当前无收藏数据' : '已清空收藏数据');
+            miniToast(showEmpty ? text('当前无收藏数据', 'No saved items') : text('已清空收藏数据', 'Cleared saved items'));
           }}
           className="text-xs text-cyan-600 font-extrabold hover:underline"
         >
-          {showEmpty ? '恢复数据' : '置空模拟'}
+          {showEmpty ? text('恢复数据', 'Restore data') : text('置空模拟', 'Simulate empty')}
         </button>
       </div>
 
       <div className="bg-cyan-50/50 py-2 border-b border-cyan-100/40 text-center shrink-0">
         <p className="text-[11px] text-cyan-600 font-bold select-none">
-          已收{showEmpty ? 0 : favoriteList.length} 个轨迹模板 双击移除
+          {text(`已收${showEmpty ? 0 : favoriteList.length} 个轨迹模板 双击移除`, `Saved ${showEmpty ? 0 : favoriteList.length} templates. Double-click to remove.`)}
         </p>
       </div>
 
       {/* Grid or Empty view */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 pb-16">
+      <div className="flex-1 overflow-y-auto px-4 py-3 pb-[calc(96px+env(safe-area-inset-bottom))]">
         {showEmpty || favoriteList.length === 0 ? (
           /* EMPTY VIEW */
           <div className="py-24 flex flex-col items-center justify-center text-center space-y-4 px-6 animate-pulse select-none">
@@ -71,16 +116,17 @@ export function FavoritesScreen({
               <Star size={36} fill="none" className="stroke-[1.5]" />
             </div>
             <div>
-              <p className="text-[16px] font-bold text-slate-800">暂无收藏</p>
+              <p className="text-[16px] font-bold text-slate-800">{text('暂无收藏', 'No favorites yet')}</p>
               <p className="text-[12px] text-slate-400 mt-1 max-w-xs">
-                去广场或者推荐里找一找美丽的路线灵感吧！
+                {text('去广场或者推荐里找一找美丽的路线灵感吧！', 'Find route ideas in Discover or Recommendations.')}
               </p>
             </div>
             <button 
               onClick={() => onNavigate('square')}
               className="px-5 py-2.5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-95 transition-all text-white font-extrabold text-xs rounded-full shadow-md shadow-cyan-400/20"
             >
-              去广场发现灵感            </button>
+              {text('去广场发现灵感', 'Find inspiration in Discover')}
+            </button>
           </div>
         ) : (
           /* 2x2 GRID VIEW */
@@ -121,7 +167,7 @@ export function FavoritesScreen({
                 </div>
 
                 <div className="flex items-center justify-between pt-1 border-t border-slate-50">
-                  <span className="text-[10px] text-rose-500 font-bold flex items-center gap-0.5">
+                    <span className="text-[10px] text-rose-500 font-bold flex items-center gap-0.5">
                     ❤️ {item.usage}
                   </span>
                   
@@ -134,7 +180,8 @@ export function FavoritesScreen({
                     }}
                     className="px-2.5 py-1 border border-cyan-500 text-cyan-500 hover:bg-cyan-50 active:scale-95 text-[10px] font-black rounded-full transition-all"
                   >
-                    开始                  </button>
+                    {text('开始', 'Start')}
+                  </button>
                 </div>
 
                 {/* Double click helper label */}
@@ -169,6 +216,8 @@ export function FavoritesScreen({
 // SCREEN 20: Template Detail (模板详情)
 // ----------------------------------------------------------------------
 export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [favorite, setFavorite] = useState(true);
 
   return (
@@ -178,12 +227,12 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
         <button onClick={() => onNavigate('favorites')} className="p-1 hover:bg-neutral-100 rounded-full">
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
-        <span className="text-[16px] font-bold text-slate-900">模板详情</span>
+        <span className="text-[16px] font-bold text-slate-900">{text('模板详情', 'Template Detail')}</span>
         <div className="flex space-x-1.5">
-          <button onClick={() => miniToast('分享模板数据')} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => miniToast(text('分享模板数据', 'Share template data'))} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <ExternalLink size={16} className="text-slate-600" />
           </button>
-          <button onClick={() => { setFavorite(!favorite); miniToast(favorite ? '取消收藏' : '已添加收藏'); }} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => { setFavorite(!favorite); miniToast(text(favorite ? '取消收藏' : '已添加收藏', favorite ? 'Removed from favorites' : 'Added to favorites')); }} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Heart size={16} fill={favorite ? 'red' : 'none'} className={favorite ? 'text-red-500' : 'text-slate-600'} />
           </button>
         </div>
@@ -200,8 +249,8 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
             </svg>
           </div>
 
-          <h3 className="text-[20px] font-black text-slate-900 mt-4">爱心挑战</h3>
-          <p className="text-[11px] text-[#4FACFE] font-bold mt-1">❤️ 官方推荐跑步打卡艺术经典路线</p>
+          <h3 className="text-[20px] font-black text-slate-900 mt-4">{text('爱心挑战', 'Heart Challenge')}</h3>
+          <p className="text-[11px] text-[#4FACFE] font-bold mt-1">{text('❤️ 官方推荐跑步打卡艺术经典路线', 'Officially recommended art route for running check-ins')}</p>
         </div>
 
         {/* Info detail block list */}
@@ -211,33 +260,33 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
             <div className="flex items-center justify-between text-[13px] border-b border-slate-50 pb-2.5">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-500">预计跑距</span>
+                <span className="text-slate-500">{text('预计跑距', 'Estimated distance')}</span>
               </div>
-                <strong className="text-slate-900 font-bold">4.2 公里</strong>
+                <strong className="text-slate-900 font-bold">4.2 km</strong>
             </div>
 
             <div className="flex items-center justify-between text-[13px] border-b border-slate-50 pb-2.5">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-500">预计时长</span>
+                <span className="text-slate-500">{text('预计时长', 'Estimated time')}</span>
               </div>
-                <strong className="text-slate-900 font-bold">25 分钟</strong>
+                <strong className="text-slate-900 font-bold">{text('25 分钟', '25 min')}</strong>
             </div>
 
             <div className="flex items-center justify-between text-[13px] border-b border-slate-50 pb-2.5">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-500">已完成</span>
+                <span className="text-slate-500">{text('已完成', 'Completed')}</span>
               </div>
-              <strong className="text-slate-930 text-rose-500 font-extrabold">128 次</strong>
+              <strong className="text-slate-930 text-rose-500 font-extrabold">{text('128 次', '128 runs')}</strong>
             </div>
 
             <div className="flex items-center justify-between text-[13px]">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-500">创建者</span>
+                <span className="text-slate-500">{text('创建者', 'Creator')}</span>
               </div>
-              <span className="font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">官方认证模板</span>
+              <span className="font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]">{text('官方认证模板', 'Verified template')}</span>
             </div>
 
           </div>
@@ -245,16 +294,16 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
 
         {/* Filter tags bubble pills info banner */}
         <div className="px-4 mt-3 flex flex-wrap gap-2">
-          <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-500 border border-red-100">🔥 热门推荐</span>
-          <span className="px-3 py-1 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-500 border border-rose-100">🍬 甜度饱满</span>
-          <span className="px-3 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">🌟 新手友好</span>
+          <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-red-50 text-red-500 border border-red-100">{text('🔥 热门推荐', '🔥 Hot pick')}</span>
+          <span className="px-3 py-1 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-500 border border-rose-100">{text('🍬 甜度饱满', '🍬 Sweet spot')}</span>
+          <span className="px-3 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">{text('🌟 新手友好', '🌟 Beginner friendly')}</span>
         </div>
 
         {/* User outcomes dynamic horizontal list */}
         <div className="px-4 mt-4 text-left">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-[13px] font-black text-slate-800">大家跑出来的真实效果</span>
-            <button onClick={() => { onNavigate('square'); }} className="text-[10px] text-cyan-600 font-semibold hover:underline">查看全广场评价</button>
+            <span className="text-[13px] font-black text-slate-800">{text('大家跑出来的真实效果', 'Real results from runners')}</span>
+            <button onClick={() => { onNavigate('square'); }} className="text-[10px] text-cyan-600 font-semibold hover:underline">{text('查看全广场评价', 'View all community reviews')}</button>
           </div>
 
           <div className="flex space-x-3 overflow-x-auto pb-1 scrollbar-none">
@@ -262,7 +311,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
               <div 
                 key={val}
                 className="w-[110px] p-2 rounded-xl bg-slate-50 border border-slate-100 text-center flex flex-col items-center space-y-1.5 cursor-pointer shrink-0"
-                onClick={() => { miniToast(`查看第 ${val} 种使用场景`); }}
+                onClick={() => { miniToast(text(`查看第 ${val} 种使用场景`, `View use case ${val}`)); }}
               >
                 <div className="w-12 h-12 bg-white rounded-full border border-slate-100 flex items-center justify-center">
                   <svg className="w-8 h-8 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
@@ -270,10 +319,10 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
                   </svg>
                 </div>
                 <span className="text-[9px] text-slate-400 font-semibold truncate max-w-full">
-                  {val === 1 ? '舒适' : val === 2 ? '节奏' : '竞技'}
+                  {text(val === 1 ? '舒适' : val === 2 ? '节奏' : '竞技', val === 1 ? 'Comfort' : val === 2 ? 'Rhythm' : 'Competition')}
                 </span>
                 <span className="text-[8px] bg-emerald-100/60 text-emerald-600 rounded px-1 scale-95 leading-none">
-                  9{val === 1 ? '7' : val === 2 ? '5' : '4'}% 吻合
+                  {text(`9${val === 1 ? '7' : val === 2 ? '5' : '4'}% 吻合`, `9${val === 1 ? '7' : val === 2 ? '5' : '4'}% match`)}
                 </span>
               </div>
             ))}
@@ -284,21 +333,21 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
         <div className="px-4 mt-5 grid grid-cols-2 gap-3">
           <button 
             onClick={() => {
-              miniToast('为您模拟生成大地图实景预览..');
+              miniToast(text('为您模拟生成大地图实景预览..', 'Simulating large map preview...'));
               onNavigate('trace_detail');
             }}
             className="py-3 px-4 border border-slate-200 text-slate-700 bg-white hover:bg-neutral-50 active:scale-98 text-xs font-black rounded-full transition-all text-center uppercase tracking-wider"
           >
-            预览完整路线
+            {text('预览完整路线', 'Preview full route')}
           </button>
           <button 
             onClick={() => {
-              miniToast('已导入该模板，请配置调节变换');
+              miniToast(text('已导入该模板，请配置调节变换', 'Template imported. Adjust settings next.'));
               onNavigate('param_adjust');
             }}
             className="py-3 px-4 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-98 text-white text-xs font-black rounded-full shadow-md shadow-cyan-400/20 transition-all text-center uppercase tracking-wider"
           >
-            直接使用此模板
+            {text('直接使用此模板', 'Use this template')}
           </button>
         </div>
 
@@ -311,14 +360,13 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
 // SCREEN 21: Search (搜索)
 // ----------------------------------------------------------------------
 export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [query, setQuery] = useState('');
-  const historyList = ['历史A', '历史B', '历史C', '历史D'];
-  const hotList = ['🔥 方形', '🔥 心形', '圆形', '三角', '五角'];
-  const categories = ['地形', '风景', '文字', '情侣', '自定义'];
 
   const handleSearchTrigger = (val: string) => {
     setQuery(val);
-    miniToast(`正在搜索: ${val}`);
+    miniToast(text(`正在搜索: ${val}`, `Searching: ${val}`));
     setTimeout(() => {
       onNavigate('search_result');
     }, 450);
@@ -344,7 +392,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
                 handleSearchTrigger(query);
               }
             }}
-            placeholder="搜索轨迹、模板或用户"
+            placeholder={text('搜索轨迹、模板或用户', 'Search routes, templates, or users')}
             className="bg-transparent border-none text-[12px] placeholder:text-slate-450 focus:outline-none w-full font-medium"
           />
         </div>
@@ -359,7 +407,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
           }}
           className="text-[13px] text-cyan-600 font-extrabold px-1"
         >
-          {query.trim() ? '搜索' : '取消'}
+          {query.trim() ? text('搜索', 'Search') : text('取消', 'Cancel')}
         </button>
       </div>
 
@@ -369,22 +417,22 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
         {/* Recent Search history */}
         <div>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-[13px] font-black text-slate-900">最近搜索</span>
+            <span className="text-[13px] font-black text-slate-900">{text('最近搜索', 'Recent searches')}</span>
             <button 
-              onClick={() => { miniToast('最近历史搜索记录已清空'); }}
+              onClick={() => { miniToast(text('最近历史搜索记录已清空', 'Recent search history cleared')); }}
               className="text-[11px] text-cyan-600 font-bold hover:underline"
             >
-              清空
+              {text('清空', 'Clear')}
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {historyList.map((tag) => (
+            {SEARCH_HISTORY.map((tag) => (
               <span 
-                key={tag}
-                onClick={() => handleSearchTrigger(tag)}
+                key={tag.cn}
+                onClick={() => handleSearchTrigger(text(tag.cn, tag.en))}
                 className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-100 text-[11px] text-slate-600 font-medium rounded-full cursor-pointer transition-colors"
               >
-                {tag} <span className="text-[9px] text-slate-400 ml-1">×</span>
+                {text(tag.cn, tag.en)} <span className="text-[9px] text-slate-400 ml-1">×</span>
               </span>
             ))}
           </div>
@@ -392,15 +440,15 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
         {/* Hot searches */}
         <div>
-          <span className="text-[13px] font-black text-slate-900 block mb-2.5">热门搜索</span>
+          <span className="text-[13px] font-black text-slate-900 block mb-2.5">{text('热门搜索', 'Hot searches')}</span>
           <div className="flex flex-wrap gap-2">
-            {hotList.map((tag) => (
+            {SEARCH_HOT.map((tag) => (
               <span 
-                key={tag}
-                onClick={() => handleSearchTrigger(tag.replace('🔥 ', ''))}
+                key={tag.cn}
+                onClick={() => handleSearchTrigger(text(tag.queryCn, tag.queryEn))}
                 className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-100 text-[11px] text-slate-600 font-bold rounded-full cursor-pointer transition-colors"
               >
-                {tag}
+                {text(tag.cn, tag.en)}
               </span>
             ))}
           </div>
@@ -408,9 +456,9 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
         {/* Categories grid */}
         <div>
-          <span className="text-[13px] font-black text-slate-900 block mb-2.5">按分类浏览</span>
+          <span className="text-[13px] font-black text-slate-900 block mb-2.5">{text('按分类浏览', 'Browse by category')}</span>
           <div className="grid grid-cols-3 gap-2">
-            {categories.map((cat, idx) => {
+            {SEARCH_CATEGORIES.map((cat, idx) => {
               const bgGrads = [
                 'from-teal-400 to-cyan-500',
                 'from-orange-400 to-[#FF8038]',
@@ -422,11 +470,11 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
               return (
                 <div 
-                  key={cat}
-                  onClick={() => handleSearchTrigger(cat)}
+                  key={cat.cn}
+                  onClick={() => handleSearchTrigger(text(cat.cn, cat.en))}
                   className={`h-14 rounded-2xl bg-gradient-to-br ${useGrad} p-2 flex items-end justify-start font-black text-white hover:brightness-105 active:scale-95 transition-all text-left truncate cursor-pointer shadow-sm`}
                 >
-                  <span className="text-[11px] drop-shadow-md tracking-wider">{cat}</span>
+                  <span className="text-[11px] drop-shadow-md tracking-wider">{text(cat.cn, cat.en)}</span>
                 </div>
               );
             })}
@@ -435,19 +483,19 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
         {/* Popular recommendation preview list */}
         <div>
-          <span className="text-[13px] font-black text-slate-900 block mb-2">热门推荐</span>
+          <span className="text-[13px] font-black text-slate-900 block mb-2">{text('热门推荐', 'Popular picks')}</span>
           <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-none">
-            {['方形', '心形'].map((name, i) => (
+            {SEARCH_RECOMMENDED.map((item, i) => (
               <div 
-                key={name}
-                onClick={() => handleSearchTrigger(name)}
+                key={item.cn}
+                onClick={() => handleSearchTrigger(text(item.cn, item.en))}
                 className="w-28 p-2 bg-white rounded-2xl border border-slate-100 shadow-[0_3px_10px_rgba(0,0,0,0.02)] shrink-0 cursor-pointer hover:shadow-md transition-shadow text-center flex flex-col items-center space-y-1"
               >
                 <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center">
                   <Star size={14} className={i === 0 ? 'text-yellow-500' : 'text-rose-500'} fill="currentColor" />
                 </div>
-                <span className="text-[11px] font-black text-slate-900">{name === '方形' ? '热门方形' : '热门心形'}</span>
-                <span className="text-[8px] text-slate-400">{i === 0 ? '1288 次' : '980 次'}</span>
+                <span className="text-[11px] font-black text-slate-900">{text(item.titleCn, item.titleEn)}</span>
+                <span className="text-[8px] text-slate-400">{text(item.countCn, item.countEn)}</span>
               </div>
             ))}
           </div>
@@ -462,6 +510,8 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 // SCREEN 22: Search Result (搜索结果)
 // ----------------------------------------------------------------------
 export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [searchTab, setSearchTab] = useState<'all' | 'trace' | 'template' | 'user'>('all');
   const [favoriteStates, setFavoriteStates] = useState<Record<string, boolean>>({
     'cat_result': true,
@@ -471,7 +521,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
   const toggleFavorite = (id: string) => {
     setFavoriteStates(prev => {
       const next = !prev[id];
-      miniToast(next ? '已收藏' : '取消收藏');
+      miniToast(next ? text('已收藏', 'Saved') : text('取消收藏', 'Removed from saved'));
       return { ...prev, [id]: next };
     });
   };
@@ -490,20 +540,20 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
           className="flex-1 mx-3 bg-slate-50 px-3 py-1.5 rounded-full flex items-center space-x-1 border border-slate-100/80 cursor-pointer"
         >
           <Search size={13} className="text-slate-400" />
-          <span className="text-[12px] font-bold text-slate-900">五角星</span>
+          <span className="text-[12px] font-bold text-slate-900">{text('五角星', 'Pentagram')}</span>
         </div>
 
         <button onClick={() => onNavigate('home')} className="text-[12px] text-slate-500 hover:text-slate-700 font-semibold">
-          取消
+          {text('取消', 'Cancel')}
         </button>
       </div>
 
       {/* Filter panel info */}
       <div className="px-4 py-1.5 bg-slate-50 flex items-center justify-between text-[11px] text-slate-500 shrink-0 font-semibold border-b border-slate-100/50">
-        <span>找到 23 个含有'五角星'的结果</span>
+        <span>{text("找到 23 个含有'五角星'的结果", "Found 23 results containing 'Pentagram'")}</span>
         <div className="flex space-x-2">
-          <button onClick={() => miniToast('查看收藏夹')} className="hover:text-cyan-600">打开收藏夹</button>
-          <button onClick={() => { miniToast('关闭'); }} className="hover:text-cyan-600">关闭</button>
+          <button onClick={() => miniToast(text('查看收藏夹', 'Open favorites'))} className="hover:text-cyan-600">{text('打开收藏夹', 'Open favorites')}</button>
+          <button onClick={() => { miniToast(text('关闭', 'Close')); }} className="hover:text-cyan-600">{text('关闭', 'Close')}</button>
         </div>
       </div>
 
@@ -519,10 +569,10 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 : 'bg-slate-50 text-slate-600 border border-slate-100 hover:bg-slate-100'
             }`}
           >
-            {tab === 'all' && '全部'}
-            {tab === 'trace' && '轨迹'}
-            {tab === 'template' && '模板'}
-            {tab === 'user' && '用户'}
+            {tab === 'all' && text('全部', 'All')}
+            {tab === 'trace' && text('轨迹', 'Routes')}
+            {tab === 'template' && text('模板', 'Templates')}
+            {tab === 'user' && text('用户', 'Users')}
           </button>
         ))}
       </div>
@@ -543,10 +593,10 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 </svg>
               </div>
               <div className="text-left">
-                <h4 className="text-[14px] font-black text-slate-900">五角星挑战</h4>
+                <h4 className="text-[14px] font-black text-slate-900">{text('五角星挑战', 'Pentagram Challenge')}</h4>
                 <div className="flex items-center space-x-1.5 mt-0.5">
-                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">轨迹</span>
-                  <span className="text-[11px] text-slate-500 font-medium font-mono">5.0 公里 路 128 次使用</span>
+                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">{text('轨迹', 'Route')}</span>
+                  <span className="text-[11px] text-slate-500 font-medium font-mono">{text('5.0 公里 路 128 次使用', '5.0 km route, used 128 times')}</span>
                 </div>
               </div>
             </div>
@@ -576,10 +626,10 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 </svg>
               </div>
               <div className="text-left">
-                <h4 className="text-[14px] font-black text-slate-900">星舰模板</h4>
+                <h4 className="text-[14px] font-black text-slate-900">{text('星舰模板', 'Starship Template')}</h4>
                 <div className="flex items-center space-x-1.5 mt-0.5">
-                  <span className="px-1 py-0.2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded text-[8px] font-bold">模板</span>
-                  <span className="text-[11px] text-slate-500 font-medium font-mono">5.0 公里 路 官方认证</span>
+                  <span className="px-1 py-0.2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded text-[8px] font-bold">{text('模板', 'Template')}</span>
+                  <span className="text-[11px] text-slate-500 font-medium font-mono">{text('5.0 公里 路 官方认证', '5.0 km route, verified')}</span>
                 </div>
               </div>
             </div>
@@ -587,12 +637,12 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                miniToast('打开模板设置');
+                miniToast(text('打开模板设置', 'Open template settings'));
                 onNavigate('param_adjust');
               }}
               className="px-2.5 py-1 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-95 text-xs text-white font-extrabold rounded-full transition-all"
             >
-              使用
+              {text('使用', 'Use')}
             </button>
           </div>
         )}
@@ -601,7 +651,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
         {(searchTab === 'all' || searchTab === 'user') && (
           <div 
             onClick={() => {
-              miniToast('查看用户主页');
+              miniToast(text('查看用户主页', 'Open user profile'));
               onNavigate('profile');
             }}
             className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
@@ -611,19 +661,19 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 <User size={24} />
               </div>
               <div className="text-left">
-                <h4 className="text-[14px] font-black text-slate-900">跑者小王</h4>
-                <p className="text-[11px] text-slate-500 mt-0.5">128 粉丝 · 15 个轨迹创作</p>
+                <h4 className="text-[14px] font-black text-slate-900">{text('跑者小王', 'Runner Xiao Wang')}</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">{text('128 粉丝 · 15 个轨迹创作', '128 followers · 15 route creations')}</p>
               </div>
             </div>
             
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                miniToast('收藏成功');
+                miniToast(text('收藏成功', 'Saved successfully'));
               }}
               className="px-3 py-1 border border-cyan-500 hover:bg-cyan-50 active:scale-95 text-[10.5px] text-cyan-600 font-extrabold rounded-full transition-all"
             >
-              关注
+              {text('关注', 'Follow')}
             </button>
           </div>
         )}
@@ -631,7 +681,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
         {/* RESULT 4: ANOTHER TRACK */}
         {(searchTab === 'all' || searchTab === 'trace') && (
           <div 
-            onClick={() => { miniToast('打开轨迹详情'); onNavigate('trace_detail'); }}
+            onClick={() => { miniToast(text('打开轨迹详情', 'Open route detail')); onNavigate('trace_detail'); }}
             className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
           >
             <div className="flex items-center space-x-3">
@@ -642,10 +692,10 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
                 </svg>
               </div>
               <div className="text-left">
-                <h4 className="text-[14px] font-black text-slate-900">六边形挑战</h4>
+                <h4 className="text-[14px] font-black text-slate-900">{text('六边形挑战', 'Hexagon Challenge')}</h4>
                 <div className="flex items-center space-x-1.5 mt-0.5">
-                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">轨迹</span>
-                  <span className="text-[11px] text-slate-500 font-medium font-mono">4.8公里 路 67 次使用</span>
+                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">{text('轨迹', 'Route')}</span>
+                  <span className="text-[11px] text-slate-500 font-medium font-mono">{text('4.8公里 路 67 次使用', '4.8 km route, used 67 times')}</span>
                 </div>
               </div>
             </div>
@@ -664,7 +714,8 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
 
         {/* loader */}
         <p className="text-[11px] text-slate-400 py-4 text-center">
-          —— 到底啦！上拉加载更多结果 ——        </p>
+          {text('—— 到底啦！上拉加载更多结果 ——', 'No more results. Pull up to load more.')}
+        </p>
 
       </div>
     </div>

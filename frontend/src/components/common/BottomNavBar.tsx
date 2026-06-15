@@ -36,45 +36,48 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   const { t } = useI18n();
 
   const navClass = (tab: BottomNavTab) =>
-    `flex flex-col items-center justify-center flex-1 py-1.5 ${
-      activeNavbarTab === tab ? 'text-[#4FACFE]' : 'text-slate-400'
+    `flex flex-col items-center justify-center flex-1 py-2 rounded-2xl transition-all duration-200 ${
+      activeNavbarTab === tab
+        ? 'text-[#0EA5E9] bg-[#4FACFE]/10 shadow-[0_4px_18px_rgba(79,172,254,0.12)]'
+        : 'text-slate-400 active:bg-slate-50'
     }`;
 
   return (
-    <div className={`fixed inset-x-0 bottom-0 bg-white border-t border-slate-100 flex items-center justify-around px-4 z-30 pb-[env(safe-area-inset-bottom)] ${className}`}>
-      <button
-        onClick={() => {
-          setActiveNavbarTab('home');
-          onNavigate('home');
-        }}
-        className={navClass('home')}
-      >
-        <Home size={iconSize} className="mb-0.5" />
-        <span className={labelClassName}>{t('home.nav.home', '首页')}</span>
-      </button>
+    <div className={`fixed inset-x-3 bottom-3 z-30 rounded-[26px] border border-white/80 bg-white/90 backdrop-blur-xl shadow-[0_14px_32px_rgba(15,23,42,0.12)] px-2.5 py-2 pb-[calc(8px+env(safe-area-inset-bottom))] ${className}`}>
+      <div className="flex items-center justify-around gap-1">
+        <button
+          onClick={() => {
+            setActiveNavbarTab('home');
+            onNavigate('home');
+          }}
+          className={navClass('home')}
+        >
+          <Home size={iconSize} className="mb-0.5" />
+          <span className={labelClassName}>{t('home.nav.home', '首页')}</span>
+        </button>
 
-      <button
-        onClick={() => {
-          setActiveNavbarTab('traces');
-          onNavigate('my_traces');
-        }}
-        className={navClass('traces')}
-      >
-        <Activity size={iconSize} className="mb-0.5" />
-        <span className={labelClassName}>{t('home.nav.traces', '我的轨迹')}</span>
-      </button>
+        <button
+          onClick={() => {
+            setActiveNavbarTab('traces');
+            onNavigate('my_traces');
+          }}
+          className={navClass('traces')}
+        >
+          <Activity size={iconSize} className="mb-0.5" />
+          <span className={labelClassName}>{t('home.nav.traces', '我的轨迹')}</span>
+        </button>
 
-      <button
-        onClick={() => {
-          setActiveNavbarTab('profile');
-          onNavigate('profile');
-        }}
-        className={navClass('profile')}
-      >
-        <User size={iconSize} className="mb-0.5" />
-        <span className={labelClassName}>{t('home.nav.profile', '个人中心')}</span>
-      </button>
+        <button
+          onClick={() => {
+            setActiveNavbarTab('profile');
+            onNavigate('profile');
+          }}
+          className={navClass('profile')}
+        >
+          <User size={iconSize} className="mb-0.5" />
+          <span className={labelClassName}>{t('home.nav.profile', '个人中心')}</span>
+        </button>
+      </div>
     </div>
   );
 };
-

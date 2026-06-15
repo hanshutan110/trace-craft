@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { Check, Circle, Square, Triangle, Star, Heart, Plus } from 'lucide-react';
+import { useI18n } from '../../i18n';
 
 interface BottomSheetModalProps {
   onClose: () => void;
@@ -18,13 +19,15 @@ export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
   onSelect,
   selectedShapeId,
 }) => {
+  const { t, language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const shapes = [
-    { id: 'circle', name: '圆形', color: 'bg-blue-500', icon: <Circle size={22} className="stroke-[3.5] text-white" /> },
-    { id: 'triangle', name: '三角形', color: 'bg-rose-500', icon: <Triangle size={22} className="stroke-[3.5] text-white" /> },
-    { id: 'square', name: '正方形', color: 'bg-emerald-500', icon: <Square size={22} className="stroke-[3.5] text-white" /> },
-    { id: 'star', name: '五角星', color: 'bg-amber-400', icon: <Star size={22} className="fill-white stroke-none text-white" /> },
-    { id: 'heart', name: '心形', color: 'bg-pink-500', icon: <Heart size={21} className="fill-white stroke-none text-white" /> },
-    { id: 'custom', name: '自定义', color: 'bg-gray-400', icon: <Plus size={22} className="text-white" /> },
+    { id: 'circle', name: text('圆形', 'Circle'), color: 'bg-blue-500', icon: <Circle size={22} className="stroke-[3.5] text-white" /> },
+    { id: 'triangle', name: text('三角形', 'Triangle'), color: 'bg-rose-500', icon: <Triangle size={22} className="stroke-[3.5] text-white" /> },
+    { id: 'square', name: text('正方形', 'Square'), color: 'bg-emerald-500', icon: <Square size={22} className="stroke-[3.5] text-white" /> },
+    { id: 'star', name: text('五角星', 'Star'), color: 'bg-amber-400', icon: <Star size={22} className="fill-white stroke-none text-white" /> },
+    { id: 'heart', name: text('心形', 'Heart'), color: 'bg-pink-500', icon: <Heart size={21} className="fill-white stroke-none text-white" /> },
+    { id: 'custom', name: text('自定义', 'Custom'), color: 'bg-gray-400', icon: <Plus size={22} className="text-white" /> },
   ];
 
   return (
@@ -39,8 +42,8 @@ export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
         
         {/* Title */}
         <div className="text-center mb-5">
-          <h2 className="text-base font-bold text-gray-800">选择图形模板</h2>
-          <p className="text-[10px] text-gray-400 mt-0.5">请快速选定您要用于跑出的轮廓</p>
+          <h2 className="text-base font-bold text-gray-800">{text('选择图形模板', 'Select Shape Template')}</h2>
+          <p className="text-[10px] text-gray-400 mt-0.5">{text('请快速选定您要用于跑出的轮廓', 'Pick the outline you want to run')}</p>
         </div>
 
         {/* Horizontal Slide lists of 6 items */}
@@ -83,13 +86,13 @@ export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
             }}
             className="w-full py-3 rounded-[32px] bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white font-extrabold text-[14px] shadow-md shadow-blue-500/10 active:scale-98 transition-transform"
           >
-            确认选择
+            {text('确认选择', 'Confirm Selection')}
           </button>
           <button
             onClick={onClose}
             className="w-full py-2.5 rounded-[32px] text-gray-400 font-semibold text-[13px] hover:text-gray-600 active:scale-95 transition-all text-center"
           >
-            取消
+            {t('settings.cancel', '取消')}
           </button>
         </div>
       </div>

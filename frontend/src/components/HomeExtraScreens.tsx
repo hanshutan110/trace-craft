@@ -17,6 +17,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { ScreenId } from '../types';
+import { useI18n } from '../i18n';
 
 const QUICK_TEMPLATE_CARDS = [
   {
@@ -135,6 +136,45 @@ const FULL_LIBRARY_VARIANT_ITEMS = {
   ],
 } as const;
 
+const QUICK_TEMPLATE_LABELS = {
+  heart: { title: 'Heart Route', distance: '~4.2 km' },
+  star: { title: 'Star Challenge', distance: '~5 km' },
+  circle: { title: 'Lake Loop', distance: '~3.5 km' },
+  triangle: { title: 'Triangle Sprint', distance: '~3 km' },
+  square: { title: 'Square Map', distance: '~4 km' },
+} as const;
+
+const FULL_LIBRARY_LABELS = {
+  circle: { title: 'Circle', km: '~3.5 km' },
+  triangle: { title: 'Triangle', km: '~3.0 km' },
+  star: { title: 'Star', km: '~5 km' },
+  square: { title: 'Square', km: '~4 km' },
+  heart: { title: 'Heart', km: '~4.2 km' },
+  hexagon: { title: 'Hexagon', km: '~4.8 km' },
+} as const;
+
+const FULL_LIBRARY_VARIANT_LABELS = {
+  cat: { title: 'Cat Route', km: '5.1 km' },
+  panda: { title: 'Panda Tracks', km: '6.5 km' },
+  love: { title: 'LOVE Letters', km: '8.2 km' },
+  star_t: { title: 'RUN', km: '4.5 km' },
+  tree: { title: 'Christmas Tree', km: '6.4 km' },
+  moon: { title: 'Mid-Autumn Moon', km: '3.8 km' },
+} as const;
+
+const FULL_LIBRARY_ALL_LABELS = {
+  ...FULL_LIBRARY_LABELS,
+  ...FULL_LIBRARY_VARIANT_LABELS,
+} as const;
+
+const FULL_LIBRARY_TAB_LABELS = {
+  recommend: 'Recommended',
+  base: 'Basic Shapes',
+  animal: 'Animals',
+  text: 'Text',
+  holiday: 'Holidays',
+} as const;
+
 const getLibraryItems = (activeTab: 'base' | 'recommend' | 'animal' | 'text' | 'holiday') => {
   if (activeTab === 'recommend') {
     return FULL_LIBRARY_GRID_ITEMS.filter((item) => item.badge === 'hot');
@@ -159,6 +199,8 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
   onNavigate,
   onSelectShape,
 }) => {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const cards = QUICK_TEMPLATE_CARDS;
 
   return (
@@ -168,7 +210,7 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
         <button onClick={() => onNavigate('home')} className="p-1 rounded-full text-gray-500 active:bg-gray-100">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-base font-bold text-gray-900">快速模板</h1>
+        <h1 className="text-base font-bold text-gray-900">{text('快速模板', 'Quick Templates')}</h1>
         <button className="p-1 rounded-full text-gray-600 active:bg-gray-100">
           <Search size={20} />
         </button>
@@ -193,8 +235,12 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
                   {card.icon}
                 </div>
                 <div>
-                  <h3 className="text-[14px] font-bold tracking-tight">{card.title}</h3>
-                  <p className="text-[10px] text-white/80 mt-0.5">{card.distance}</p>
+                  <h3 className="text-[14px] font-bold tracking-tight">
+                    {text(card.title, QUICK_TEMPLATE_LABELS[card.id as keyof typeof QUICK_TEMPLATE_LABELS].title)}
+                  </h3>
+                  <p className="text-[10px] text-white/80 mt-0.5">
+                    {text(card.distance, QUICK_TEMPLATE_LABELS[card.id as keyof typeof QUICK_TEMPLATE_LABELS].distance)}
+                  </p>
                 </div>
               </div>
             ))}
@@ -203,27 +249,27 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
 
         {/* Recently Used Block */}
         <div>
-          <h2 className="text-[14px] font-bold text-gray-800 mb-3">最近经常完成</h2>
+          <h2 className="text-[14px] font-bold text-gray-800 mb-3">{text('最近经常完成', 'Frequently Completed')}</h2>
           <div className="flex space-x-3">
             <div className="flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
               <div className="w-7 h-7 rounded-full bg-pink-100 flex items-center justify-center text-xs">💖</div>
               <div className="text-left">
-                <p className="text-xs font-bold text-gray-800 leading-none">心形</p>
-                <p className="text-[9px] text-[#4FACFE] mt-0.5">3次跑步</p>
+                <p className="text-xs font-bold text-gray-800 leading-none">{text('心形', 'Heart')}</p>
+                <p className="text-[9px] text-[#4FACFE] mt-0.5">{text('3次跑步', '3 runs')}</p>
               </div>
             </div>
             <div className="flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
               <div className="w-7 h-7 rounded-full bg-yellow-100 flex items-center justify-center text-xs">⭐</div>
               <div className="text-left">
-                <p className="text-xs font-bold text-gray-800 leading-none">五角星</p>
-                <p className="text-[9px] text-[#4FACFE] mt-0.5">2次跑步</p>
+                <p className="text-xs font-bold text-gray-800 leading-none">{text('五角星', 'Star')}</p>
+                <p className="text-[9px] text-[#4FACFE] mt-0.5">{text('2次跑步', '2 runs')}</p>
               </div>
             </div>
             <div className="flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100">
               <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs">🌀</div>
               <div className="text-left">
-                <p className="text-xs font-bold text-gray-800 leading-none">环湖</p>
-                <p className="text-[9px] text-[#4FACFE] mt-0.5">4次跑步</p>
+                <p className="text-xs font-bold text-gray-800 leading-none">{text('环湖', 'Lake Loop')}</p>
+                <p className="text-[9px] text-[#4FACFE] mt-0.5">{text('4次跑步', '4 runs')}</p>
               </div>
             </div>
           </div>
@@ -235,7 +281,7 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
           className="w-full flex items-center justify-center space-x-2 border-2 border-dashed border-gray-200 hover:border-[#4FACFE] py-4 rounded-2xl text-gray-500 hover:text-[#4FACFE] font-medium transition-colors bg-gray-50/50 mt-4"
         >
           <Plus size={18} />
-          <span className="text-[13px]">上传自定义图片</span>
+          <span className="text-[13px]">{text('上传自定义图片', 'Upload Custom Image')}</span>
         </button>
 
       </div>
@@ -256,6 +302,8 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
   onNavigate,
   onSelectShape,
 }) => {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [activeTab, setActiveTab] = useState<'base' | 'recommend' | 'animal' | 'text' | 'holiday'>('base');
   const tabs = FULL_LIBRARY_TABS;
 
@@ -268,7 +316,7 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
         <button onClick={() => onNavigate('home')} className="p-1 rounded-full text-gray-500 active:bg-gray-100">
           <ArrowLeft size={19} />
         </button>
-        <span className="text-base font-bold text-gray-800">选择图形模板</span>
+        <span className="text-base font-bold text-gray-800">{text('选择图形模板', 'Select Shape Template')}</span>
         <button className="p-1 rounded-full text-gray-500 active:bg-gray-100">
           <Search size={19} />
         </button>
@@ -289,7 +337,7 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
                     : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'
                 }`}
               >
-                {tab.label}
+                {text(tab.label, FULL_LIBRARY_TAB_LABELS[tab.id])}
               </button>
             );
           })}
@@ -330,15 +378,19 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
 
               {/* Title & Info */}
               <div>
-                <h4 className="text-[14px] font-extrabold tracking-tight leading-none">{item.title}</h4>
-                <p className="text-[10px] text-white/75 mt-1">{item.km}</p>
+                <h4 className="text-[14px] font-extrabold tracking-tight leading-none">
+                  {text(item.title, FULL_LIBRARY_ALL_LABELS[item.id as keyof typeof FULL_LIBRARY_ALL_LABELS].title)}
+                </h4>
+                <p className="text-[10px] text-white/75 mt-1">
+                  {text(item.km, FULL_LIBRARY_ALL_LABELS[item.id as keyof typeof FULL_LIBRARY_ALL_LABELS].km)}
+                </p>
               </div>
             </div>
           ))}
         </div>
 
         <p className="text-[11px] text-gray-400 text-center mt-6">
-          滑动查看更多，支持通过AI在自定义画布中描绘。
+          {text('滑动查看更多，支持通过AI在自定义画布中描绘。', 'Swipe to view more and draw on a custom canvas with AI.')}
         </p>
       </div>
     </div>

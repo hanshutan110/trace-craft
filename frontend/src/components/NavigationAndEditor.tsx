@@ -15,6 +15,7 @@ import {
   Undo 
 } from 'lucide-react';
 import { ScreenId } from '../types';
+import { useI18n } from '../i18n';
 
 /* ==========================================
    Screen 2: Map Navigation Screen (导航界面)
@@ -28,6 +29,8 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
   onNavigate,
   selectedShapeId: _selectedShapeId,
 }) => {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isVoiceOn, setIsVoiceOn] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(1935); // 约32分15秒
@@ -155,15 +158,15 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
       {/* 2.2 TOP FROSTED BLUR BAR */}
       <div className="absolute top-4 left-4 right-4 z-10 bg-white/70 backdrop-blur-md border border-white/20 rounded-2xl py-3 px-4 flex items-center justify-between shadow-xs">
         <div>
-          <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">剩余距离</span>
+          <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">{text('剩余距离', 'Remaining Distance')}</span>
           <span className="text-[15px] font-extrabold text-gray-800">
             {isPlaying ? (3.2 * (1 - progress)).toFixed(2) : '2.3'}km
           </span>
         </div>
         <div className="text-right">
-          <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">偏差</span>
+          <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">{text('偏差', 'Deviation')}</span>
           <span className={`text-[13px] font-bold ${deviation > 10 ? 'text-red-500' : 'text-emerald-600'}`}>
-偏差 {deviation}m
+            {text('偏差', 'Deviation')} {deviation}m
           </span>
         </div>
       </div>
@@ -171,17 +174,17 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
       {/* 2.3 FLOATING DIRECTIVE BANNER */}
       <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 bg-linear-to-r from-blue-600/90 to-[#4FACFE]/90 text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-full shadow-md flex items-center space-x-1.5 animate-bounce">
         <span>⚡</span>
-        <span>直行 150m 后右转跑</span>
+        <span>{text('直行 150m 后右转跑', 'Go straight 150 m then turn right')}</span>
       </div>
 
       {/* 2.4 RIGHT LOWER CORNER MINI STATS HUD */}
       <div className="absolute bottom-32 right-4 z-10 bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-xl p-3 text-left shadow-lg text-white max-w-[90px]">
         <div className="mb-1.5">
-          <p className="text-[9px] uppercase text-gray-400 leading-none">实时配速</p>
+          <p className="text-[9px] uppercase text-gray-400 leading-none">{text('实时配速', 'Real-time Pace')}</p>
           <p className="font-mono text-xs font-bold mt-0.5">6:15/km</p>
         </div>
         <div>
-          <p className="text-[9px] uppercase text-gray-400 leading-none">当前心率</p>
+          <p className="text-[9px] uppercase text-gray-400 leading-none">{text('当前心率', 'Heart Rate')}</p>
           <p className="font-mono text-xs font-bold text-emerald-400 flex items-center mt-0.5">
             ❤️ {138 + Math.floor(Math.random() * 8)}
           </p>
@@ -204,13 +207,13 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
             <span className="text-[20px] font-extrabold text-gray-800">
               {(3.2 * progress).toFixed(2)}
             </span>
-            <span className="text-xs text-gray-400 ml-0.5">km已跑</span>
+            <span className="text-xs text-gray-400 ml-0.5">{text('km已跑', 'km run')}</span>
           </div>
           <div className="text-right">
             <span className="text-[16px] font-semibold text-gray-600 font-mono">
               {formatTime(elapsedSeconds)}
             </span>
-            <span className="text-[10px] text-gray-400 block">用时</span>
+            <span className="text-[10px] text-gray-400 block">{text('用时', 'Elapsed')}</span>
           </div>
         </div>
 
@@ -267,6 +270,8 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
   onNavigate,
   selectedShapeId,
 }) => {
+  const { t, language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [scale, setScale] = useState(1.5);     // 1x - 3x
   const [rotate, setRotate] = useState(45);     // 0 - 360  
   const [stretch, setStretch] = useState(1.0);  // 0.5 - 2.0
@@ -283,12 +288,12 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
         <button onClick={() => onNavigate('library')} className="p-1 rounded-full text-gray-400 active:bg-gray-100">
           <ArrowLeft size={19} />
         </button>
-        <span className="text-base font-bold text-gray-800">图形参数调节</span>
+        <span className="text-base font-bold text-gray-800">{t('adjust.title', '图形参数调节')}</span>
         <button 
           onClick={() => { setScale(1.5); setRotate(45); setStretch(1.0); }}
           className="text-xs font-semibold text-[#4FACFE] active:opacity-75"
         >
-          重置
+          {t('adjust.reset', '重置')}
         </button>
       </div>
 
@@ -368,7 +373,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
         <div className="absolute right-3 top-12 bottom-12 w-[64px] bg-white/70 backdrop-blur-md rounded-2xl p-2.5 border border-white/20 shadow-xs flex flex-col justify-around z-20">
           {/* Slider 1: Scale */}
           <div className="flex flex-col items-center">
-            <span className="text-[9px] font-bold text-gray-500">大小</span>
+            <span className="text-[9px] font-bold text-gray-500">{t('adjust.scale_label', '大小')}</span>
             <div className="relative h-18 my-1 cursor-grab flex items-center justify-center">
               <input 
                 type="range" 
@@ -385,7 +390,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
 
           {/* Slider 2: Rotate */}
           <div className="flex flex-col items-center">
-            <span className="text-[9px] font-bold text-gray-500">旋转</span>
+            <span className="text-[9px] font-bold text-gray-500">{t('adjust.rotate_label', '旋转')}</span>
             <div className="relative h-18 my-1 flex items-center justify-center">
               <input 
                 type="range" 
@@ -402,7 +407,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
 
           {/* Slider 3: Stretch */}
           <div className="flex flex-col items-center">
-            <span className="text-[9px] font-bold text-gray-500">拉伸</span>
+            <span className="text-[9px] font-bold text-gray-500">{t('adjust.stretch_label', '拉伸')}</span>
             <div className="relative h-18 my-1 flex items-center justify-center">
               <input 
                 type="range" 
@@ -424,17 +429,17 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
         {/* Length markers and goals */}
         <div className="flex items-center justify-between">
           <span className="text-[13px] text-gray-500">
-            预计长度: <strong className="text-gray-800 font-extrabold">{calculatedLength} km</strong>
+            {text('预计长度', 'Estimated Length')}: <strong className="text-gray-800 font-extrabold">{calculatedLength} km</strong>
           </span>
           <span className="text-[11px] text-teal-600 font-semibold bg-teal-50 px-2 py-0.5 rounded-full">
-            1:1 等比匹配
+            {text('1:1 等比匹配', '1:1 proportional match')}
           </span>
         </div>
 
         {/* Draggable Target Distance Slider */}
         <div className="bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
           <div className="flex justify-between text-[11px] text-gray-400 mb-1">
-            <span>目标距离</span>
+            <span>{t('adjust.goal_label', '目标距离')}</span>
             <span className="text-[#4FACFE] font-bold">{goalDistance.toFixed(1)} km</span>
           </div>
           <input 
@@ -453,7 +458,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
           onClick={() => onNavigate('loading')}
           className="w-full py-3.5 rounded-[32px] bg-linear-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-98 transition-all text-white font-extrabold text-[15px] shadow-md shadow-blue-500/20 text-center"
         >
-          应用并开始导航
+          {text('应用并开始导航', 'Apply and Start Navigation')}
         </button>
       </div>
 
@@ -487,6 +492,8 @@ const INITIAL_STROKES: Stroke[] = [
 export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({ 
   onNavigate 
 }) => {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [brushSize, setBrushSize] = useState(6); // width tracker
   const [activeTool, setActiveTool] = useState<'draw' | 'erase' | 'smooth'>('draw');
   // 使用 ref 作为单一数据源，避免 useState + useRef 双重状态管理
@@ -571,12 +578,12 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
         <button onClick={() => onNavigate('home')} className="p-1.5 rounded-full text-gray-400 active:text-white transition-colors">
           <ArrowLeft size={19} />
         </button>
-        <span className="text-base font-bold text-white tracking-wide">编辑轨迹</span>
+        <span className="text-base font-bold text-white tracking-wide">{text('编辑轨迹', 'Edit Route')}</span>
         <button 
           onClick={() => onNavigate('loading')} 
           className="text-xs font-bold text-[#4FACFE] bg-[#4FACFE]/10 px-3 py-1.5 rounded-full hover:bg-[#4FACFE]/20 active:opacity-75 transition-colors"
         >
-          保存
+          {text('保存', 'Save')}
         </button>
       </div>
 
@@ -641,13 +648,13 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 
           {/* Small Simulated Finger indicator helping touch cues */}
           <div className="absolute top-[82px] left-[78px] text-[15px] pointer-events-none animate-pulse">
-            👆 <span className="bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded ml-1 font-bold">手势微调中</span>
+            👆 <span className="bg-orange-500 text-white text-[8px] px-1 py-0.5 rounded ml-1 font-bold">{text('手势微调中', 'Fine-tuning')}</span>
           </div>
         </div>
 
         {/* 4.3 FLOATING BRUSH RANGE SLIDER (RIGHT) */}
         <div className="absolute right-3.5 top-8 bottom-8 w-11 bg-[#1F1F1F]/90 backdrop-blur-md rounded-2xl border border-gray-800 flex flex-col justify-around items-center p-2 z-10">
-          <span className="text-[9px] font-bold text-gray-400">笔刷</span>
+          <span className="text-[9px] font-bold text-gray-400">{text('笔刷', 'Brush')}</span>
           <div className="relative h-20 flex items-center justify-center">
             <input 
               type="range" 
@@ -667,7 +674,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
           className="absolute top-4 left-4 text-xs font-bold bg-[#3B82F6] hover:bg-blue-600 active:scale-95 transition-all text-white px-3 py-1.5 rounded-full flex items-center space-x-1 shadow-md shadow-blue-900/30"
         >
           <Sparkles size={11} />
-          <span>自动优化</span>
+          <span>{text('自动优化', 'Auto Optimize')}</span>
         </button>
       </div>
 
@@ -682,7 +689,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             }`}
           >
             <PenTool size={16} />
-            <span className="text-[9px] mt-1 font-medium">绘制</span>
+            <span className="text-[9px] mt-1 font-medium">{text('绘制', 'Draw')}</span>
           </button>
 
           <button
@@ -692,7 +699,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             }`}
           >
             <Eraser size={16} />
-            <span className="text-[9px] mt-1 font-medium">擦除</span>
+            <span className="text-[9px] mt-1 font-medium">{text('擦除', 'Erase')}</span>
           </button>
 
           <button
@@ -702,7 +709,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             }`}
           >
             <Maximize2 size={16} />
-            <span className="text-[9px] mt-1 font-medium">平滑</span>
+            <span className="text-[9px] mt-1 font-medium">{text('平滑', 'Smooth')}</span>
           </button>
 
           <button
@@ -711,7 +718,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             className="flex flex-col items-center justify-center py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-transform"
           >
             <Undo size={16} />
-            <span className="text-[9px] mt-1 font-medium">撤销</span>
+            <span className="text-[9px] mt-1 font-medium">{text('撤销', 'Undo')}</span>
           </button>
 
           <button
@@ -725,7 +732,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
             className="flex flex-col items-center justify-center py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 active:scale-95 transition-transform"
           >
             <RotateCcw size={16} />
-            <span className="text-[9px] mt-1 font-medium">重置</span>
+            <span className="text-[9px] mt-1 font-medium">{text('重置', 'Reset')}</span>
           </button>
         </div>
 
@@ -734,7 +741,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
           onClick={() => onNavigate('loading')}
           className="w-full py-3.5 rounded-[32px] bg-emerald-500 hover:bg-emerald-600 active:scale-98 transition-all text-white font-extrabold text-[15px] shadow-lg shadow-emerald-950/20 text-center"
         >
-          确认路线
+          {text('确认路线', 'Confirm Route')}
         </button>
       </div>
 

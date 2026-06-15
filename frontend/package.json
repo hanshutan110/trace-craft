@@ -11,6 +11,10 @@
     "clean": "rm -rf dist server.js"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

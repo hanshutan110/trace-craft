@@ -5,6 +5,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { ScreenId } from '../types';
+import { useI18n } from '../i18n';
 
 /* ==========================================
    Screen 3: Success Share Screen (轨迹生成成功页)
@@ -14,6 +15,8 @@ interface SuccessScreenProps {
 }
 
 export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   // Simulate particles representing colorful paper confetti drop
   const confettiParticles = useMemo(
     () =>
@@ -58,8 +61,8 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
         {/* Celebrity text */}
         <div className="text-center mb-6">
           <span className="text-4xl">🏆</span>
-          <h1 className="text-xl font-black mt-2 text-gray-800">恭喜完成！</h1>
-          <p className="text-[12px] text-gray-400 mt-1">你已经成功跑出既定轨迹图案</p>
+          <h1 className="text-xl font-black mt-2 text-gray-800">{text('恭喜完成！', 'Route Completed!')}</h1>
+          <p className="text-[12px] text-gray-400 mt-1">{text('你已经成功跑出既定轨迹图案', 'You completed the planned route pattern')}</p>
         </div>
 
         {/* Left and Right Contrast layout */}
@@ -67,7 +70,7 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
           
           {/* Left card */}
           <div className="w-[45%] rounded-2xl bg-white border border-gray-100 p-3 text-center shadow-xs">
-            <span className="text-[10px] text-gray-400 font-bold block mb-1">你的设计</span>
+            <span className="text-[10px] text-gray-400 font-bold block mb-1">{text('你的设计', 'Your Design')}</span>
             
             {/* Design thumbnail */}
             <div className="bg-gray-50 h-20 rounded-xl flex items-center justify-center p-2 mb-2">
@@ -80,7 +83,7 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
                 />
               </svg>
             </div>
-            <span className="text-xs font-bold text-gray-700">规划 5.0km</span>
+            <span className="text-xs font-bold text-gray-700">{text('规划 5.0km', 'Planned 5.0 km')}</span>
           </div>
 
           <div className="text-[#00F2FE]">
@@ -89,7 +92,7 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
 
           {/* Right card */}
           <div className="w-[45%] rounded-2xl bg-white border border-gray-100 p-3 text-center shadow-xs">
-            <span className="text-[10px] text-gray-400 font-bold block mb-1">你的成果</span>
+            <span className="text-[10px] text-gray-400 font-bold block mb-1">{text('你的成果', 'Your Result')}</span>
             
             {/* Result thumbnail with green run track */}
             <div className="bg-gray-50 h-20 rounded-xl flex items-center justify-center p-2 mb-2 relative overflow-hidden">
@@ -102,7 +105,7 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
                 />
               </svg>
             </div>
-            <span className="text-xs font-bold text-gray-700">实际 5.12km</span>
+            <span className="text-xs font-bold text-gray-700">{text('实际 5.12km', 'Actual 5.12 km')}</span>
           </div>
 
         </div>
@@ -111,21 +114,21 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
         <div className="bg-linear-to-r from-[#4FACFE] to-[#00F2FE] rounded-[24px] p-5 text-white shadow-md text-left">
           <div className="flex items-center justify-between border-b border-white/20 pb-3 mb-3">
             <div>
-              <p className="text-[10px] text-white/70 block leading-tight font-bold">总距离</p>
+              <p className="text-[10px] text-white/70 block leading-tight font-bold">{text('总距离', 'Total Distance')}</p>
               <h3 className="text-lg font-black mt-0.5">5.01 km</h3>
             </div>
             <div>
-              <p className="text-[10px] text-white/70 block leading-tight font-bold">用时</p>
+              <p className="text-[10px] text-white/70 block leading-tight font-bold">{text('用时', 'Duration')}</p>
               <h3 className="text-lg font-black mt-0.5">32: 15</h3>
             </div>
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-white/70 block leading-none font-bold">平均配速</p>
+              <p className="text-[10px] text-white/70 block leading-none font-bold">{text('平均配速', 'Average Pace')}</p>
               <p className="text-[13px] font-extrabold mt-1">6'27" /km</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-white/70 block leading-none font-bold">准确率得分</p>
+              <p className="text-[10px] text-white/70 block leading-none font-bold">{text('准确率得分', 'Accuracy Score')}</p>
               <p className="text-[13px] font-extrabold mt-1">🎯 94%</p>
             </div>
           </div>
@@ -133,38 +136,38 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
 
         {/* Social Share Buttons */}
         <div className="mt-6 text-center">
-          <p className="text-[11px] text-gray-400 font-semibold mb-3">分享到社交平台解锁勋章</p>
+          <p className="text-[11px] text-gray-400 font-semibold mb-3">{text('分享到社交平台解锁勋章', 'Share to unlock badges')}</p>
           <div className="flex justify-around px-2 mb-5">
             {/* WeChat */}
             <div className="flex flex-col items-center">
               <button className="w-10 h-10 rounded-full bg-[#10B981] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
-                微
+                {text('微', 'We')}
               </button>
-              <span className="text-[9px] text-gray-400 mt-1">微信</span>
+              <span className="text-[9px] text-gray-400 mt-1">{text('微信', 'WeChat')}</span>
             </div>
 
             {/* Red / Xiaohongshu */}
             <div className="flex flex-col items-center">
               <button className="w-10 h-10 rounded-full bg-[#EF4444] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
-                书
+                {text('书', 'Red')}
               </button>
-              <span className="text-[9px] text-gray-400 mt-1">小红书</span>
+              <span className="text-[9px] text-gray-400 mt-1">{text('小红书', 'Xiaohongshu')}</span>
             </div>
 
             {/* Douyin */}
             <div className="flex flex-col items-center">
               <button className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
-                音
+                {text('音', 'Do')}
               </button>
-              <span className="text-[9px] text-gray-400 mt-1">抖音</span>
+              <span className="text-[9px] text-gray-400 mt-1">{text('抖音', 'Douyin')}</span>
             </div>
 
             {/* WeChat Moments */}
             <div className="flex flex-col items-center">
               <button className="w-10 h-10 rounded-full bg-[#3B82F6] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
-                圈
+                {text('圈', 'Mom')}
               </button>
-              <span className="text-[9px] text-gray-400 mt-1">朋友圈</span>
+              <span className="text-[9px] text-gray-400 mt-1">{text('朋友圈', 'Moments')}</span>
             </div>
 
             {/* Strava */}
@@ -180,11 +183,11 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
           <div className="flex justify-center space-x-6">
             <button className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline">
               <Download size={13} />
-              <span>保存到相册</span>
+              <span>{text('保存到相册', 'Save to Photos')}</span>
             </button>
             <button className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline">
               <Share2 size={13} />
-              <span>导出 GPX 文件</span>
+              <span>{text('导出 GPX 文件', 'Export GPX')}</span>
             </button>
           </div>
         </div>
@@ -197,7 +200,7 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
           onClick={() => onNavigate('home')}
           className="w-full py-3 bg-linear-to-r from-gray-100 to-gray-200 text-gray-800 hover:brightness-95 font-bold text-xs rounded-full shadow-xs active:scale-98 transition-transform"
         >
-          返回首页
+          {text('返回首页', 'Back to Home')}
         </button>
       </div>
 
@@ -219,6 +222,8 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   onNavigate,
   selectedShapeId,
 }) => {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [percent, setPercent] = useState(0);
 
   // Load progress counting simulation
@@ -235,7 +240,15 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const shapeTitle = selectedShapeId === 'heart' ? '爱心' : selectedShapeId === 'circle' ? '圆形' : selectedShapeId === 'triangle' ? '三角形' : selectedShapeId === 'square' ? '正方形' : '五角星';
+  const shapeTitle = selectedShapeId === 'heart'
+    ? text('爱心', 'Heart')
+    : selectedShapeId === 'circle'
+      ? text('圆形', 'Circle')
+      : selectedShapeId === 'triangle'
+        ? text('三角形', 'Triangle')
+        : selectedShapeId === 'square'
+          ? text('正方形', 'Square')
+          : text('五角星', 'Star');
 
   return (
     <div className="flex flex-col h-full bg-white select-none relative overflow-hidden">
@@ -256,9 +269,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         {/* Back and Progress text */}
         <div className="text-center pt-8">
           <h2 className="text-[16px] font-bold text-gray-700 animate-pulse">
-            正在生成{shapeTitle}轨迹...
+            {text('正在生成', 'Generating ')}{shapeTitle}{text('轨迹...', ' route...')}
           </h2>
-          <p className="text-[11px] text-gray-400 mt-1">AI 正在深度拟合街区路网与最优海拔斜率</p>
+          <p className="text-[11px] text-gray-400 mt-1">{text('AI 正在深度拟合街区路网与最优海拔斜率', 'AI is fitting the street network and elevation profile')}</p>
         </div>
 
         {/* Circular Loading Spinner (diameter 80px) */}
@@ -333,7 +346,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           </div>
           <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider flex items-center space-x-1">
             <span>🏃‍♂️</span>
-            <span>正在自动路书寻航...</span>
+            <span>{text('正在自动路书寻航...', 'Auto route planning...')}</span>
           </span>
         </div>
 
@@ -342,9 +355,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           <div className="bg-gray-50 border border-gray-100 p-3 rounded-2xl text-left max-w-[210px] mx-auto mb-4">
             <p className="text-[12px] text-gray-700 font-bold leading-none mb-1.5 flex items-center space-x-1">
               <span>🎯</span> 
-              <span>轨迹长度: 5.0公里</span>
+              <span>{text('轨迹长度: 5.0公里', 'Route length: 5.0 km')}</span>
             </p>
-            <p className="text-[11px] text-gray-400">预计耗时: 约30分钟跑完 (配速6:00)</p>
+            <p className="text-[11px] text-gray-400">{text('预计耗时: 约30分钟跑完 (配速6:00)', 'Estimated: about 30 minutes (6:00 pace)')}</p>
           </div>
 
           {/* Cancel button trigger */}
@@ -352,7 +365,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             onClick={() => onNavigate('home')}
             className="px-4 py-2 bg-gray-100 active:bg-gray-200 border border-gray-200 text-gray-500 text-[12px] font-bold rounded-xl transition-all"
           >
-            取消生成
+            {text('取消生成', 'Cancel')}
           </button>
         </div>
 

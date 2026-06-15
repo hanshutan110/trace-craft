@@ -14,12 +14,15 @@ import {
   Volume2
 } from 'lucide-react';
 import { ScreenId } from '../types';
+import { useI18n } from '../i18n';
 
 const SQUARE_CARDS = [
   {
     id: 'post_1',
     author: '跑者小美',
+    authorEn: 'Runner Xiaomei',
     title: '爱心跑',
+    titleEn: 'Heart Run',
     likes: 128,
     comments: 23,
     dist: '5.0km',
@@ -33,7 +36,9 @@ const SQUARE_CARDS = [
   {
     id: 'post_2',
     author: '星星行者',
+    authorEn: 'Star Walker',
     title: '星形挑战',
+    titleEn: 'Star Challenge',
     likes: 95,
     comments: 12,
     dist: '5.0km',
@@ -47,7 +52,9 @@ const SQUARE_CARDS = [
   {
     id: 'post_3',
     author: '猫跑',
+    authorEn: 'Cat Runner',
     title: '小猫跑',
+    titleEn: 'Cat Run',
     likes: 203,
     comments: 45,
     dist: '5.0km',
@@ -61,7 +68,9 @@ const SQUARE_CARDS = [
   {
     id: 'post_4',
     author: '环湖高手',
+    authorEn: 'Lake Loop Pro',
     title: '环湖跑',
+    titleEn: 'Lake Loop Run',
     likes: 67,
     comments: 8,
     dist: '3.5km',
@@ -75,8 +84,8 @@ const SQUARE_CARDS = [
 ];
 
 const POST_COMMENTS = [
-  { id: 'c1', user: '设计小王', avatar: 'M', time: '1小时前', text: '这条路线的配色很喜欢，建议加点动态滤镜看看。' },
-  { id: 'c2', user: '旅行助手', avatar: 'X', time: '30分钟前', text: '很实用的路线分享，细节很到位！' }
+  { id: 'c1', user: '设计小王', userEn: 'Designer Xiao Wang', avatar: 'M', time: '1小时前', timeEn: '1h ago', text: '这条路线的配色很喜欢，建议加点动态滤镜看看。', textEn: 'Love the color theme. Try adding a motion filter.' },
+  { id: 'c2', user: '旅行助手', userEn: 'Travel Helper', avatar: 'X', time: '30分钟前', timeEn: '30m ago', text: '很实用的路线分享，细节很到位！', textEn: 'Very practical route share with great details!' }
 ];
 
 const NOTIFICATION_MESSAGES = [
@@ -84,9 +93,13 @@ const NOTIFICATION_MESSAGES = [
     id: 'n1',
     type: 'like',
     author: '小明',
+    authorEn: 'Xiao Ming',
     actionText: '点赞了你的作品',
+    actionTextEn: 'liked your work',
     target: '作品已更新',
+    targetEn: 'Your work was updated',
     time: '5分钟前',
+    timeEn: '5m ago',
     unread: true,
     hasThumbnail: true,
     thumbnailSvg: (
@@ -99,9 +112,13 @@ const NOTIFICATION_MESSAGES = [
     id: 'n2',
     type: 'comment',
     author: '旅行者',
+    authorEn: 'Traveler',
     actionText: '评论了你的作品',
+    actionTextEn: 'commented on your work',
     target: '可以看看下面这个路线吗？',
+    targetEn: 'Can you take a look at this route below?',
     time: '1小时前',
+    timeEn: '1h ago',
     unread: true,
     hasThumbnail: true,
     thumbnailSvg: (
@@ -114,9 +131,13 @@ const NOTIFICATION_MESSAGES = [
     id: 'n3',
     type: 'follow',
     author: '活动创作者',
+    authorEn: 'Event Creator',
     actionText: '关注了你',
+    actionTextEn: 'followed you',
     target: '',
+    targetEn: '',
     time: '2小时前',
+    timeEn: '2h ago',
     unread: false,
     hasThumbnail: false
   },
@@ -124,9 +145,12 @@ const NOTIFICATION_MESSAGES = [
     id: 'n4',
     type: 'sys',
     author: '系统通知',
+    authorEn: 'System Notice',
     actionText: '',
     target: '欢迎加入 TraceCraft 最新版本',
+    targetEn: 'Welcome to the latest TraceCraft build',
     time: '5分钟前',
+    timeEn: '5m ago',
     unread: true,
     hasThumbnail: false
   },
@@ -134,9 +158,13 @@ const NOTIFICATION_MESSAGES = [
     id: 'n5',
     type: 'like',
     author: '系统推荐',
+    authorEn: 'System Pick',
     actionText: '点赞了你的作品',
+    actionTextEn: 'liked your work',
     target: '你的路线被推荐',
+    targetEn: 'Your route was featured',
     time: '2小时前',
+    timeEn: '2h ago',
     unread: false,
     hasThumbnail: true,
     thumbnailSvg: (
@@ -151,21 +179,23 @@ const NOTIFICATION_MESSAGES = [
 // SCREEN 23: Trace Share Preview (轨迹分享预览页)
 // ----------------------------------------------------------------------
 export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [description, setDescription] = useState('');
   const [topicTags, setTopicTags] = useState<string[]>([]);
 
   const handlePublish = () => {
-    miniToast('轨迹路线成功发布至公开社区！');
+    miniToast(text('轨迹路线成功发布至公开社区！', 'Route published to the public community!'));
     setTimeout(() => {
       onNavigate('square');
     }, 400);
   };
 
-  const handleSelectTag = (tag: string) => {
-    if (topicTags.includes(tag)) {
-      setTopicTags(prev => prev.filter(t => t !== tag));
+  const handleSelectTag = (tagId: string) => {
+    if (topicTags.includes(tagId)) {
+      setTopicTags(prev => prev.filter(t => t !== tagId));
     } else {
-      setTopicTags(prev => [...prev, tag]);
+      setTopicTags(prev => [...prev, tagId]);
     }
   };
 
@@ -176,12 +206,12 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
         <button onClick={() => onNavigate('success')} className="p-1 hover:bg-neutral-100 rounded-full">
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
-        <span className="text-[16px] font-bold text-slate-900">分享轨迹</span>
+        <span className="text-[16px] font-bold text-slate-900">{text('分享轨迹', 'Share Route')}</span>
         <button 
           onClick={handlePublish}
           className="text-[14px] text-cyan-600 font-extrabold px-1.5 py-0.5 rounded-full hover:bg-cyan-50"
         >
-          发布
+          {text('发布', 'Publish')}
         </button>
       </div>
 
@@ -197,9 +227,9 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
               <div className="w-5 h-5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] rounded-md flex items-center justify-center font-black text-white text-[9px]">
                 TC
               </div>
-            <span className="text-[10px] font-black text-slate-800">轨迹发布</span>
+            <span className="text-[10px] font-black text-slate-800">{text('轨迹发布', 'Route Publish')}</span>
             </div>
-            <span className="text-[8px] text-slate-400 font-mono">发布状态</span>
+            <span className="text-[8px] text-slate-400 font-mono">{text('发布状态', 'Status')}</span>
           </div>
 
           {/* Card Content Route */}
@@ -213,8 +243,8 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
           </div>
 
           <div>
-            <h4 className="text-[14px] font-black text-slate-900">路线名称</h4>
-            <p className="text-[9px] text-slate-400 mt-1 font-mono">用时 32:15 | 配速 6'27" /km</p>
+            <h4 className="text-[14px] font-black text-slate-900">{text('路线名称', 'Route Name')}</h4>
+            <p className="text-[9px] text-slate-400 mt-1 font-mono">{text('用时 32:15 | 配速 6\'27" /km', 'Duration 32:15 | Pace 6\'27" /km')}</p>
           </div>
 
           {/* Card User Info Footer */}
@@ -224,8 +254,8 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
                 <User size={12} className="text-slate-400" />
               </div>
               <div>
-                <p className="text-[9px] font-bold text-slate-900">跑者小明</p>
-                <p className="text-[7px] text-slate-400 leading-none">跑出你的专属形状</p>
+                <p className="text-[9px] font-bold text-slate-900">{text('跑者小明', 'Runner Xiaoming')}</p>
+                <p className="text-[7px] text-slate-400 leading-none">{text('跑出你的专属形状', 'Run your own shape')}</p>
               </div>
             </div>
 
@@ -243,11 +273,11 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
           
           {/* Note Input */}
           <div>
-            <span className="text-[13px] font-black text-slate-900 block mb-1.5">编辑分享内容</span>
+            <span className="text-[13px] font-black text-slate-900 block mb-1.5">{text('编辑分享内容', 'Edit share content')}</span>
             <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100 flex items-start space-x-1.5">
               <textarea 
                 className="bg-transparent border-none w-full text-[12px] text-slate-800 placeholder:text-slate-400 focus:outline-none min-h-[50px] resize-none leading-relaxed"
-                placeholder="编辑轨迹的精彩描述并填写更多信息"
+                placeholder={text('编辑轨迹的精彩描述并填写更多信息', 'Write a great route description and more details')}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
@@ -256,21 +286,27 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 
           {/* Hashtag choices */}
           <div>
-            <p className="text-[11px] text-slate-400 font-semibold mb-1.5">发布主题标签:</p>
+            <p className="text-[11px] text-slate-400 font-semibold mb-1.5">{text('发布主题标签:', 'Publish hashtags:')}</p>
             <div className="flex flex-wrap gap-2">
-              {['#爱心跑', '#轨迹规划', '#跑步打卡', '#极速运动'].map(tag => {
-                const selected = topicTags.includes(tag);
+              {[
+                { id: 'heart_run', cn: '#爱心跑', en: '#HeartRun' },
+                { id: 'route_plan', cn: '#轨迹规划', en: '#RoutePlan' },
+                { id: 'run_checkin', cn: '#跑步打卡', en: '#RunCheckin' },
+                { id: 'fast_run', cn: '#极速运动', en: '#FastRun' }
+              ].map(tag => {
+                const tagLabel = text(tag.cn, tag.en);
+                const selected = topicTags.includes(tag.id);
                 return (
                   <button
-                    key={tag}
-                    onClick={() => handleSelectTag(tag)}
+                    key={tag.id}
+                    onClick={() => handleSelectTag(tag.id)}
                     className={`px-3 py-1 rounded-full text-[10.5px] font-extrabold transition-all border ${
                       selected
                         ? 'bg-cyan-100/60 border-cyan-300 text-cyan-600'
                         : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100'
                     }`}
                   >
-                    {tag}
+                    {tagLabel}
                   </button>
                 );
               })}
@@ -279,56 +315,56 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 
           {/* Social Platforms Selection */}
           <div>
-            <span className="text-[13px] font-black text-slate-900 block mb-3">分享到第三方平台</span>
+            <span className="text-[13px] font-black text-slate-900 block mb-3">{text('分享到第三方平台', 'Share to platforms')}</span>
             <div className="grid grid-cols-5 gap-1.5 text-center">
               <button 
-                onClick={() => miniToast('已唤起微信好友共享通道')}
+                onClick={() => miniToast(text('已唤起微信好友共享通道', 'Opened WeChat share flow'))}
                 className="flex flex-col items-center space-y-1.5 cursor-pointer group"
               >
                 <div className="w-[45px] h-[45px] rounded-full bg-emerald-500 hover:brightness-105 active:scale-95 transition-all flex items-center justify-center text-white shadow-xs">
-                  微信
+                  {text('微信', 'WeChat')}
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium leading-none">微信</span>
+                <span className="text-[10px] text-slate-500 font-medium leading-none">{text('微信', 'WeChat')}</span>
               </button>
 
               <button 
-                onClick={() => miniToast('已唤起朋友圈多图分享面板')}
+                onClick={() => miniToast(text('已唤起朋友圈多图分享面板', 'Opened Moments share panel'))}
                 className="flex flex-col items-center space-y-1.5 cursor-pointer group"
               >
                 <div className="w-[45px] h-[45px] rounded-full bg-sky-500 hover:brightness-105 active:scale-95 transition-all flex items-center justify-center text-white shadow-xs">
-                  圈子
+                  {text('圈子', 'Moments')}
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium leading-none">朋友圈</span>
+                <span className="text-[10px] text-slate-500 font-medium leading-none">{text('朋友圈', 'Moments')}</span>
               </button>
 
               <button 
-                onClick={() => miniToast('已导入小红书卡片发布面板')}
+                onClick={() => miniToast(text('已导入小红书卡片发布面板', 'Opened Xiaohongshu card share panel'))}
                 className="flex flex-col items-center space-y-1.5 cursor-pointer group"
               >
                 <div className="w-[45px] h-[45px] rounded-full bg-rose-500 hover:brightness-105 active:scale-95 transition-all flex items-center justify-center text-white shadow-xs">
-                  红书
+                  {text('红书', 'XHS')}
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium leading-none">小红书</span>
+                <span className="text-[10px] text-slate-500 font-medium leading-none">{text('小红书', 'Xiaohongshu')}</span>
               </button>
 
               <button 
-                onClick={() => miniToast('已开启抖音精美音乐原片合成')}
+                onClick={() => miniToast(text('已开启抖音精美音乐原片合成', 'Opened Douyin video composer'))}
                 className="flex flex-col items-center space-y-1.5 cursor-pointer group"
               >
                 <div className="w-[45px] h-[45px] rounded-full bg-slate-900 hover:brightness-105 active:scale-95 transition-all flex items-center justify-center text-white shadow-xs">
-                  抖音
+                  {text('抖音', 'Douyin')}
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium leading-none">抖音</span>
+                <span className="text-[10px] text-slate-500 font-medium leading-none">{text('抖音', 'Douyin')}</span>
               </button>
 
               <button 
-                onClick={() => miniToast('轨迹成果长图已保存至个人相册')}
+                onClick={() => miniToast(text('轨迹成果长图已保存至个人相册', 'Route poster saved to photos'))}
                 className="flex flex-col items-center space-y-1.5 cursor-pointer group"
               >
                 <div className="w-[45px] h-[45px] rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center text-slate-600 shadow-xs">
-                  相册
+                  {text('相册', 'Photos')}
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium leading-none">保存相册</span>
+                <span className="text-[10px] text-slate-500 font-medium leading-none">{text('保存相册', 'Save to photos')}</span>
               </button>
             </div>
           </div>
@@ -344,6 +380,8 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 // SCREEN 24: Square / Community Feed (公开广场)
 // ----------------------------------------------------------------------
 export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [activeTab, setActiveTab] = useState<'recommend' | 'hot' | 'latest' | 'follow'>('recommend');
 
   const cards = SQUARE_CARDS;
@@ -354,7 +392,7 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
       {/* Top Header */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between border-b border-gray-100 shrink-0 bg-white">
         <div className="w-10"></div> {/* spacer */}
-        <span className="text-[18px] font-black text-slate-900 tracking-tight">发现</span>
+        <span className="text-[18px] font-black text-slate-900 tracking-tight">{text('发现', 'Discover')}</span>
         <div className="flex space-x-1 shrink-0">
           <button onClick={() => onNavigate('search')} className="p-1 hover:bg-neutral-100 rounded-full">
             <Search size={18} className="text-slate-600" />
@@ -378,10 +416,10 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
                 : 'bg-slate-50 border border-slate-100 text-slate-500 hover:bg-slate-100'
             }`}
           >
-            {tab === 'recommend' && '推荐'}
-            {tab === 'hot' && '热门'}
-            {tab === 'latest' && '最新'}
-            {tab === 'follow' && '关注'}
+            {tab === 'recommend' && text('推荐', 'Recommended')}
+            {tab === 'hot' && text('热门', 'Hot')}
+            {tab === 'latest' && text('最新', 'Latest')}
+            {tab === 'follow' && text('关注', 'Following')}
           </button>
         ))}
       </div>
@@ -401,7 +439,7 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    miniToast(`已收藏：${item.title}`);
+                    miniToast(text(`已收藏：${item.title}`, `Saved: ${item.titleEn}`));
                   }}
                   className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 hover:bg-white shadow-xs flex items-center justify-center text-rose-500 hover:text-red-600 transition-colors z-10"
                 >
@@ -411,14 +449,14 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
               {/* description footer */}
               <div className="p-3 text-left">
-                <h4 className="text-[13px] font-black text-slate-900 group-hover:text-cyan-600 transition-colors">{item.title}</h4>
+                <h4 className="text-[13px] font-black text-slate-900 group-hover:text-cyan-600 transition-colors">{text(item.title, item.titleEn)}</h4>
                 
                 <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 font-semibold">
                   <span className="flex items-center space-x-1 max-w-[50px] truncate">
                     <User size={10} />
-                    <span className="truncate">{item.author}</span>
+                    <span className="truncate">{text(item.author, item.authorEn)}</span>
                   </span>
-                  <span>距离 {item.dist}</span>
+                  <span>{text('距离', 'Distance')} {item.dist}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pb-0.5 font-bold border-t border-slate-50/50 pt-2 text-[#4FACFE]">
@@ -431,7 +469,8 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
         </div>
 
           <p className="text-[11px] text-slate-400 py-4 text-center">
-          暂时已经没有更多测试数据，先去发现广场看看吧。</p>
+          {text('暂时已经没有更多测试数据，先去发现广场看看吧。', 'No more test data for now. Explore Discover.')}
+          </p>
       </div>
 
     </div>
@@ -442,14 +481,13 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 // SCREEN 25: Community Post Detail (作品详情页-社区)
 // ----------------------------------------------------------------------
 export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [isFollowing, setIsFollowing] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [likesCount, setLikesCount] = useState(128);
   const [hasLiked, setHasLiked] = useState(false);
-  const [comments, setComments] = useState([
-    { id: 'c1', user: '设计小王', avatar: 'M', time: '1小时前', text: '这条路线的配色很喜欢，建议加点动态滤镜看看。' },
-    { id: 'c2', user: '旅行助手', avatar: 'X', time: '30分钟前', text: '很实用的路线分享，细节很到位！' }
-  ]);
+  const [comments, setComments] = useState(POST_COMMENTS);
 
   const handleSendComment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -457,24 +495,27 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
     const newComment = {
       id: Date.now().toString(),
       user: '当前用户',
+      userEn: 'Current user',
       avatar: '我',
       time: '刚刚',
-      text: commentInput.trim()
+      timeEn: 'Just now',
+      text: commentInput.trim(),
+      textEn: commentInput.trim()
     };
     setComments(prev => [newComment, ...prev]);
     setCommentInput('');
-    miniToast('评论发布成功！');
+    miniToast(text('评论发布成功！', 'Comment posted successfully!'));
   };
 
   const handleLike = () => {
     if (hasLiked) {
       setLikesCount(prev => Math.max(prev - 1, 0));
       setHasLiked(false);
-      miniToast('已取消点赞');
+      miniToast(text('已取消点赞', 'Like removed'));
     } else {
       setLikesCount(prev => prev + 1);
       setHasLiked(true);
-      miniToast('已点赞');
+      miniToast(text('已点赞', 'Liked'));
     }
   };
 
@@ -485,8 +526,8 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
         <button onClick={() => onNavigate('profile')} className="p-1 hover:bg-neutral-100 rounded-full">
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
-        <span className="text-[14px] font-bold text-slate-900">帖子详情</span>
-        <button onClick={() => miniToast('打开更多操作')} className="p-1 hover:bg-neutral-100 rounded-full">
+        <span className="text-[14px] font-bold text-slate-900">{text('帖子详情', 'Post Detail')}</span>
+        <button onClick={() => miniToast(text('打开更多操作', 'Open more actions'))} className="p-1 hover:bg-neutral-100 rounded-full">
           <MoreVertical size={18} className="text-slate-600" />
         </button>
       </div>
@@ -501,15 +542,15 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
               M
             </div>
             <div className="text-left">
-              <h4 className="text-[14px] font-bold text-slate-900">设计小王</h4>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">2小时前发布 · 北京路线</p>
+              <h4 className="text-[14px] font-bold text-slate-900">{text('设计小王', 'Designer Xiao Wang')}</h4>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">{text('2小时前发布 · 北京路线', 'Published 2h ago · Beijing route')}</p>
             </div>
           </div>
 
           <button
             onClick={() => {
               setIsFollowing(!isFollowing);
-              miniToast(isFollowing ? '取消关注' : '关注成功');
+              miniToast(isFollowing ? text('取消关注', 'Unfollowed') : text('关注成功', 'Followed'));
             }}
             className={
               'px-3.5 py-1 text-xs font-bold rounded-full border transition-all ' +
@@ -518,7 +559,7 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
                   : 'border-cyan-500 text-cyan-600 hover:bg-cyan-50 active:scale-95')
             }
           >
-            {isFollowing ? '取消关注' : '关注'}
+            {isFollowing ? text('取消关注', 'Unfollow') : text('关注', 'Follow')}
           </button>
         </div>
 
@@ -535,28 +576,29 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
         {/* Post metrics card */}
         <div className="px-4 mt-3">
           <div className="bg-white p-4 rounded-[24px] shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-slate-100">
-            <h3 className="text-[17px] font-black text-slate-900 text-left">这条路线的汇总信息</h3>
+            <h3 className="text-[17px] font-black text-slate-900 text-left">{text('这条路线的汇总信息', 'Route summary')}</h3>
             <p className="text-[12px] text-slate-500 mt-1 lines-relaxed text-left">
-              轻轻记录下这次路线的节奏和里程，配色以明快风格为主，适合继续复盘和分享给朋友。</p>
+              {text('轻轻记录下这次路线的节奏和里程，配色以明快风格为主，适合继续复盘和分享给朋友。', 'A light summary of pacing and distance with a vivid style, good for review and sharing.')}
+            </p>
 
               <div className="grid grid-cols-3 gap-2 text-center pt-3 mt-3 border-t border-slate-50 select-none">
                 <div className="border-r border-slate-100">
                   <span className="text-[15px] font-extrabold text-slate-900">5.01 km</span>
-                  <p className="text-[9px] text-slate-400 mt-0.5">距离</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{text('距离', 'Distance')}</p>
                 </div>
                 <div className="border-r border-slate-100">
                   <span className="text-[15px] font-extrabold text-slate-900">32:15</span>
-                  <p className="text-[9px] text-slate-400 mt-0.5">时间</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{text('时间', 'Time')}</p>
                 </div>
               <div>
                 <span className="text-[15px] font-extrabold text-slate-900">6'27" /km</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">平均配速</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">{text('平均配速', 'Avg pace')}</p>
               </div>
             </div>
 
             <div className="flex items-center space-x-2 mt-3 select-none">
-              <span className="px-2 py-0.5 bg-red-50 text-red-500 text-[9px] font-bold rounded">热门 活跃</span>
-              <span className="px-2 py-0.5 bg-rose-50 text-rose-500 text-[9px] font-bold rounded">评论 经典</span>
+              <span className="px-2 py-0.5 bg-red-50 text-red-500 text-[9px] font-bold rounded">{text('热门 活跃', 'Hot · Active')}</span>
+              <span className="px-2 py-0.5 bg-rose-50 text-rose-500 text-[9px] font-bold rounded">{text('评论 经典', 'Comment · Classic')}</span>
             </div>
           </div>
         </div>
@@ -568,30 +610,30 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
             className="flex items-center space-x-2.5 text-slate-500 group"
           >
             <Heart size={20} fill={hasLiked ? 'red' : 'none'} className={hasLiked ? 'text-red-500' : 'text-slate-500 group-hover:text-red-500'} />
-            <span className="text-[13px] font-bold">{likesCount} 点赞</span>
+            <span className="text-[13px] font-bold">{likesCount} {text('点赞', 'Likes')}</span>
           </button>
           
           <button 
-            onClick={() => miniToast('打开评论区')}
+            onClick={() => miniToast(text('打开评论区', 'Open comments'))}
             className="flex items-center space-x-2.5 text-slate-500 hover:text-cyan-500"
           >
             <MessageCircle size={20} />
-            <span className="text-[13px] font-bold">{comments.length} 评论</span>
+            <span className="text-[13px] font-bold">{comments.length} {text('评论', 'Comments')}</span>
           </button>
           
           <button 
-            onClick={() => { miniToast('已将路线保存到本地收藏'); }}
+            onClick={() => { miniToast(text('已将路线保存到本地收藏', 'Saved route locally')); }}
             className="flex items-center space-x-2.5 text-slate-500 hover:text-yellow-500"
           >
             <Star size={20} />
-            <span className="text-[13px] font-bold">459 收藏</span>
+            <span className="text-[13px] font-bold">459 {text('收藏', 'Saves')}</span>
           </button>
         </div>
 
         {/* Comment segment lists */}
         <div className="px-4 mt-4 text-left">
             <span className="text-[13px] font-black text-slate-900 block mb-3">
-            评论列表 ({comments.length})
+            {text(`评论列表 (${comments.length})`, `Comments (${comments.length})`)}
             </span>
 
           {/* New message input inline */}
@@ -600,7 +642,7 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
               type="text" 
               value={commentInput} 
               onChange={(e) => setCommentInput(e.target.value)}
-              placeholder="输入评论内容，文明发言..."
+              placeholder={text('输入评论内容，文明发言...', 'Write a comment respectfully...')}
               className="bg-transparent border-none text-[11px] placeholder:text-slate-400 focus:outline-none w-full font-medium"
             />
             <button 
@@ -620,10 +662,10 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
                 </div>
                 <div>
                   <div className="flex items-baseline space-x-1.5">
-                    <span className="text-[12px] font-bold text-slate-900">{comment.user}</span>
-                    <span className="text-[9px] text-slate-400 font-mono">{comment.time}</span>
+                    <span className="text-[12px] font-bold text-slate-900">{text(comment.user, comment.userEn)}</span>
+                    <span className="text-[9px] text-slate-400 font-mono">{text(comment.time, comment.timeEn)}</span>
                   </div>
-                  <p className="text-[11.5px] text-slate-700 mt-1 lines-relaxed">{comment.text}</p>
+                  <p className="text-[11.5px] text-slate-700 mt-1 lines-relaxed">{text(comment.text, comment.textEn)}</p>
                 </div>
               </div>
             ))}
@@ -636,21 +678,21 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
       <div className="p-3 bg-white border-t border-slate-100 flex items-center space-x-3 shrink-0">
         <button 
           onClick={() => {
-            miniToast('参数设置发布该路线');
+            miniToast(text('参数设置发布该路线', 'Publish route with parameters'));
             onNavigate('param_adjust');
           }}
           className="flex-1 py-2.5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-95 select-none transition-all text-white font-extrabold text-xs rounded-full shadow-md shadow-cyan-400/20 text-center uppercase tracking-wider"
         >
-          使用参数发布路线
+          {text('使用参数发布路线', 'Publish with parameters')}
         </button>
         <button 
             onClick={() => {
             setIsFollowing(!isFollowing);
-            miniToast(isFollowing ? '已取消关注' : '关注成功');
+            miniToast(isFollowing ? text('已取消关注', 'Unfollowed') : text('关注成功', 'Followed'));
           }}
           className="py-2.5 px-4 border border-slate-200 text-slate-500 text-xs font-black rounded-full text-center hover:bg-neutral-50 active:bg-slate-100 transition-colors"
           >
-            {isFollowing ? '已取消关注' : '关注'}
+            {isFollowing ? text('已取消关注', 'Unfollowed') : text('关注', 'Follow')}
           </button>
       </div>
 
@@ -662,6 +704,8 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 // SCREEN 26: Message notification Screen (消息通知页)
 // ----------------------------------------------------------------------
 export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [activeTab, setActiveTab] = useState<'all' | 'like' | 'comment' | 'follow' | 'sys'>('all');
   const [showEmpty, setShowEmpty] = useState(false);
   const [unreads, setUnreads] = useState<Record<string, boolean>>({
@@ -678,7 +722,7 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
 
   const handleMarkAllRead = () => {
     setUnreads({});
-    miniToast('已清空未读消息列表');
+    miniToast(text('已清空未读消息列表', 'Cleared unread notifications'));
   };
 
   const filtered = msgList.filter(m => {
@@ -697,18 +741,18 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
         <button onClick={() => onNavigate('square')} className="p-1 hover:bg-neutral-100 rounded-full">
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
-        <span className="text-[16px] font-bold text-slate-900">消息通知</span>
+        <span className="text-[16px] font-bold text-slate-900">{text('消息通知', 'Notifications')}</span>
         <div className="flex items-center space-x-1.5 shrink-0">
           <button 
             onClick={() => {
               setShowEmpty(!showEmpty);
-              miniToast(showEmpty ? '显示全部消息' : '清空消息列表');
+              miniToast(showEmpty ? text('显示全部消息', 'Show all notifications') : text('清空消息列表', 'Clear notification list'));
             }} 
             className="text-[10px] text-cyan-600 font-extrabold hover:underline"
           >
-            {showEmpty ? '显示全部消息' : '清空消息'}
+            {showEmpty ? text('显示全部消息', 'Show all notifications') : text('清空消息', 'Clear notifications')}
           </button>
-          <button onClick={() => miniToast('打开消息设置')} className="p-1 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => miniToast(text('打开消息设置', 'Open notification settings'))} className="p-1 hover:bg-neutral-100 rounded-full">
             <Settings size={16} className="text-slate-650" />
           </button>
         </div>
@@ -727,11 +771,11 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
                  : 'bg-slate-50 border border-slate-100 text-slate-500 hover:bg-slate-100')
             }
           >
-            {tab === 'all' && '全部'}
-            {tab === 'like' && '点赞'}
-            {tab === 'comment' && '评论'}
-            {tab === 'follow' && '新粉'}
-            {tab === 'sys' && '系统'}
+            {tab === 'all' && text('全部', 'All')}
+            {tab === 'like' && text('点赞', 'Likes')}
+            {tab === 'comment' && text('评论', 'Comments')}
+            {tab === 'follow' && text('新粉', 'New followers')}
+            {tab === 'sys' && text('系统', 'System')}
           </button>
         ))}
       </div>
@@ -748,9 +792,10 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
               </svg>
             </div>
             <div>
-            <p className="text-[16px] font-bold text-slate-800">暂无消息</p>
+            <p className="text-[16px] font-bold text-slate-800">{text('暂无消息', 'No notifications')}</p>
             <p className="text-[12px] text-slate-400 mt-1 max-w-xs leading-normal">
-                当前无消息、系统提醒或关注动态时显示此区域。</p>
+                {text('当前无消息、系统提醒或关注动态时显示此区域。', 'Shown when there are no messages, system alerts, or follow updates.')}
+            </p>
           </div>
         </div>
 
@@ -805,16 +850,16 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
 
                     <div className="text-left overflow-hidden">
                       <p className="text-[13px] text-slate-900 font-bold">
-                        <span>{m.author}</span>
+                        <span>{text(m.author, m.authorEn)}</span>
                         {m.actionText && (
-                          <span className="text-slate-400 font-medium text-[12.5px] ml-1">{m.actionText}</span>
+                          <span className="text-slate-400 font-medium text-[12.5px] ml-1">{text(m.actionText, m.actionTextEn)}</span>
                         )}
                       </p>
                       <p className="text-[12px] text-slate-600 truncate max-w-[170px] mt-0.5 leading-normal">
-                        {m.target}
+                        {text(m.target, m.targetEn)}
                       </p>
                       <span className="text-[9.5px] text-slate-400 mt-1 block font-mono font-medium leading-none">
-                        {m.time}
+                        {text(m.time, m.timeEn)}
                       </span>
                     </div>
                   </div>
@@ -833,7 +878,7 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
                           e.stopPropagation();
                           const active = followBacks['white'];
                           setFollowBacks(prev => ({ ...prev, 'white': !active }));
-                          miniToast(!active ? '已关注' : '已取消关注');
+                          miniToast(!active ? text('已关注', 'Followed') : text('已取消关注', 'Unfollowed'));
                         }}
                         className={
                           'text-[10px] font-extrabold px-3 py-1 rounded-full border transition-all ' +
@@ -842,7 +887,7 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
                              : 'border-cyan-500 text-cyan-600 hover:bg-cyan-50 active:scale-95')
                         }
                       >
-                        {followBacks['white'] ? '已关注' : '回关'}
+                        {followBacks['white'] ? text('已关注', 'Followed') : text('回关', 'Follow back')}
                       </button>
                     )}
                   </div>
@@ -861,7 +906,8 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
             onClick={handleMarkAllRead}
             className="text-[12px] text-cyan-600 hover:text-cyan-700 font-black hover:underline"
           >
-            全部标记已读</button>
+            {text('全部标记已读', 'Mark all as read')}
+          </button>
         </div>
       )}
       

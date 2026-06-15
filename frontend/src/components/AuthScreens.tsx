@@ -5,6 +5,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import { ScreenId } from '../types';
+import { useI18n } from '../i18n';
 
 /* ==========================================
    Screen 5: Onboarding Screen (首次使用引导页)
@@ -15,18 +16,19 @@ interface OnboardingScreenProps {
 
 export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onNavigate }) => {
   const [activeSlide, setActiveSlide] = useState(1); // 0, 1, 2 representing cards
+  const { t } = useI18n();
 
   return (
-    <div className="flex flex-col h-full bg-linear-to-b from-[#4FACFE] to-[#00F2FE] text-white p-5 select-none justify-between relative overflow-hidden">
+    <div className="flex flex-col min-h-full bg-linear-to-b from-[#4FACFE] to-[#00F2FE] text-white px-5 pt-5 pb-5 select-none justify-between relative overflow-hidden">
       
       {/* Decorative backdrop blobs */}
       <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
       <div className="absolute top-1/2 -right-16 w-52 h-52 rounded-full bg-white/10 blur-2xl pointer-events-none"></div>
 
       {/* Top Header App Name */}
-      <div className="text-center pt-6">
-        <h2 className="text-xl font-extrabold tracking-widest text-white/90">轨迹工坊 App</h2>
-        <p className="text-[11px] text-white/70 mt-1 uppercase tracking-wider">用汗水在地图上作画</p>
+      <div className="text-center pt-4">
+        <h2 className="text-xl font-extrabold tracking-widest text-white/90">{t('onboarding.title', '轨迹工坊 App')}</h2>
+        <p className="text-[11px] text-white/70 mt-1 uppercase tracking-wider">{t('onboarding.subtitle', '用汗水在地图上作画')}</p>
       </div>
 
       {/* 3-Card Carousel Representation */}
@@ -43,8 +45,8 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onNavigate }
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white mb-2 shadow-xs">
             <Cloud size={18} />
           </div>
-          <span className="text-[11px] font-bold block leading-tight">1. 上传图片</span>
-          <span className="text-[8px] text-white/70 leading-none mt-1">任意图片转换</span>
+          <span className="text-[11px] font-bold block leading-tight">{t('onboarding.step1_title', '1. 上传图片')}</span>
+          <span className="text-[8px] text-white/70 leading-none mt-1">{t('onboarding.step1_desc', '任意图片转换')}</span>
         </div>
 
         {/* Card 2: Center Card */}
@@ -61,10 +63,11 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onNavigate }
           <div className="w-14 h-14 rounded-full bg-linear-to-tr from-white to-blue-50 flex items-center justify-center text-[#4FACFE] mb-4 shadow-lg">
             <CloudRain size={26} className="text-[#4FACFE]" />
           </div>
-          <h3 className="text-[17px] font-extrabold tracking-tight">2. 生成轨迹</h3>
+          <h3 className="text-[17px] font-extrabold tracking-tight">{t('onboarding.step2_title', '2. 生成轨迹')}</h3>
           <p className="text-[11px] text-white/80 mt-2.5 leading-normal select-none">
-            AI 智能提取运动路径，<br />
-            或点击手动描边绘制。
+            {t('onboarding.step2_desc1', 'AI 智能提取运动路径，')}
+            <br />
+            {t('onboarding.step2_desc2', '或点击手动描边绘制。')}
           </p>
         </div>
 
@@ -80,8 +83,8 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onNavigate }
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white mb-2 shadow-xs">
             <MapPin size={18} />
           </div>
-          <span className="text-[11px] font-bold block leading-tight">3. 跟着跑！</span>
-          <span className="text-[8px] text-white/70 leading-none mt-1">语音偏差实时指流</span>
+          <span className="text-[11px] font-bold block leading-tight">{t('onboarding.step3_title', '3. 跟着跑！')}</span>
+          <span className="text-[8px] text-white/70 leading-none mt-1">{t('onboarding.step3_desc', '语音偏差实时指流')}</span>
         </div>
       </div>
 
@@ -105,7 +108,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onNavigate }
           onClick={() => onNavigate('home')}
           className="w-full py-3.5 bg-white text-gray-800 hover:bg-opacity-95 font-black text-sm tracking-widest rounded-full shadow-lg shadow-[#00F2FE]/20 active:scale-98 transition-all"
         >
-          开始体验
+          {t('onboarding.cta', '开始体验')}
         </button>
 
         {/* Footnotes */}
@@ -113,7 +116,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onNavigate }
           onClick={() => onNavigate('home')} 
           className="text-center text-[12px] text-white/70 hover:text-white transition-colors"
         >
-          已有账号？<span className="underline font-bold">登录</span>
+          {t('onboarding.has_account', '已有账号？')}<span className="underline font-bold">{t('onboarding.login', '登录')}</span>
         </button>
       </div>
 
@@ -130,6 +133,8 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
+  const { t, language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [smsCode, setSmsCode] = useState('');
@@ -148,10 +153,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
   const handleThirdPartyLogin = (platform: 'wechat' | 'douyin') => {
     setIsLoggingIn(true);
-    triggerToast(`正在拉起${platform === 'wechat' ? '微信' : '抖音'}协议授权...`);
+    triggerToast(
+      platform === 'wechat'
+        ? text('正在拉起微信协议授权...', 'Opening WeChat authorization...')
+        : text('正在拉起抖音协议授权...', 'Opening Douyin authorization...'),
+    );
     setTimeout(() => {
       setIsLoggingIn(false);
-      triggerToast('授权成功，已为您登录！');
+      triggerToast(text('授权成功，已为您登录！', 'Authorization successful. You are logged in.'));
       setTimeout(() => {
         onNavigate('profile');
       }, 500);
@@ -160,35 +169,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
   const sendSMS = () => {
     if (!phoneNumber || phoneNumber.length < 11) {
-      triggerToast('请输入合法的11位手机号');
+      triggerToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
       return;
     }
     setIsSendingCode(true);
-    triggerToast('验证码发送中...');
+    triggerToast(text('验证码发送中...', 'Sending verification code...'));
     setTimeout(() => {
       setIsSendingCode(false);
       setCodeSent(true);
       setSmsCode('8888'); // Autofill mockup
-      triggerToast('验证码[8888]已发送');
+      triggerToast(text('验证码[8888]已发送', 'Code [8888] sent'));
     }, 1000);
   };
 
   const handlePhoneLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phoneNumber || phoneNumber.length < 11) {
-      triggerToast('请输入合法的11位手机号');
+      triggerToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
       return;
     }
     if (!smsCode) {
-      triggerToast('请输入验证码');
+      triggerToast(text('请输入验证码', 'Enter the verification code'));
       return;
     }
     setIsLoggingIn(true);
     setShowPhoneModal(false);
-    triggerToast('正在验证手机/短信授权...');
+    triggerToast(text('正在验证手机/短信授权...', 'Verifying phone/SMS authorization...'));
     setTimeout(() => {
       setIsLoggingIn(false);
-      triggerToast('登录成功，欢迎回来！');
+      triggerToast(text('登录成功，欢迎回来！', 'Login successful, welcome back!'));
       setTimeout(() => {
         onNavigate('profile');
       }, 500);
@@ -220,9 +229,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         </div>
 
         {/* App Title */}
-        <h1 className="text-[28px] font-black tracking-tight text-slate-800 leading-none">轨迹工坊</h1>
+        <h1 className="text-[28px] font-black tracking-tight text-slate-800 leading-none">{t('app.title', '轨迹工坊')}</h1>
         {/* Slogan */}
-        <p className="text-[14px] text-slate-400 mt-2 font-medium">跑出你的专属形状</p>
+        <p className="text-[14px] text-slate-400 mt-2 font-medium">{t('auth.brand_subtitle', '跑出你的专属形状')}</p>
       </div>
 
       {/* Central Illustration Region (Star Trail Run) */}
@@ -284,7 +293,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
               <path d="M8.5,13.5c-.3,0-.5-.2-.5-.5s.2-.5.5-.5.5.2.5.5-.2.5-.5.5zm4.5,0c-.3,0-.5-.2-.5-.5s.2-.5.5-.5.5.2.5.5-.2.5-.5.5zm.8,4c2.8,0,5.2-1.7,5.2-3.8c0-2.1-2.4-3.8-5.2-3.8c-2.9,0-5.3,1.7-5.3,3.8c0,2.1,2.4,3.8,5.3,3.8zm-5.3-7c2.2,0,4-1.5,4-3.5c0-1.9-1.8-3.5-4-3.5c-2.3,0-4.1,1.6-4.1,3.5c0,2,1.8,3.5,4.1,3.5zm-2-5c.3,0,.5.2.5.5s-.2.5-.5.5-.5-.2-.5-.5.2-.5.5-.5zm2.8,0c.3,0,.5.2.5.5s-.2.5-.5.5-.5-.2-.5-.5.2-.5.5-.5z" />
             </svg>
           </div>
-          <span className="text-[16px] font-bold text-slate-700">微信一键登录</span>
+          <span className="text-[16px] font-bold text-slate-700">{t('auth.wechat_login', '微信一键登录')}</span>
         </button>
 
         {/* Douyin Login */}
@@ -299,13 +308,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
               <path d="M12,2a1,1,0,0,0-1,1v10.5a2.5,2.5,0,1,1-3.5-2.28V7a1,1,0,0,0-1-1H4A1,1,0,0,0,3,7a9,9,0,1,0,9-5Zm0,18a7,7,0,1,1,5-1.93A5.49,5.49,0,0,0,14,13V3h1.5A5.5,5.5,0,0,1,21,8.5v1.5a1,1,0,0,1-1,1h-1.5A5.5,5.5,0,0,1,13,7.18V20A7,7,0,0,1,12,20Z"/>
             </svg>
           </div>
-          <span className="text-[16px] font-bold text-slate-700">抖音一键登录</span>
+          <span className="text-[16px] font-bold text-slate-700">{t('auth.douyin_login', '抖音一键登录')}</span>
         </button>
 
         {/* Divider */}
         <div className="w-[80%] flex items-center justify-between py-2">
           <div className="flex-1 h-[0.5px] bg-slate-200"></div>
-          <span className="text-[12px] text-slate-400 px-3 font-medium">或</span>
+          <span className="text-[12px] text-slate-400 px-3 font-medium">{t('auth.or', '或')}</span>
           <div className="flex-1 h-[0.5px] bg-slate-200"></div>
         </div>
 
@@ -315,27 +324,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
           onClick={() => setShowPhoneModal(true)}
           className="text-[14px] font-bold bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] bg-clip-text text-transparent active:opacity-70 transition-all cursor-pointer"
         >
-          手机号登录
+          {t('auth.phone_login', '手机号登录')}
         </button>
       </div>
 
       {/* Terms & Protocols */}
       <div className="text-center pb-6 px-4">
         <p className="text-[10px] text-slate-400 inline">
-          登录即表示同意
+          {t('auth.login_agree_prefix', '登录即表示同意')}
         </p>
         <button 
           onClick={() => setShowDocModal('agreement')}
           className="text-[10px] font-bold text-[#4FACFE] hover:underline px-0.5"
         >
-          《用户协议》
+          {t('auth.user_agreement', '《用户协议》')}
         </button>
-        <p className="text-[10px] text-slate-400 inline">和</p>
+        <p className="text-[10px] text-slate-400 inline">{t('auth.and', '和')}</p>
         <button 
           onClick={() => setShowDocModal('privacy')}
           className="text-[10px] font-bold text-[#4FACFE] hover:underline px-0.5"
         >
-          《隐私政策》
+          {t('auth.privacy_policy', '《隐私政策》')}
         </button>
       </div>
 
@@ -344,7 +353,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         <div className="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center z-50">
           <div className="bg-slate-900 text-white rounded-2xl p-5 flex flex-col items-center justify-center space-y-3 shadow-xl">
             <div className="w-10 h-10 border-4 border-t-[#00F2FE] border-[#4FACFE]/20 rounded-full animate-spin"></div>
-            <span className="text-xs font-semibold">正在登录您的轨迹工坊...</span>
+            <span className="text-xs font-semibold">{t('auth.logging_in', '正在登录您的轨迹工坊...')}</span>
           </div>
         </div>
       )}
@@ -354,7 +363,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-end justify-center z-40 animate-fade-in">
           <div className="w-full bg-white rounded-t-[32px] p-6 shadow-2xl flex flex-col space-y-4 bottom-0 animate-slide-up max-h-[75%] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-              <h3 className="text-base font-bold text-slate-800">手机号快捷登录</h3>
+              <h3 className="text-base font-bold text-slate-800">{t('auth.phone_login_title', '手机号快捷登录')}</h3>
               <button 
                 onClick={() => setShowPhoneModal(false)}
                 className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-slate-500 font-bold active:bg-gray-200"
@@ -365,13 +374,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
             <form onSubmit={handlePhoneLoginSubmit} className="space-y-4 pt-2">
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-400 uppercase">中国大陆手机号 (+86)</label>
+                <label className="text-[11px] font-bold text-slate-400 uppercase">{t('auth.phone_label', '中国大陆手机号 (+86)')}</label>
                 <div className="flex items-center border border-gray-200 rounded-xl px-3 py-2.5 bg-gray-50 focus-within:border-[#4FACFE] focus-within:bg-white transition-colors">
                   <span className="text-[14px] text-slate-500 mr-2 font-bold font-mono">+86</span>
                   <input
                     type="tel"
                     maxLength={11}
-                    placeholder="请输入11位手机号码"
+                    placeholder={t('auth.phone_placeholder', '请输入11位手机号码')}
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                     className="flex-1 bg-transparent border-none outline-none text-[14px] font-mono text-slate-800 placeholder-slate-400"
@@ -380,13 +389,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-400 uppercase">短信验证码</label>
+                <label className="text-[11px] font-bold text-slate-400 uppercase">{t('auth.sms_label', '短信验证码')}</label>
                 <div className="flex items-center justify-between space-x-2">
                   <div className="flex-1 flex items-center border border-gray-200 rounded-xl px-3 py-2.5 bg-gray-50 focus-within:border-[#4FACFE] focus-within:bg-white transition-colors">
                     <input
                       type="text"
                       maxLength={6}
-                      placeholder="验证码"
+                      placeholder={t('auth.sms_placeholder', '验证码')}
                       value={smsCode}
                       onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, ''))}
                       className="w-full bg-transparent border-none outline-none text-[14px] font-mono text-slate-800 placeholder-slate-400"
@@ -398,7 +407,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                     disabled={isSendingCode}
                     className="px-4 py-2.5 bg-slate-100 active:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 border border-slate-200 hover:border-slate-300 disabled:opacity-50 transition-all shrink-0"
                   >
-                    {isSendingCode ? '发送中' : codeSent ? '重新获取' : '获取验证码'}
+                    {isSendingCode ? t('auth.sending', '发送中') : codeSent ? t('auth.reget_code', '重新获取') : t('auth.get_code', '获取验证码')}
                   </button>
                 </div>
               </div>
@@ -408,7 +417,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                 disabled={!phoneNumber || !smsCode}
                 className="w-full py-3.5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-[0.99] rounded-[24px] text-white font-bold text-sm tracking-wider shadow-lg shadow-[#4FACFE]/25 disabled:opacity-50 transition-all text-center mt-3"
               >
-                授权并绑定登录（测试直通）
+                {t('auth.submit_phone_login', '授权并绑定登录（测试直通）')}
               </button>
             </form>
           </div>
@@ -420,23 +429,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-5 z-40">
           <div className="bg-white rounded-3xl w-full max-w-xs p-5 shadow-2xl flex flex-col space-y-4 max-h-[80%]">
             <h3 className="text-base font-extrabold text-slate-800 border-b pb-2">
-              {showDocModal === 'privacy' ? '轨迹工坊隐私政策说明' : '轨迹工坊用户服务协议'}
+              {showDocModal === 'privacy' ? t('auth.privacy_title', '轨迹工坊隐私政策说明') : t('auth.agreement_title', '轨迹工坊用户服务协议')}
             </h3>
             
             <div className="text-[12px] text-slate-500 overflow-y-auto max-h-56 space-y-2 leading-relaxed">
-              <p className="font-bold text-slate-700">更新日期：2026年6月9日</p>
-              <p>欢迎阁下使用"轨迹工坊"运动绘图寻航应用软件！</p>
-              <p>为了保障您的合法合法权益，请务必仔细阅读本文件。我们深度关注您的个人信息和隐私数据保护：</p>
-              <p>1. 我们仅在您使用"手动描边(4)"或"图片寻回(9)"以及位置跟踪时访问您的地理坐标，且采用最严格的脱敏算法保密，坚决不上送任何社交无关机密。</p>
-              <p>2. 账号绑定基于微信/抖音官方静默授权流程，提供一键免密码注册，不采集不索要明文账户密码。</p>
-              <p>3. 您有随时清除本地生成图片缓存(13)以及彻底注销本人账号权利。</p>
+              <p className="font-bold text-slate-700">{t('auth.updated_at', '更新日期：2026年6月9日')}</p>
+              <p>{t('auth.doc_p1', '欢迎阁下使用"轨迹工坊"运动绘图寻航应用软件！')}</p>
+              <p>{t('auth.doc_p2', '为了保障您的合法合法权益，请务必仔细阅读本文件。我们深度关注您的个人信息和隐私数据保护：')}</p>
+              <p>{t('auth.doc_p3', '1. 我们仅在您使用"手动描边(4)"或"图片寻回(9)"以及位置跟踪时访问您的地理坐标，且采用最严格的脱敏算法保密，坚决不上送任何社交无关机密。')}</p>
+              <p>{t('auth.doc_p4', '2. 账号绑定基于微信/抖音官方静默授权流程，提供一键免密码注册，不采集不索要明文账户密码。')}</p>
+              <p>{t('auth.doc_p5', '3. 您有随时清除本地生成图片缓存(13)以及彻底注销本人账号权利。')}</p>
             </div>
 
             <button
               onClick={() => setShowDocModal(null)}
               className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs text-center transition-colors"
             >
-              已阅并同意
+          {t('auth.doc_agree', '已阅并同意')}
             </button>
           </div>
         </div>
