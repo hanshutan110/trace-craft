@@ -9,6 +9,12 @@
 }
 
 @layer base {
+  :root {
+    --tc-safe-top: env(safe-area-inset-top, 0px);
+    --tc-safe-bottom: env(safe-area-inset-bottom, 0px);
+    background: #f7fbff;
+  }
+
   /* Premium Apple iOS Style Font mappings */
   html,
   body,
@@ -18,6 +24,7 @@
   }
 
   body {
+    background: #f7fbff;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", "Helvetica", "Arial", "PingFang SC", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

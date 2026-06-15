@@ -133,7 +133,7 @@ const zhCN: TextMap = {
   'app.title': 'TraceCraft',
   'app.subtitle': '释放城市中的运动体验',
   'app.enter': '立即进入',
-  'home.title': '追踪App',
+  'home.title': '轨迹工坊',
   'home.settings_title': '设置',
   'home.profile': '个人中心',
   'home.upload_card_title': '上传图片',

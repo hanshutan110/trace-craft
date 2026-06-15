@@ -60,10 +60,10 @@ export const AppViewport: React.FC<AppViewportProps> = ({
     <div id="right_panel" className="w-full min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(79,172,254,0.18),_transparent_34%),linear-gradient(180deg,_#f7fbff_0%,_#ffffff_24%,_#eef7ff_100%)]">
       <div
         id="app_surface"
-        className="relative w-full min-h-[100dvh] bg-transparent flex flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+        className="relative w-full min-h-[100dvh] bg-transparent flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-white/80 to-transparent" />
-        <div className="flex-1 w-full relative flex flex-col bg-white/95 backdrop-blur-sm overflow-hidden text-slate-900 select-none shadow-[0_0_0_1px_rgba(255,255,255,0.7)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[linear-gradient(180deg,rgba(247,251,255,0.98)_0%,rgba(255,255,255,0.72)_46%,rgba(255,255,255,0)_100%)]" />
+        <div className="flex-1 w-full relative flex flex-col bg-transparent overflow-hidden text-slate-900 select-none">
           <AppScreenRouter
             activeScreen={activeScreen}
             selectedShapeId={selectedShapeId}

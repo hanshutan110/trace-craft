@@ -35,10 +35,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   return (
     <div className="flex flex-col min-h-full bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_24%,#eef7ff_100%)] select-none relative">
       {/* Scrollable Container */}
-      <div className="flex-1 overflow-y-auto pb-[calc(96px+env(safe-area-inset-bottom))] pt-[calc(10px+env(safe-area-inset-top))]">
+      <div className="flex-1 overflow-y-auto pb-[calc(96px+env(safe-area-inset-bottom))]">
         
         {/* Top Header */}
-        <div className="sticky top-0 z-20 flex items-center justify-between px-5 pt-3 pb-3 bg-white/80 backdrop-blur-xl border-b border-slate-100/70 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+        <div className="sticky top-0 z-20 flex items-center justify-between px-5 pt-[calc(var(--tc-safe-top)+12px)] pb-3 bg-[linear-gradient(180deg,rgba(247,251,255,0.96)_0%,rgba(255,255,255,0.82)_100%)] backdrop-blur-xl border-b border-slate-100/60 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
           <div className="w-6"></div> {/* Spacer for symmetry */}
           <h1 className="text-xl font-bold tracking-tight text-gray-900 bg-linear-to-r from-[#4FACFE] to-[#00F2FE] bg-clip-text text-transparent">
             {t('home.title', '轨迹工坊')}
