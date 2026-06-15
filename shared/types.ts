@@ -55,6 +55,23 @@ export interface RouteMeta {
   end: GeoPoint;
 }
 
+export type RouteRiskLevel = 'low' | 'medium' | 'high';
+
+export interface RouteRiskSegment {
+  type: string;
+  level: RouteRiskLevel;
+  message: string;
+  from?: GeoPoint;
+  to?: GeoPoint;
+}
+
+export interface RouteStartPointStatus {
+  distanceM: number | null;
+  accuracyM: number | null;
+  status: 'ok' | 'far' | 'poor_accuracy' | 'unknown';
+  suggestRebase: boolean;
+}
+
 /** 路线数据（后端返回给前端的完整路线结构） */
 export interface Route {
   id: string;
@@ -71,6 +88,13 @@ export interface Route {
   status: string;
   targetKm: number | null;
   actualDistanceM: number;
+  riskLevel?: RouteRiskLevel;
+  riskSegments?: RouteRiskSegment[];
+  runnableScore?: number;
+  shapeSimilarityScore?: number;
+  startPointStatus?: RouteStartPointStatus;
+  confirmRequired?: boolean;
+  riskSummary?: string;
   createdAt: string;
   updatedAt: string;
 }

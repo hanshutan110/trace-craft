@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { 
   Settings, 
   Upload, 
@@ -21,6 +21,8 @@ interface HomeScreenProps {
   openBottomSheet: () => void;
   activeNavbarTab: 'home' | 'traces' | 'profile';
   setActiveNavbarTab: (tab: 'home' | 'traces' | 'profile') => void;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
+  onUploadImageRoute: (file: File) => Promise<void>;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -29,8 +31,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   openBottomSheet,
   activeNavbarTab,
   setActiveNavbarTab,
+  onGenerateTemplateRoute,
+  onUploadImageRoute,
 }) => {
   const { t } = useI18n();
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="flex flex-col min-h-full bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_24%,#eef7ff_100%)] select-none relative">
@@ -58,7 +63,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           {/* Left Card: Upload */}
           <button
             id="upload_entry_card"
-            onClick={() => onNavigate('editor')}
+            onClick={() => uploadInputRef.current?.click()}
             className="flex flex-col items-start p-4 text-left rounded-[24px] border border-gray-100 bg-linear-to-b from-white to-blue-50/20 shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:scale-102 transition-all duration-300 relative overflow-hidden group"
           >
             <div className="absolute top-0 right-0 w-16 h-16 bg-linear-to-bl from-blue-100/30 to-teal-100/10 rounded-bl-full pointer-events-none group-hover:scale-110 transition-transform"></div>
@@ -69,6 +74,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <p className="text-[12px] text-gray-500 mb-2 leading-tight">{t('home.upload_card_desc', '用自己的照片或图案识别')}</p>
             <span className="text-[10px] text-gray-400 mt-auto bg-gray-50 px-2 py-0.5 rounded-md">{t('home.upload_card_hint', '支持 JPG / PNG')}</span>
           </button>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              void onUploadImageRoute(file);
+              event.target.value = '';
+            }}
+          />
 
           {/* Right Card: Selection */}
           <button
@@ -100,61 +117,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Horizontal scrollbar of mini shape cards */}
           <div className="flex space-x-4 overflow-x-auto pb-2 scrollbar-none -mx-5 px-5">
-            {/* Quick pre-sets */}
-            <div 
-              onClick={() => { onSelectShape('circle'); onNavigate('param_adjust'); }}
-              className="flex flex-col items-center min-w-[56px] cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-full bg-linear-to-tr from-[#4FACFE] to-[#00F2FE] flex items-center justify-center shadow-md active:scale-95 transition-transform text-white">
-                <Circle size={18} className="stroke-[2.5]" />
+            {[
+              { id: 'circle', km: 3.5, label: t('shape.circle', '圆形'), distance: t('home.circle_distance', '3.5km'), icon: <Circle size={18} className="stroke-[2.5]" />, bg: 'from-[#4FACFE] to-[#00F2FE]' },
+              { id: 'triangle', km: 3, label: t('shape.triangle', '三角形'), distance: t('home.triangle_distance', '3.0km'), icon: <Triangle size={17} className="stroke-[2.5]" />, bg: 'from-orange-400 to-red-500' },
+              { id: 'star', km: 5, label: t('shape.star', '五角星'), distance: t('home.star_distance', '5km'), icon: <Star size={18} className="fill-white stroke-[2]" />, bg: 'from-yellow-400 to-amber-500' },
+              { id: 'heart', km: 4.2, label: t('shape.heart', '心形'), distance: t('home.heart_distance', '4.2km'), icon: <Heart size={18} className="fill-white stroke-none" />, bg: 'from-pink-400 to-rose-500' },
+              { id: 'square', km: 4, label: t('shape.square', '正方形'), distance: t('home.square_distance', '4.0km'), icon: <Square size={17} className="stroke-[2.5]" />, bg: 'from-emerald-400 to-teal-500' },
+            ].map((item) => (
+              <div
+                key={item.id}
+                onClick={() => { onSelectShape(item.id); void onGenerateTemplateRoute(item.id, item.km); }}
+                className="flex flex-col items-center min-w-[56px] cursor-pointer"
+              >
+                <div className={`w-11 h-11 rounded-full bg-linear-to-tr ${item.bg} flex items-center justify-center shadow-md active:scale-95 transition-transform text-white`}>
+                  {item.icon}
+                </div>
+                <span className="text-[10px] text-gray-700 font-medium mt-1.5">{item.label}</span>
+                <span className="text-[9px] text-gray-400">{item.distance}</span>
               </div>
-              <span className="text-[10px] text-gray-700 font-medium mt-1.5">{t('shape.circle', '圆形')}</span>
-              <span className="text-[9px] text-gray-400">{t('home.circle_distance', '3.5km')}</span>
-            </div>
-
-            <div 
-              onClick={() => { onSelectShape('triangle'); onNavigate('param_adjust'); }}
-              className="flex flex-col items-center min-w-[56px] cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-full bg-linear-to-tr from-orange-400 to-red-500 flex items-center justify-center shadow-md active:scale-95 transition-transform text-white">
-                <Triangle size={17} className="stroke-[2.5]" />
-              </div>
-              <span className="text-[10px] text-gray-700 font-medium mt-1.5">{t('shape.triangle', '三角形')}</span>
-              <span className="text-[9px] text-gray-400">{t('home.triangle_distance', '3.0km')}</span>
-            </div>
-
-            <div 
-              onClick={() => { onSelectShape('star'); onNavigate('param_adjust'); }}
-              className="flex flex-col items-center min-w-[56px] cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-full bg-linear-to-tr from-yellow-400 to-amber-500 flex items-center justify-center shadow-md active:scale-95 transition-transform text-white">
-                <Star size={18} className="fill-white stroke-[2]" />
-              </div>
-              <span className="text-[10px] text-gray-700 font-medium mt-1.5">{t('shape.star', '五角星')}</span>
-              <span className="text-[9px] text-gray-400">{t('home.star_distance', '5km')}</span>
-            </div>
-
-            <div 
-              onClick={() => { onSelectShape('heart'); onNavigate('param_adjust'); }}
-              className="flex flex-col items-center min-w-[56px] cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-full bg-linear-to-tr from-pink-400 to-rose-500 flex items-center justify-center shadow-md active:scale-95 transition-transform text-white">
-                <Heart size={18} className="fill-white stroke-none" />
-              </div>
-              <span className="text-[10px] text-gray-700 font-medium mt-1.5">{t('shape.heart', '心形')}</span>
-              <span className="text-[9px] text-gray-400">{t('home.heart_distance', '4.2km')}</span>
-            </div>
-
-            <div 
-              onClick={() => { onSelectShape('square'); onNavigate('param_adjust'); }}
-              className="flex flex-col items-center min-w-[56px] cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-full bg-linear-to-tr from-emerald-400 to-teal-500 flex items-center justify-center shadow-md active:scale-95 transition-transform text-white">
-                <Square size={17} className="stroke-[2.5]" />
-              </div>
-              <span className="text-[10px] text-gray-700 font-medium mt-1.5">{t('shape.square', '正方形')}</span>
-              <span className="text-[9px] text-gray-400">{t('home.square_distance', '4.0km')}</span>
-            </div>
+            ))}
 
             {/* More plus card */}
             <div 
@@ -179,7 +160,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="space-y-3 bg-gray-55/40 p-1 rounded-2xl">
             {/* Quick List item with custom cat */}
             <div 
-              onClick={() => { onSelectShape('heart'); onNavigate('param_adjust'); }}
+              onClick={() => { onSelectShape('heart'); void onGenerateTemplateRoute('heart', 4.2); }}
               className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-gray-100 shadow-[0_2px_6px_rgba(0,0,0,0.02)] cursor-pointer active:bg-gray-50 transition-colors"
             >
               <div className="flex items-center space-x-3">
@@ -204,7 +185,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             ].map((record) => (
               <div 
                 key={record.id}
-                onClick={() => { onSelectShape(record.shapeType); onNavigate('param_adjust'); }}
+                onClick={() => { onSelectShape(record.shapeType); void onGenerateTemplateRoute(record.shapeType); }}
                 className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-gray-100 shadow-[0_2px_6px_rgba(0,0,0,0.02)] cursor-pointer active:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center space-x-3">

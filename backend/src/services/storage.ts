@@ -48,7 +48,31 @@ export interface Route {
   adjustedAt?: string;
   rebaseStrategy?: string;
   shapeType?: string;
+  riskLevel?: 'low' | 'medium' | 'high';
+  riskSegments?: RouteRiskSegment[];
+  runnableScore?: number;
+  shapeSimilarityScore?: number;
+  startPointStatus?: RouteStartPointStatus;
+  confirmRequired?: boolean;
+  riskSummary?: string;
   [key: string]: unknown;
+}
+
+/** 路线风险片段 */
+export interface RouteRiskSegment {
+  type: string;
+  level: 'low' | 'medium' | 'high';
+  message: string;
+  from?: GeoPoint;
+  to?: GeoPoint;
+}
+
+/** 起点适配状态 */
+export interface RouteStartPointStatus {
+  distanceM: number | null;
+  accuracyM: number | null;
+  status: 'ok' | 'far' | 'poor_accuracy' | 'unknown';
+  suggestRebase: boolean;
 }
 
 /** 路线边界框 */

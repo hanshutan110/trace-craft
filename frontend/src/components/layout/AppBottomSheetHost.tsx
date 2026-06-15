@@ -11,6 +11,7 @@ interface AppBottomSheetHostProps {
   selectedShapeId: string;
   isOpen: boolean;
   onSelect: (shapeId: string) => void;
+  onUploadImage: (file: File) => Promise<void>;
   onClose: () => void;
 }
 
@@ -18,6 +19,7 @@ export const AppBottomSheetHost: React.FC<AppBottomSheetHostProps> = ({
   selectedShapeId,
   isOpen,
   onSelect,
+  onUploadImage,
   onClose,
 }) => {
   if (!isOpen) {
@@ -28,8 +30,8 @@ export const AppBottomSheetHost: React.FC<AppBottomSheetHostProps> = ({
     <BottomSheetModal
       selectedShapeId={selectedShapeId}
       onSelect={onSelect}
+      onUploadImage={onUploadImage}
       onClose={onClose}
     />
   );
 };
-

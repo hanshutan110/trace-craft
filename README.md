@@ -1,6 +1,6 @@
 # TraceCraft
 
-TraceCraft 是一款**图片/形状转跑步路径并可实时导航的闭环运动 App**：用户上传任意图片（涂鸦、Logo、表情包等），系统自动生成可跑的路线，并在 App 内直接导航，不出现 GPX 文件概念。
+TraceCraft 是一款**图片/形状转跑步路径并可实时导航的城市创意运动 App**：用户上传任意图片（涂鸦、Logo、表情包等）或选择基础图形模板，系统生成可预览、可调整、可确认风险的跑步路线，并在 App 内直接导航，不出现 GPX 文件概念。
 
 当前仓库包含后端 API（Node.js/Express）与前端应用（Vite + React + TypeScript + TailwindCSS）。
 
@@ -64,11 +64,20 @@ npm run dev
 ## 核心使用流程
 
 1. 打开应用 → 引导页 / 登录
-2. 上传图片 或 选择预设形状模板
-3. 设置目标里程（如 3km / 5km）
-4. 后端生成路线 → 可调整缩放 / 重设起终点
-5. 开始导航 → 实时定位上报 → 偏离提示
-6. 完成跑步 → 闭环报告
+2. 选择路线来源：基础图形模板 或 自定义图片
+3. 设置目标里程（如 3km / 5km）并读取当前位置
+4. 后端生成路线点 → 返回 `routeId`、`points`、路线元数据和风险信息
+5. 路线预览 → 检查起点适配、GPS 精度、距离偏差、可跑性风险和图形相似度
+6. 用户确认 / 调整起点 / 重新生成
+7. 开始导航 → 实时定位上报 → 偏离提示
+8. 完成跑步 → 闭环报告
+
+## 模板与自定义图片
+
+- **基础模板**：圆形、三角形、星形、爱心等模板只代表“理想形状”，进入导航前仍需要生成真实路线点并经过预览确认。
+- **自定义图片**：用户选择 JPG/PNG 后上传到后端，由后端识别轮廓并生成路线点，前端负责展示预览、风险提示和调整入口。
+- **统一确认页**：模板和图片最终都进入同一个“路线预览 + 风险提示 + 用户确认”步骤，确认通过后才允许开始导航。
+- **风险分级**：低风险只提示；中风险弹窗确认；高风险阻断导航，只允许调整起点或重新生成。
 
 ## 技术栈
 
@@ -85,20 +94,22 @@ npm run dev
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/v1/maps/config` | 获取地图 provider 配置 |
-| `POST` | `/v1/routes/from-image` | 上传图片生成路线 |
-| `POST` | `/v1/routes/{routeId}/adjust` | 按目标里程缩放路线 |
-| `POST` | `/v1/routes/{routeId}/rebase` | 重设起点/终点 |
-| `POST` | `/v1/routes/{routeId}/start-run` | 开始导航会话 |
-| `POST` | `/v1/run/{sessionId}/location` | 上报实时位置 |
-| `GET` | `/v1/run/{sessionId}/state` | 查询导航状态 |
-| `POST` | `/v1/run/{sessionId}/finish` | 结束跑步 |
-| `GET` | `/v1/users/me/runs` | 获取用户跑步历史 |
+| `GET` | `/api/maps/config` | 获取地图 provider 配置 |
+| `POST` | `/api/routes/from-template` | 基础模板生成路线点并返回风险信息 |
+| `POST` | `/api/routes` | 上传图片生成路线点并返回风险信息 |
+| `PUT` | `/api/routes/{routeId}/adjust` | 按目标里程缩放路线 |
+| `PUT` | `/api/routes/{routeId}/rebase` | 重设起点/终点 |
+| `POST` | `/api/routes/{routeId}/start` | 开始导航会话；中风险需 `riskConfirmed=true`，高风险阻断 |
+| `POST` | `/api/sessions/{sessionId}/location` | 上报实时位置 |
+| `GET` | `/api/sessions/{sessionId}` | 查询导航状态 |
+| `POST` | `/api/sessions/{sessionId}/finish` | 结束跑步 |
+| `GET` | `/api/runs` | 获取用户跑步历史 |
 
 ## 安全与边界说明
 
 - **API Key**：不在前端明文保存，统一在后端 `.env` 中配置；`/v1/maps/config` 仅返回密钥是否已配置的状态，不暴露密钥内容。
 - **坐标体系**：服务端内部统一 WGS84，按 provider 输出对应坐标参考系（高德用 GCJ-02、百度用 BD-09 等）。
+- **路线风险**：开始导航前必须经过路线预览确认；V1 后端优先用高德 Web 服务步行规划做片段抽样，并结合 GPS 精度、起点距离、距离偏差做风险分级。百度 Key 已预留为后续 fallback。
 - **敏感信息**：`.env`、日志文件、`package-lock.json` 等均在 `.gitignore` 中排除，不会被提交。
 
 ## 后台管理（admin/）
@@ -129,8 +140,9 @@ python -m http.server 8080
 
 ## 下一步计划
 
-1. 后台管理 API 落地：将 admin mock 迁移到后端真实接口
-2. 执行 PostgreSQL schema 建表并验证
-3. 完成高德 / Google Provider 的运行时渲染适配
-4. AI 边缘识别升级（图片去噪 → 向量化曲线提取）
-5. 添加上架前权限文案与隐私政策
+1. 补齐模板/自定义图片的统一路线生成契约
+2. 落地路线预览、风险提示弹窗和用户确认状态
+3. 后台管理 API 落地：将 admin mock 迁移到后端真实接口
+4. 完成高德 / Google Provider 的运行时渲染适配
+5. AI 边缘识别升级（图片去噪 → 向量化曲线提取）
+6. 添加上架前权限文案与隐私政策

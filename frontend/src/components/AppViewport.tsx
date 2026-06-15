@@ -6,7 +6,7 @@
  * - AppBottomSheetHost：图形选择底部弹窗
  */
 import React from 'react';
-import { ScreenId } from '../types';
+import { GeneratedRoute, ScreenId } from '../types';
 import { AppBottomSheetHost } from './layout/AppBottomSheetHost';
 import { AppScreenRouter } from './screen-router/AppScreenRouter';
 
@@ -24,6 +24,12 @@ interface AppViewportProps {
   onNavigateFromSplash: (screen: ScreenId) => void;
   onNavigateFromLogin: (screen: ScreenId) => void;
   onNavigateFromProfileOrSettings: (screen: ScreenId) => void;
+  generatedRoute: GeneratedRoute | null;
+  isRouteGenerating: boolean;
+  routeGenerationError: string | null;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
+  onUploadImageRoute: (file: File) => Promise<void>;
+  onStartGeneratedRoute: (riskConfirmed: boolean) => Promise<void>;
 }
 
 export const AppViewport: React.FC<AppViewportProps> = ({
@@ -40,6 +46,12 @@ export const AppViewport: React.FC<AppViewportProps> = ({
   onNavigateFromSplash,
   onNavigateFromLogin,
   onNavigateFromProfileOrSettings,
+  generatedRoute,
+  isRouteGenerating,
+  routeGenerationError,
+  onGenerateTemplateRoute,
+  onUploadImageRoute,
+  onStartGeneratedRoute,
 }) => {
   // 关闭底部弹窗但不跳转页面
   const clearBottomSheet = () => {
@@ -49,11 +61,14 @@ export const AppViewport: React.FC<AppViewportProps> = ({
   // 关闭底部弹窗并跳转到参数调节页
   const closeBottomSheet = () => {
     clearBottomSheet();
-    setActiveScreen('param_adjust');
   };
 
   const selectShapeFromBottomSheet = (shapeId: string) => {
     onSelectShape(shapeId);
+    if (shapeId !== 'custom') {
+      clearBottomSheet();
+      void onGenerateTemplateRoute(shapeId);
+    }
   };
 
   return (
@@ -76,6 +91,12 @@ export const AppViewport: React.FC<AppViewportProps> = ({
             onNavigateFromProfileOrSettings={onNavigateFromProfileOrSettings}
             onSelectShape={onSelectShape}
             openBottomSheet={openBottomSheet}
+            generatedRoute={generatedRoute}
+            isRouteGenerating={isRouteGenerating}
+            routeGenerationError={routeGenerationError}
+            onGenerateTemplateRoute={onGenerateTemplateRoute}
+            onUploadImageRoute={onUploadImageRoute}
+            onStartGeneratedRoute={onStartGeneratedRoute}
             onSuccessNavigate={clearBottomSheet}
           />
 
@@ -83,6 +104,7 @@ export const AppViewport: React.FC<AppViewportProps> = ({
             selectedShapeId={selectedShapeId}
             isOpen={isBottomSheetOpen}
             onSelect={selectShapeFromBottomSheet}
+            onUploadImage={onUploadImageRoute}
             onClose={closeBottomSheet}
           />
         </div>

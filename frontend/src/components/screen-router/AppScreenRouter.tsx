@@ -13,7 +13,7 @@
  *   - CommunityScreens：分享、广场、消息
  */
 import React, { Suspense, useCallback, lazy } from 'react';
-import { ScreenId } from '../../types';
+import { GeneratedRoute, ScreenId } from '../../types';
 import { ErrorBoundary } from '../ErrorBoundary';
 
 // 核心屏幕即时加载（首页、引导、登录）
@@ -27,6 +27,7 @@ const NavigationAndEditor = lazy(() =>
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
       if (screen === 'nav') return <m.MapNavigationScreen {...(props as React.ComponentProps<typeof m.MapNavigationScreen>)} />;
       if (screen === 'param_adjust') return <m.ParamAdjustScreen {...(props as React.ComponentProps<typeof m.ParamAdjustScreen>)} />;
+      if (screen === 'route_preview') return <m.RoutePreviewScreen {...(props as React.ComponentProps<typeof m.RoutePreviewScreen>)} />;
       if (screen === 'editor') return <m.TraceEditorScreen {...(props as React.ComponentProps<typeof m.TraceEditorScreen>)} />;
       return null;
     },
@@ -119,6 +120,12 @@ interface AppScreenRouterProps {
   onSelectShape: (shapeId: string) => void;
   openBottomSheet: () => void;
   onSuccessNavigate?: () => void;
+  generatedRoute: GeneratedRoute | null;
+  isRouteGenerating: boolean;
+  routeGenerationError: string | null;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
+  onUploadImageRoute: (file: File) => Promise<void>;
+  onStartGeneratedRoute: (riskConfirmed: boolean) => Promise<void>;
 }
 
 // 懒加载组件加载中的旋转动画回退
@@ -141,6 +148,12 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
   onSelectShape,
   openBottomSheet,
   onSuccessNavigate,
+  generatedRoute,
+  isRouteGenerating,
+  routeGenerationError,
+  onGenerateTemplateRoute,
+  onUploadImageRoute,
+  onStartGeneratedRoute,
 }) => {
   // 提取具名导航回调，减少匿名函数创建
   const navigate = useCallback(
@@ -168,6 +181,8 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
             openBottomSheet={openBottomSheet}
             activeNavbarTab={activeNavbarTab}
             setActiveNavbarTab={setActiveNavbarTab}
+            onGenerateTemplateRoute={onGenerateTemplateRoute}
+            onUploadImageRoute={onUploadImageRoute}
           />
         )}
 
@@ -181,12 +196,17 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
 
         {/* ===== 懒加载屏幕组 ===== */}
         <Suspense fallback={<LoadingFallback />}>
-          {(activeScreen === 'nav' || activeScreen === 'param_adjust' || activeScreen === 'editor') && (
+          {(activeScreen === 'nav' || activeScreen === 'param_adjust' || activeScreen === 'route_preview' || activeScreen === 'editor') && (
             <NavigationAndEditor
               screen={activeScreen}
               props={{
                 onNavigate: navigate,
                 selectedShapeId,
+                generatedRoute,
+                isRouteGenerating,
+                routeGenerationError,
+                onGenerateTemplateRoute,
+                onStartGeneratedRoute,
               }}
             />
           )}
@@ -204,7 +224,7 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
           {(activeScreen === 'quick_cards' || activeScreen === 'library') && (
             <LazyHomeExtra
               screen={activeScreen}
-              props={{ onNavigate: navigate, onSelectShape }}
+              props={{ onNavigate: navigate, onSelectShape, onGenerateTemplateRoute, onUploadImageRoute }}
             />
           )}
 

@@ -16,6 +16,7 @@ import crypto from 'crypto';
 
 import {
   createRouteFromImage,
+  createRouteFromTemplate,
   adjustRouteDistance,
   rebaseRoute,
   startRunSession,
@@ -132,6 +133,11 @@ function normalizeLocationBody(body: Record<string, unknown> | null): { lat: num
   };
 }
 
+function toOptionalNumber(value: unknown): number | null {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : null;
+}
+
 /** 尝试将字符串解析为 JSON，失败则原样返回 */
 function parseJsonField<T>(value: T): T {
   if (typeof value !== 'string') return value;
@@ -213,18 +219,46 @@ app.post('/api/routes', upload.single('image'), requireAuth, async (req: Request
       targetKm: Number(body.targetKm),
       startPoint: parseJsonField(body.startPoint),
       endPoint: parseJsonField(body.endPoint),
+      currentAccuracy: toOptionalNumber(body.currentAccuracy),
     });
     res.json(successPayload({
       route,
       traceId: req.traceId,
       currentState: 'ready',
-      nextAction: 'adjust_or_start',
+      nextAction: 'preview_route',
       sessionId: null,
       version: route?.version || 1,
     }));
   } catch (err) {
     console.error(err);
     res.status(500).json(errorPayload('route generation failed', 'route_generation_failed', 500));
+  }
+});
+
+// 基础模板生成路线
+app.post('/api/routes/from-template', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const route = await createRouteFromTemplate({
+      userId: req.userId ?? null,
+      shapeType: typeof body.shapeType === 'string' ? body.shapeType : 'star',
+      provider: body.provider,
+      locale: body.locale,
+      targetKm: Number(body.targetKm),
+      startPoint: body.startPoint,
+      currentAccuracy: toOptionalNumber(body.currentAccuracy),
+    });
+    res.json(successPayload({
+      route,
+      traceId: req.traceId,
+      currentState: 'ready',
+      nextAction: 'preview_route',
+      sessionId: null,
+      version: route?.version || 1,
+    }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(errorPayload('template route generation failed', 'template_route_generation_failed', 500));
   }
 });
 
@@ -301,7 +335,8 @@ app.post('/api/routes/:routeId/start', requireAuth, async (req: Request, res: Re
   try {
     const { routeId } = req.params as { routeId: string };
     const provider = parseJsonField(req.body?.provider);
-    const sessionBundle = await startRunSession(routeId, req.userId ?? null, provider, req.idempotencyKey);
+    const riskConfirmed = req.body?.riskConfirmed === true || req.body?.riskConfirmed === 'true';
+    const sessionBundle = await startRunSession(routeId, req.userId ?? null, provider, req.idempotencyKey, riskConfirmed);
     if (!sessionBundle) {
       return res.status(404).json(errorPayload('route not found', 'route_not_found', 404));
     }
@@ -316,6 +351,12 @@ app.post('/api/routes/:routeId/start', requireAuth, async (req: Request, res: Re
     }));
   } catch (err) {
     console.error(err);
+    if ((err as Error).message === 'route_high_risk') {
+      return res.status(409).json(errorPayload('route risk is too high to start', 'route_high_risk', 409));
+    }
+    if ((err as Error).message === 'route_risk_confirmation_required') {
+      return res.status(409).json(errorPayload('route risk confirmation required', 'route_risk_confirmation_required', 409));
+    }
     return res.status(500).json(errorPayload('start run failed', 'start_run_failed', 500));
   }
 });

@@ -10,9 +10,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 
-import { ScreenId } from './types';
+import { GeneratedRoute, ScreenId } from './types';
 import { AppViewport } from './components/AppViewport';
 import { I18nProvider } from './i18n';
+import { createImageRoute, createTemplateRoute, startRoute } from './api/routes';
+import { miniToast } from './utils';
 
 // localStorage 持久化键名（移至组件外部，避免每次渲染重新创建）
 const STORAGE_KEYS = {
@@ -36,12 +38,15 @@ export default function App() {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
   // 是否已登录
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [generatedRoute, setGeneratedRoute] = useState<GeneratedRoute | null>(null);
+  const [isRouteGenerating, setIsRouteGenerating] = useState<boolean>(false);
+  const [routeGenerationError, setRouteGenerationError] = useState<string | null>(null);
   // 记录页面返回栈，给安卓返回键/右滑返回用
   const screenHistoryRef = useRef<ScreenId[]>([]);
   const isBottomSheetOpenRef = useRef<boolean>(false);
 
   const syncNavbarTab = useCallback((screen: ScreenId) => {
-    if (screen === 'home' || screen === 'editor' || screen === 'nav' || screen === 'param_adjust' || screen === 'quick_cards' || screen === 'library' || screen === 'success' || screen === 'loading') {
+    if (screen === 'home' || screen === 'editor' || screen === 'nav' || screen === 'param_adjust' || screen === 'route_preview' || screen === 'quick_cards' || screen === 'library' || screen === 'success' || screen === 'loading') {
       setActiveNavbarTabState('home');
       return;
     }
@@ -205,6 +210,64 @@ export default function App() {
     navigateToScreen(screen);
   };
 
+  const handleGenerateTemplateRoute = useCallback(async (shapeId: string, targetKm?: number) => {
+    setSelectedShapeId(shapeId);
+    setIsRouteGenerating(true);
+    setRouteGenerationError(null);
+    navigateToScreen('loading');
+    try {
+      const route = await createTemplateRoute(shapeId, targetKm);
+      setGeneratedRoute(route);
+      navigateToScreen('route_preview', { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'route_generation_failed';
+      setRouteGenerationError(message);
+      miniToast('路线生成失败，请稍后重试');
+      navigateToScreen('home', { replace: true });
+    } finally {
+      setIsRouteGenerating(false);
+    }
+  }, [navigateToScreen]);
+
+  const handleUploadImageRoute = useCallback(async (file: File) => {
+    setIsRouteGenerating(true);
+    setRouteGenerationError(null);
+    navigateToScreen('loading');
+    try {
+      const route = await createImageRoute(file);
+      setSelectedShapeId(route.shapeType || 'custom');
+      setGeneratedRoute(route);
+      navigateToScreen('route_preview', { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'image_route_generation_failed';
+      setRouteGenerationError(message);
+      miniToast('图片路线生成失败，请换一张图试试');
+      navigateToScreen('home', { replace: true });
+    } finally {
+      setIsRouteGenerating(false);
+    }
+  }, [navigateToScreen]);
+
+  const handleStartGeneratedRoute = useCallback(async (riskConfirmed: boolean) => {
+    if (!generatedRoute) {
+      miniToast('请先生成路线');
+      return;
+    }
+    try {
+      await startRoute(generatedRoute.id, riskConfirmed);
+      navigateToScreen('nav');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('high')) {
+        miniToast('高风险路线不能直接开始，请调整后再试');
+      } else if (message.includes('confirmation')) {
+        miniToast('请先确认路线风险');
+      } else {
+        miniToast('开始导航失败，请稍后重试');
+      }
+    }
+  }, [generatedRoute, navigateToScreen]);
+
   return (
     <I18nProvider>
       <div
@@ -228,6 +291,12 @@ export default function App() {
           onNavigateFromSplash={handleNavigateFromSplash}
           onNavigateFromLogin={handleNavigateFromLogin}
           onNavigateFromProfileOrSettings={handleNavigateFromProfileOrSettings}
+          generatedRoute={generatedRoute}
+          isRouteGenerating={isRouteGenerating}
+          routeGenerationError={routeGenerationError}
+          onGenerateTemplateRoute={handleGenerateTemplateRoute}
+          onUploadImageRoute={handleUploadImageRoute}
+          onStartGeneratedRoute={handleStartGeneratedRoute}
         />
       </div>
     </I18nProvider>

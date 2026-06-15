@@ -193,11 +193,15 @@ const getLibraryItems = (activeTab: 'base' | 'recommend' | 'animal' | 'text' | '
 interface QuickTemplateScreenProps {
   onNavigate: (screen: ScreenId) => void;
   onSelectShape: (shapeId: string) => void;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
+  onUploadImageRoute: (file: File) => Promise<void>;
 }
 
 export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
   onNavigate,
   onSelectShape,
+  onGenerateTemplateRoute,
+  onUploadImageRoute,
 }) => {
   const { language } = useI18n();
   const text = (cn: string, en: string) => (language === 'en' ? en : cn);
@@ -226,7 +230,7 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
                 key={card.id}
                 onClick={() => {
                   onSelectShape(card.id);
-                  onNavigate('param_adjust');
+                  void onGenerateTemplateRoute(card.id);
                 }}
                 style={{ background: card.gradient }}
                 className="min-w-[144px] w-[144px] h-[168px] rounded-[24px] p-4 flex flex-col justify-between text-white shadow-[0_6px_16px_rgba(0,0,0,0.06)] cursor-pointer active:scale-98 transition-all hover:brightness-105"
@@ -277,12 +281,24 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
 
         {/* Upload Button Accent */}
         <button
-          onClick={() => onNavigate('editor')}
+          onClick={() => document.getElementById('quick_upload_image')?.click()}
           className="w-full flex items-center justify-center space-x-2 border-2 border-dashed border-gray-200 hover:border-[#4FACFE] py-4 rounded-2xl text-gray-500 hover:text-[#4FACFE] font-medium transition-colors bg-gray-50/50 mt-4"
         >
           <Plus size={18} />
           <span className="text-[13px]">{text('上传自定义图片', 'Upload Custom Image')}</span>
         </button>
+        <input
+          id="quick_upload_image"
+          type="file"
+          accept="image/png,image/jpeg"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            void onUploadImageRoute(file);
+            event.target.value = '';
+          }}
+        />
 
       </div>
     </div>
@@ -296,11 +312,14 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
 interface FullLibraryScreenProps {
   onNavigate: (screen: ScreenId) => void;
   onSelectShape: (shapeId: string) => void;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
+  onUploadImageRoute: (file: File) => Promise<void>;
 }
 
 export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
   onNavigate,
   onSelectShape,
+  onGenerateTemplateRoute,
 }) => {
   const { language } = useI18n();
   const text = (cn: string, en: string) => (language === 'en' ? en : cn);
@@ -354,7 +373,7 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
                 // Keep star logic if it maps correctly
                 const shapeId = ['circle','triangle','star','square','heart','hexagon'].includes(item.id) ? item.id : 'star';
                 onSelectShape(shapeId);
-                onNavigate('param_adjust');
+                void onGenerateTemplateRoute(shapeId);
               }}
               className={`rounded-[24px] bg-linear-to-tr ${item.bg} p-4 h-[124px] flex flex-col justify-between text-white relative shadow-md cursor-pointer hover:scale-[1.02] active:scale-98 transition-all overflow-hidden group`}
             >

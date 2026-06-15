@@ -12,9 +12,14 @@ import {
   Maximize2, 
   Sparkles, 
   RotateCw, 
-  Undo 
+  Undo,
+  ShieldAlert,
+  MapPin,
+  Route as RouteIcon,
+  AlertTriangle,
+  CheckCircle2
 } from 'lucide-react';
-import { ScreenId } from '../types';
+import { GeneratedRoute, GeoPoint, ScreenId } from '../types';
 import { useI18n } from '../i18n';
 
 /* ==========================================
@@ -253,6 +258,190 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
         </div>
       </div>
 
+    </div>
+  );
+};
+
+
+/* ==========================================
+   Screen 9.1: Route Preview & Risk Confirm (路线预览与风险确认)
+   ========================================== */
+interface RoutePreviewScreenProps {
+  onNavigate: (screen: ScreenId) => void;
+  selectedShapeId: string;
+  generatedRoute: GeneratedRoute | null;
+  isRouteGenerating: boolean;
+  routeGenerationError: string | null;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
+  onStartGeneratedRoute: (riskConfirmed: boolean) => Promise<void>;
+}
+
+function projectRoutePoints(points: GeoPoint[]): Array<{ x: number; y: number }> {
+  if (!Array.isArray(points) || points.length === 0) return [];
+  const minLat = Math.min(...points.map((point) => point.lat));
+  const maxLat = Math.max(...points.map((point) => point.lat));
+  const minLng = Math.min(...points.map((point) => point.lng));
+  const maxLng = Math.max(...points.map((point) => point.lng));
+  const latSpan = Math.max(0.000001, maxLat - minLat);
+  const lngSpan = Math.max(0.000001, maxLng - minLng);
+  return points.map((point) => ({
+    x: 24 + ((point.lng - minLng) / lngSpan) * 252,
+    y: 276 - ((point.lat - minLat) / latSpan) * 232,
+  }));
+}
+
+function routePolyline(points: GeoPoint[]): string {
+  return projectRoutePoints(points)
+    .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+    .join(' ');
+}
+
+export const RoutePreviewScreen: React.FC<RoutePreviewScreenProps> = ({
+  onNavigate,
+  selectedShapeId,
+  generatedRoute,
+  isRouteGenerating,
+  routeGenerationError,
+  onGenerateTemplateRoute,
+  onStartGeneratedRoute,
+}) => {
+  const { language } = useI18n();
+  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const [riskConfirmed, setRiskConfirmed] = useState(false);
+  const route = generatedRoute;
+  const riskLevel = route?.riskLevel || 'low';
+  const isHighRisk = riskLevel === 'high';
+  const needsConfirm = Boolean(route?.confirmRequired);
+  const canStart = Boolean(route) && !isHighRisk && (!needsConfirm || riskConfirmed);
+  const path = routePolyline(route?.points || []);
+  const projectedPoints = projectRoutePoints(route?.points || []);
+  const startCoord = projectedPoints[0];
+  const riskColor = riskLevel === 'high' ? 'text-rose-600 bg-rose-50 border-rose-100' : riskLevel === 'medium' ? 'text-amber-700 bg-amber-50 border-amber-100' : 'text-emerald-700 bg-emerald-50 border-emerald-100';
+
+  if (isRouteGenerating) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_55%,#eef7ff_100%)] px-6 text-center">
+        <div className="mb-5 h-12 w-12 rounded-full border-4 border-[#4FACFE] border-t-transparent animate-spin" />
+        <h2 className="text-[18px] font-black text-slate-900">{text('正在生成路线', 'Generating route')}</h2>
+        <p className="mt-2 text-[12px] leading-5 text-slate-500">{text('正在调用后端生成路线点，并使用高德步行规划做风险抽样。', 'Generating route points and checking walkability.')}</p>
+      </div>
+    );
+  }
+
+  if (!route) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-white px-6 text-center">
+        <AlertTriangle size={36} className="mb-4 text-amber-500" />
+        <h2 className="text-[18px] font-black text-slate-900">{text('暂无可预览路线', 'No route to preview')}</h2>
+        <p className="mt-2 text-[12px] text-slate-500">{routeGenerationError || text('请先选择模板或上传图片生成路线。', 'Choose a template or upload an image first.')}</p>
+        <button onClick={() => onNavigate('home')} className="mt-6 rounded-full bg-[#4FACFE] px-5 py-2.5 text-[13px] font-bold text-white">
+          {text('返回首页', 'Back home')}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_42%,#eef7ff_100%)] text-slate-900 select-none">
+      <div className="flex items-center justify-between px-4 pt-[calc(var(--tc-safe-top)+12px)] pb-3">
+        <button onClick={() => onNavigate('home')} className="rounded-full p-1.5 text-slate-500 active:bg-slate-100">
+          <ArrowLeft size={19} />
+        </button>
+        <h2 className="text-[16px] font-black">{text('路线预览', 'Route Preview')}</h2>
+        <button
+          onClick={() => { setRiskConfirmed(false); void onGenerateTemplateRoute(selectedShapeId); }}
+          className="rounded-full bg-white/80 px-3 py-1.5 text-[11px] font-bold text-[#4FACFE] shadow-sm"
+        >
+          {text('重新生成', 'Regenerate')}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="relative h-[300px] overflow-hidden rounded-[20px] border border-white/80 bg-[#eaf3fa] shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+          <svg viewBox="0 0 300 300" className="h-full w-full">
+            <rect width="300" height="300" fill="#EAF3FA" />
+            <path d="M -20 92 C 78 106 171 74 320 98" fill="none" stroke="#fff" strokeWidth="12" opacity="0.85" />
+            <path d="M 74 -20 C 86 78 86 190 92 320" fill="none" stroke="#fff" strokeWidth="10" opacity="0.75" />
+            <path d="M -20 220 C 94 188 186 226 320 190" fill="none" stroke="#fff" strokeWidth="10" opacity="0.8" />
+            {path && <polyline points={path} fill="none" stroke="#FF6B35" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />}
+            {startCoord && <circle cx={startCoord.x} cy={startCoord.y} r="6" fill="#10B981" />}
+          </svg>
+          <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[11px] font-bold text-slate-600 shadow-sm">
+            {text('高德步行风险抽样', 'AMap walkability check')}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+            <RouteIcon size={16} className="mx-auto mb-1 text-[#4FACFE]" />
+            <p className="text-[10px] font-bold text-slate-400">{text('距离', 'Distance')}</p>
+            <p className="text-[14px] font-black text-slate-900">{((route.meta.distanceM || 0) / 1000).toFixed(2)}km</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+            <ShieldAlert size={16} className="mx-auto mb-1 text-amber-500" />
+            <p className="text-[10px] font-bold text-slate-400">{text('可跑分', 'Run score')}</p>
+            <p className="text-[14px] font-black text-slate-900">{route.runnableScore ?? 80}</p>
+          </div>
+          <div className="rounded-2xl bg-white p-3 text-center shadow-sm">
+            <MapPin size={16} className="mx-auto mb-1 text-emerald-500" />
+            <p className="text-[10px] font-bold text-slate-400">{text('起点', 'Start')}</p>
+            <p className="text-[14px] font-black text-slate-900">{route.startPointStatus?.distanceM ?? 0}m</p>
+          </div>
+        </div>
+
+        <div className={`mt-4 rounded-2xl border p-4 ${riskColor}`}>
+          <div className="flex items-start gap-3">
+            {riskLevel === 'low' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+            <div>
+              <h3 className="text-[14px] font-black">{route.riskSummary || text('路线需要预览确认', 'Route needs review')}</h3>
+              <p className="mt-1 text-[12px] leading-5 opacity-80">
+                {text('开始导航前请确认路线没有穿越封闭道路、水域或机动车专用路。', 'Check the route before starting navigation.')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {(route.riskSegments || []).length === 0 ? (
+            <div className="rounded-2xl bg-white p-3 text-[12px] font-semibold text-slate-500 shadow-sm">
+              {text('未发现明显风险，仍建议实际开跑前确认周边路况。', 'No obvious risk found. Check local road conditions before running.')}
+            </div>
+          ) : (
+            route.riskSegments?.map((segment, index) => (
+              <div key={`${segment.type}-${index}`} className="rounded-2xl bg-white p-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-black text-slate-800">{segment.message}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">{segment.level}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-white/80 bg-white/90 px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] backdrop-blur-xl">
+        {needsConfirm && !isHighRisk && (
+          <button
+            onClick={() => setRiskConfirmed((value) => !value)}
+            className={`mb-2 flex w-full items-center justify-center gap-2 rounded-2xl border py-2.5 text-[13px] font-bold ${riskConfirmed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}
+          >
+            <CheckCircle2 size={16} />
+            {riskConfirmed ? text('已确认风险', 'Risk confirmed') : text('我已预览并确认风险', 'I reviewed the risk')}
+          </button>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => onNavigate('param_adjust')} className="rounded-[28px] border border-slate-200 bg-white py-3 text-[14px] font-black text-slate-700">
+            {text('调整起点/距离', 'Adjust')}
+          </button>
+          <button
+            disabled={!canStart}
+            onClick={() => void onStartGeneratedRoute(riskConfirmed || !needsConfirm)}
+            className="rounded-[28px] bg-linear-to-r from-[#4FACFE] to-[#00F2FE] py-3 text-[14px] font-black text-white shadow-md shadow-blue-500/20 disabled:opacity-40"
+          >
+            {isHighRisk ? text('高风险阻断', 'Blocked') : text('确认并开始', 'Start')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

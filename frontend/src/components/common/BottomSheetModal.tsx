@@ -11,12 +11,14 @@ import { useI18n } from '../../i18n';
 interface BottomSheetModalProps {
   onClose: () => void;
   onSelect: (shapeId: string) => void;
+  onUploadImage: (file: File) => Promise<void>;
   selectedShapeId: string;
 }
 
 export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
   onClose,
   onSelect,
+  onUploadImage,
   selectedShapeId,
 }) => {
   const { t, language } = useI18n();
@@ -53,8 +55,12 @@ export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
             return (
               <div
                 key={item.id}
-                onClick={() => onSelect(item.id)}
-                className="flex flex-col items-center min-w-[62px] cursor-pointer group"
+                onClick={() => {
+                  if (item.id !== 'custom') {
+                    onSelect(item.id);
+                  }
+                }}
+                className="relative flex flex-col items-center min-w-[62px] cursor-pointer group"
               >
                 {/* Active circle frame */}
                 <div 
@@ -73,6 +79,20 @@ export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
                 <span className={`text-[12px] mt-2 font-medium ${isSelected ? 'text-[#4FACFE] font-bold' : 'text-gray-500'}`}>
                   {item.name}
                 </span>
+                {item.id === 'custom' && (
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    aria-label={text('上传自定义图片', 'Upload custom image')}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      onClose();
+                      void onUploadImage(file);
+                    }}
+                  />
+                )}
               </div>
             );
           })}

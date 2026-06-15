@@ -32,6 +32,8 @@ import type {
   RouteMeta,
   RouteBounds,
   RouteContext,
+  RouteRiskSegment,
+  RouteStartPointStatus,
   Session,
   SessionMetrics,
   ListRunsQuery,
@@ -98,6 +100,21 @@ const PROVIDER_KEY_ENV: Record<string, string> = {
   amap: 'AMAP_KEY',
   google: 'GOOGLE_MAPS_KEY',
   baidu: 'BAIDU_MAP_KEY',
+};
+
+const RISK_LEVEL_WEIGHT: Record<'low' | 'medium' | 'high', number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+const TEMPLATE_TARGET_KM: Record<string, number> = {
+  circle: 3.5,
+  triangle: 3,
+  square: 4,
+  star: 5,
+  heart: 4.2,
+  hexagon: 4.8,
 };
 
 // ===== 工具函数 =====
@@ -379,6 +396,252 @@ function toPositiveNumber(value: unknown, fallback: number): number {
   return Number.isFinite(normalized) ? normalized : fallback;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function routeRiskSummary(level: 'low' | 'medium' | 'high'): string {
+  if (level === 'high') return '路线存在高风险路段，请调整起点或重新生成后再导航';
+  if (level === 'medium') return '路线需要用户确认，建议先预览并调整起点';
+  return '路线风险较低，可预览确认后开始导航';
+}
+
+function mergeRiskLevel(segments: RouteRiskSegment[]): 'low' | 'medium' | 'high' {
+  return segments.reduce<'low' | 'medium' | 'high'>((level, segment) => {
+    return RISK_LEVEL_WEIGHT[segment.level] > RISK_LEVEL_WEIGHT[level] ? segment.level : level;
+  }, 'low');
+}
+
+function buildStartPointStatus(route: Route, currentPoint: GeoPoint | null, accuracyM: number | null): RouteStartPointStatus {
+  if (!currentPoint || !route.meta?.start) {
+    return {
+      distanceM: null,
+      accuracyM,
+      status: accuracyM !== null && accuracyM > 50 ? 'poor_accuracy' : 'unknown',
+      suggestRebase: true,
+    };
+  }
+
+  const distanceM = Math.round(pointDistanceMeters(currentPoint, route.meta.start));
+  const poorAccuracy = accuracyM !== null && accuracyM > 50;
+  return {
+    distanceM,
+    accuracyM,
+    status: poorAccuracy ? 'poor_accuracy' : distanceM > 100 ? 'far' : 'ok',
+    suggestRebase: poorAccuracy || distanceM > 100,
+  };
+}
+
+function addLocalRiskSegments(route: Route, currentPoint: GeoPoint | null, accuracyM: number | null): RouteRiskSegment[] {
+  const segments: RouteRiskSegment[] = [];
+  const startStatus = buildStartPointStatus(route, currentPoint, accuracyM);
+  if (startStatus.status === 'poor_accuracy') {
+    segments.push({
+      type: 'gps_accuracy',
+      level: 'medium',
+      message: '当前定位精度较低，建议重试定位或手动选择起点',
+    });
+  }
+  if (startStatus.status === 'far') {
+    segments.push({
+      type: 'start_point_far',
+      level: 'medium',
+      message: `当前位置距离路线起点约 ${startStatus.distanceM} 米，建议调整起点`,
+      from: currentPoint || undefined,
+      to: route.meta.start,
+    });
+  }
+
+  const targetMeters = Number(route.targetKm || route.adjustedDistanceKm || 0) * 1000;
+  const distanceM = Number(route.meta?.distanceM || 0);
+  if (targetMeters > 0 && distanceM > 0) {
+    const diffRatio = Math.abs(distanceM - targetMeters) / targetMeters;
+    if (diffRatio > 0.25) {
+      segments.push({
+        type: 'distance_deviation',
+        level: 'medium',
+        message: '生成路线与目标距离偏差较大，建议调整目标距离或重新生成',
+      });
+    }
+  }
+
+  for (let i = 1; i < route.points.length; i += 1) {
+    const segmentDistance = pointDistanceMeters(route.points[i - 1], route.points[i]);
+    if (segmentDistance > 600) {
+      segments.push({
+        type: 'long_segment',
+        level: 'medium',
+        message: '路线存在过长直连片段，可能穿越不可通行区域',
+        from: route.points[i - 1],
+        to: route.points[i],
+      });
+      break;
+    }
+  }
+
+  return segments;
+}
+
+function toLngLat(point: GeoPoint): string {
+  return `${point.lng.toFixed(6)},${point.lat.toFixed(6)}`;
+}
+
+function sampleAmapWalkingSegments(points: GeoPoint[]): Array<{ from: GeoPoint; to: GeoPoint }> {
+  if (points.length < 8) return [];
+  const pairs: Array<{ from: GeoPoint; to: GeoPoint }> = [];
+  const indexes = [0.12, 0.38, 0.64].map((ratio) => Math.floor(points.length * ratio));
+  const step = Math.max(2, Math.floor(points.length / 12));
+  indexes.forEach((index) => {
+    const from = points[index];
+    const to = points[Math.min(points.length - 1, index + step)];
+    if (from && to && pointDistanceMeters(from, to) > 80) {
+      pairs.push({ from, to });
+    }
+  });
+  return pairs;
+}
+
+async function getAmapWalkingDistance(from: GeoPoint, to: GeoPoint): Promise<number | null> {
+  const key = process.env.AMAP_KEY;
+  if (!key) return null;
+  const url = new URL('https://restapi.amap.com/v3/direction/walking');
+  url.searchParams.set('key', key);
+  url.searchParams.set('origin', toLngLat(from));
+  url.searchParams.set('destination', toLngLat(to));
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      status?: string;
+      route?: { paths?: Array<{ distance?: string }> };
+    };
+    if (payload.status !== '1') return null;
+    const distance = Number(payload.route?.paths?.[0]?.distance);
+    return Number.isFinite(distance) ? distance : null;
+  } catch {
+    return null;
+  }
+}
+
+async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> {
+  if (normalizeProvider(route.providerHint) !== 'amap' || !process.env.AMAP_KEY) return [];
+  const segments: RouteRiskSegment[] = [];
+  const samples = sampleAmapWalkingSegments(route.points);
+  let checked = 0;
+  for (const sample of samples) {
+    const directDistance = pointDistanceMeters(sample.from, sample.to);
+    const walkingDistance = await getAmapWalkingDistance(sample.from, sample.to);
+    if (walkingDistance === null) continue;
+    checked += 1;
+    const detourRatio = walkingDistance / Math.max(1, directDistance);
+    if (detourRatio > 4 && walkingDistance - directDistance > 500) {
+      segments.push({
+        type: 'amap_walk_detour',
+        level: 'high',
+        message: '高德步行规划显示该片段绕行明显，疑似不可直达',
+        from: sample.from,
+        to: sample.to,
+      });
+    } else if (detourRatio > 2.5 && walkingDistance - directDistance > 250) {
+      segments.push({
+        type: 'amap_walk_detour',
+        level: 'medium',
+        message: '高德步行规划显示该片段需要较大绕行，建议预览确认',
+        from: sample.from,
+        to: sample.to,
+      });
+    }
+  }
+  if (samples.length > 0 && checked === 0) {
+    segments.push({
+      type: 'amap_walk_unavailable',
+      level: 'medium',
+      message: '暂未获取到高德步行规划结果，请人工预览路线后再开始',
+    });
+  }
+  return segments;
+}
+
+async function enrichRouteRisk(
+  route: Route,
+  options: { currentPoint?: GeoPoint | null; currentAccuracy?: number | null } = {}
+): Promise<Route> {
+  const currentPoint = options.currentPoint || route.startPoint || route.meta.start || null;
+  const currentAccuracy =
+    options.currentAccuracy !== undefined && Number.isFinite(Number(options.currentAccuracy))
+      ? Number(options.currentAccuracy)
+      : null;
+  const localSegments = addLocalRiskSegments(route, currentPoint, currentAccuracy);
+  const amapSegments = await assessAmapWalkability(route);
+  const riskSegments = [...localSegments, ...amapSegments];
+  const riskLevel = mergeRiskLevel(riskSegments);
+  const startPointStatus = buildStartPointStatus(route, currentPoint, currentAccuracy);
+  const runnableScore = clamp(95 - riskSegments.reduce((sum, item) => sum + (item.level === 'high' ? 35 : item.level === 'medium' ? 18 : 6), 0), 0, 100);
+  const shapeSimilarityScore = route.source?.createdBy === 'template' ? 92 : 78;
+  return {
+    ...route,
+    riskLevel,
+    riskSegments,
+    startPointStatus,
+    runnableScore,
+    shapeSimilarityScore,
+    confirmRequired: riskLevel !== 'low' || startPointStatus.status !== 'ok',
+    riskSummary: routeRiskSummary(riskLevel),
+  };
+}
+
+function metersToPoint(origin: GeoPoint, eastM: number, northM: number): GeoPoint {
+  const lat = origin.lat + northM / 111320;
+  const lng = origin.lng + eastM / (111320 * Math.cos((origin.lat * Math.PI) / 180));
+  return { lat, lng };
+}
+
+function buildTemplateUnitPoints(shapeType: string): Array<{ x: number; y: number }> {
+  if (shapeType === 'circle') {
+    return Array.from({ length: 80 }, (_, index) => {
+      const a = (Math.PI * 2 * index) / 80;
+      return { x: Math.cos(a), y: Math.sin(a) };
+    });
+  }
+  if (shapeType === 'triangle') {
+    return [{ x: 0, y: -1 }, { x: 0.9, y: 0.8 }, { x: -0.9, y: 0.8 }, { x: 0, y: -1 }];
+  }
+  if (shapeType === 'square') {
+    return [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }, { x: -1, y: -1 }];
+  }
+  if (shapeType === 'heart') {
+    return Array.from({ length: 120 }, (_, index) => {
+      const t = (Math.PI * 2 * index) / 120;
+      const x = (16 * Math.sin(t) ** 3) / 18;
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 18;
+      return { x, y };
+    });
+  }
+  const outer = 1;
+  const inner = 0.42;
+  return Array.from({ length: 11 }, (_, index) => {
+    const radius = index % 2 === 0 ? outer : inner;
+    const a = -Math.PI / 2 + (Math.PI * index) / 5;
+    return { x: Math.cos(a) * radius, y: Math.sin(a) * radius };
+  });
+}
+
+function generateTemplatePoints(shapeType: string, center: GeoPoint, targetKm: number): GeoPoint[] {
+  const unit = buildTemplateUnitPoints(shapeType);
+  const perimeterUnit = unit.reduce((sum, point, index) => {
+    if (index === 0) return 0;
+    const prev = unit[index - 1];
+    return sum + Math.hypot(point.x - prev.x, point.y - prev.y);
+  }, 0);
+  const targetMeters = Math.max(1000, targetKm * 1000);
+  const scaleM = targetMeters / Math.max(1, perimeterUnit);
+  const raw = unit.map((point, index) => ({
+    ...metersToPoint(center, point.x * scaleM, -point.y * scaleM),
+    ts: Date.now() + index * 1000,
+  }));
+  return resampleByDistance(angleSmooth(raw), 60);
+}
+
 // ===== 核心接口 =====
 
 /** 创建路线请求参数 */
@@ -391,6 +654,17 @@ export interface CreateRouteParams {
   targetKm?: number | null;
   startPoint?: unknown;
   endPoint?: unknown;
+  currentAccuracy?: number | null;
+}
+
+export interface CreateTemplateRouteParams {
+  userId: string | null;
+  shapeType: string;
+  provider?: string | null;
+  locale?: string | null;
+  targetKm?: number | null;
+  startPoint?: unknown;
+  currentAccuracy?: number | null;
 }
 
 /**
@@ -398,7 +672,7 @@ export interface CreateRouteParams {
  * 当前为 V1 原型，使用种子生成 Demo 路线，未来替换为 AI 图像识别
  */
 export async function createRouteFromImage(params: CreateRouteParams): Promise<Route> {
-  const { userId, filename, buffer, provider, locale, targetKm, startPoint, endPoint } = params;
+  const { userId, filename, buffer, provider, locale, targetKm, startPoint, endPoint, currentAccuracy } = params;
   await initStorage();
   const seed = randomSeedFromString(filename + (buffer ? buffer.length : 0));
   const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
@@ -439,9 +713,64 @@ export async function createRouteFromImage(params: CreateRouteParams): Promise<R
     created.endPoint = points[points.length - 1];
   }
   const adjusted = normalizeRouteForProvider(created, normalizeProvider(provider));
-  return upsertRouteRecord(adjusted, {
+  const withRisk = await enrichRouteRisk(adjusted, {
+    currentPoint: adjusted.startPoint,
+    currentAccuracy,
+  });
+  return upsertRouteRecord(withRisk, {
     userId: userId || undefined,
     changeReason: 'create',
+    expectedVersion: 0,
+  });
+}
+
+/** 根据基础图形模板生成路线 */
+export async function createRouteFromTemplate(params: CreateTemplateRouteParams): Promise<Route> {
+  const { userId, shapeType, provider, locale, targetKm, startPoint, currentAccuracy } = params;
+  await initStorage();
+  const normalizedShape = String(shapeType || 'star').trim() || 'star';
+  const target = Number.isFinite(Number(targetKm)) && Number(targetKm) > 0
+    ? Number(targetKm)
+    : TEMPLATE_TARGET_KM[normalizedShape] || 5;
+  const routeId = id('route');
+  const normalizedLocale = normalizeLocale(locale);
+  const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
+  const rawPoints = generateTemplatePoints(normalizedShape, baseStart!, target);
+  const meta = routeMeta(rawPoints);
+  const created: Route = {
+    id: routeId,
+    userId: userId || '',
+    locale: normalizedLocale,
+    source: {
+      filename: `${normalizedShape}-template`,
+      createdBy: 'template',
+      seed: randomSeedFromString(normalizedShape),
+    },
+    createdBy: 'backend-template-service',
+    points: rawPoints,
+    version: 1,
+    anchorVersion: 1,
+    providerHint: normalizeProvider(provider),
+    crsHint: normalizeProvider(provider) === 'google' ? 'wgs84' : 'gcj02',
+    startPoint: baseStart,
+    endPoint: rawPoints[rawPoints.length - 1],
+    bounds: routeBounds(rawPoints),
+    meta,
+    status: 'active',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    targetKm: target,
+    actualDistanceM: Math.round(meta.distanceM),
+    shapeType: normalizedShape,
+  };
+  const adjusted = normalizeRouteForProvider(created, normalizeProvider(provider));
+  const withRisk = await enrichRouteRisk(adjusted, {
+    currentPoint: adjusted.startPoint,
+    currentAccuracy,
+  });
+  return upsertRouteRecord(withRisk, {
+    userId: userId || undefined,
+    changeReason: 'create-template',
     expectedVersion: 0,
   });
 }
@@ -478,7 +807,11 @@ export async function adjustRouteDistance(
     meta,
     updatedAt: nowIso(),
   };
-  return upsertRouteRecord(adjusted, {
+  const withRisk = await enrichRouteRisk(adjusted, {
+    currentPoint: adjusted.startPoint,
+    currentAccuracy: adjusted.startPointStatus?.accuracyM ?? null,
+  });
+  return upsertRouteRecord(withRisk, {
     userId: userId || undefined,
     changeReason: 'adjust',
     expectedVersion: route.version,
@@ -515,7 +848,11 @@ export async function rebaseRoute(
     rebaseStrategy: strategy || 'manual',
     updatedAt: nowIso(),
   };
-  return upsertRouteRecord(updated, {
+  const withRisk = await enrichRouteRisk(updated, {
+    currentPoint: start,
+    currentAccuracy: updated.startPointStatus?.accuracyM ?? null,
+  });
+  return upsertRouteRecord(withRisk, {
     userId: userId || undefined,
     changeReason: 'rebase',
     expectedVersion: route.version,
@@ -538,11 +875,18 @@ export async function startRunSession(
   routeId: string,
   userId: string | null,
   provider: string | null | undefined,
-  idempotencyKey: string | undefined
+  idempotencyKey: string | undefined,
+  riskConfirmed: boolean = false
 ): Promise<StartSessionResult | null> {
   await initStorage();
   const route = await getRouteRecord(routeId, userId);
   if (!route) return null;
+  if (route.riskLevel === 'high') {
+    throw new Error('route_high_risk');
+  }
+  if (route.confirmRequired && !riskConfirmed) {
+    throw new Error('route_risk_confirmation_required');
+  }
   const firstPoint = route.points[0];
   const sessionId = idempotencyKey ? `session-${idempotencyKey}` : id('session');
   const existing = await getSessionRecord(sessionId, userId);

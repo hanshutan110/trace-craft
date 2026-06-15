@@ -17,6 +17,7 @@ export type ScreenId =
   | 'param_adjust'  // 7. 参数调节页
   | 'quick_cards'   // 8. 快速模板页
   | 'loading'       // 9. 图片生成加载中
+  | 'route_preview' // 9.1 路线预览与风险确认
   | 'library'       // 10. 预设图形选择页
   | 'login'         // 11. 注册登录页
   | 'profile'       // 12. 个人中心页
@@ -58,4 +59,51 @@ export interface HistoryRecord {
   time: string;
   date: string;
   shapeType: ShapeType;
+}
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+  ts?: number;
+}
+
+export type RouteRiskLevel = 'low' | 'medium' | 'high';
+
+export interface RouteRiskSegment {
+  type: string;
+  level: RouteRiskLevel;
+  message: string;
+  from?: GeoPoint;
+  to?: GeoPoint;
+}
+
+export interface RouteStartPointStatus {
+  distanceM: number | null;
+  accuracyM: number | null;
+  status: 'ok' | 'far' | 'poor_accuracy' | 'unknown';
+  suggestRebase: boolean;
+}
+
+export interface GeneratedRoute {
+  id: string;
+  points: GeoPoint[];
+  providerHint: string;
+  crsHint: string;
+  startPoint: GeoPoint | null;
+  endPoint: GeoPoint | null;
+  meta: {
+    distanceM: number;
+    start: GeoPoint;
+    end: GeoPoint;
+  };
+  targetKm: number | null;
+  actualDistanceM: number;
+  riskLevel?: RouteRiskLevel;
+  riskSegments?: RouteRiskSegment[];
+  runnableScore?: number;
+  shapeSimilarityScore?: number;
+  startPointStatus?: RouteStartPointStatus;
+  confirmRequired?: boolean;
+  riskSummary?: string;
+  shapeType?: string;
 }
