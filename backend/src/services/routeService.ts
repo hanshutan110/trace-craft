@@ -41,24 +41,23 @@ import type {
   AppendLocationResult,
 } from './storage';
 
+// 地图配置从独立模块导入
+import {
+  normalizeProvider,
+  normalizeLocale,
+  getMapConfig,
+  seedWgs84ToProvider,
+  getLocaleMeta,
+  splitList,
+} from './map-config';
+
 // 从 geo 模块重新导出 GeoPoint，供 index.ts 使用
 export type { GeoPoint } from '../utils/geo';
 
+// 重新导出地图配置函数，保持向后兼容
+export { normalizeProvider, normalizeLocale, getMapConfig, seedWgs84ToProvider, getLocaleMeta, splitList };
+
 // ===== 常量与配置 =====
-
-/** 默认地图服务商，未指定时使用高德 */
-const DEFAULT_PROVIDER: string = process.env.MAP_PROVIDER_DEFAULT || 'amap';
-/** 支持的地图服务商列表 */
-const MAP_PROVIDER_LIST: string[] = (process.env.MAP_PROVIDER_LIST || 'amap,google,baidu')
-  .split(',')
-  .map((value) => value.trim())
-  .filter(Boolean);
-const DEFAULT_LOCALE: string = process.env.MAP_LOCALE_FALLBACK || 'zh-CN';
-
-const LOCALE_LABELS: Record<string, string> = {
-  'zh-CN': '中文',
-  'en-US': 'English',
-};
 
 /** 导航会话状态枚举 */
 export const SESSION_STATUS = {
@@ -78,28 +77,6 @@ const SESSION_NEXT_ACTION: Record<string, string> = {
   [SESSION_STATUS.PAUSED]: 'resume_or_review',
   [SESSION_STATUS.FINISHED]: 'summary',
   [SESSION_STATUS.FAILED]: 'retry_or_rebase',
-};
-
-/** 服务商功能特性 */
-interface ProviderFeatures {
-  supportPoi: boolean;
-  offlineTile: boolean;
-  navHints: boolean;
-  geocode?: boolean;
-}
-
-// 各服务商支持的功能特性
-const PROVIDER_FEATURES: Record<string, ProviderFeatures> = {
-  amap: { supportPoi: true, offlineTile: false, navHints: true, geocode: true },
-  google: { supportPoi: true, offlineTile: false, navHints: true, geocode: true },
-  baidu: { supportPoi: true, offlineTile: false, navHints: true },
-};
-
-// 服务商 API Key 对应的环境变量名
-const PROVIDER_KEY_ENV: Record<string, string> = {
-  amap: 'AMAP_KEY',
-  google: 'GOOGLE_MAPS_KEY',
-  baidu: 'BAIDU_MAP_KEY',
 };
 
 const RISK_LEVEL_WEIGHT: Record<'low' | 'medium' | 'high', number> = {
@@ -127,68 +104,10 @@ function id(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
-function splitList(value: string | undefined): string[] {
-  return String(value || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-const SUPPORTED_LOCALES: string[] = (() => {
-  const locales = splitList(process.env.MAP_LOCALES || 'zh-CN,en-US');
-  const uniq = [...new Set(locales)];
-  return uniq.length ? uniq : ['zh-CN', 'en-US'];
-})();
-
-function withLocaleFallback(fallback: string): string {
-  return SUPPORTED_LOCALES.includes(fallback) ? fallback : (SUPPORTED_LOCALES[0] || 'zh-CN');
-}
-
-/** 标准化地图服务商名称，不在列表中时回退到默认值 */
-export function normalizeProvider(value: string | undefined | null): string {
-  if (!value) return DEFAULT_PROVIDER;
-  if (MAP_PROVIDER_LIST.includes(value)) return value;
-  return DEFAULT_PROVIDER;
-}
-
-/** 标准化语言代码，不在支持列表中时回退到默认语言 */
-export function normalizeLocale(value: string | undefined | null): string {
-  if (!value || typeof value !== 'string') return DEFAULT_LOCALE;
-  const normalized = value.trim();
-  if (SUPPORTED_LOCALES.includes(normalized)) return normalized;
-  return withLocaleFallback(DEFAULT_LOCALE);
-}
-
-function parseLocaleLabels(value: string): Record<string, string> {
-  if (!value || typeof value !== 'string') return {};
-  try {
-    const parsed = JSON.parse(value);
-    if (!parsed || typeof parsed !== 'object') return {};
-    return parsed as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
 function parsePoint(raw: unknown, fallback: GeoPoint | null = null): GeoPoint | null {
   const point = normalizePoint(raw || {});
   if (point) return point;
   return fallback;
-}
-
-function getLocaleMeta() {
-  const safeDefault = withLocaleFallback(DEFAULT_LOCALE);
-  const labelsFromEnv = parseLocaleLabels(process.env.MAP_LOCALE_LABELS || '');
-  const locales = SUPPORTED_LOCALES.length > 0 ? SUPPORTED_LOCALES : ['zh-CN', 'en-US'];
-  return {
-    localeFallback: safeDefault,
-    locales,
-    localeLabels: locales.map((code) => ({
-      code,
-      label: labelsFromEnv[code] || LOCALE_LABELS[code] || code,
-    })),
-    localeVersion: process.env.MAP_LOCALE_LABEL_VERSION || 'v1',
-  };
 }
 
 // ===== 路线计算函数 =====
@@ -1129,58 +1048,3 @@ export async function listUserRuns(
   });
 }
 
-/**
- * 获取地图配置信息
- * 返回：服务商列表及特性、默认服务商、语言配置、坐标策略、缓存版本号
- */
-export function getMapConfig() {
-  const providers = MAP_PROVIDER_LIST.map((key) => {
-    const envKey = PROVIDER_KEY_ENV[key];
-    const hasApiKey = Boolean(process.env[envKey]);
-    return {
-      key,
-      features: PROVIDER_FEATURES[key] || {},
-      keyRequired: Boolean(envKey),
-      hasApiKey,
-    };
-  });
-  const version = crypto
-    .createHash('md5')
-    .update(
-      JSON.stringify({
-        providers,
-        defaultProvider: DEFAULT_PROVIDER,
-        localeMeta: getLocaleMeta(),
-      })
-    )
-    .digest('hex');
-
-  return {
-    providers,
-    defaultProvider: DEFAULT_PROVIDER,
-    ...getLocaleMeta(),
-    crsPolicy: {
-      internal: 'wgs84',
-      domesticHint: 'gcj02',
-    },
-    mapConfigVersion: version,
-    cacheSeconds: Number(process.env.MAP_CONFIG_CACHE_SECONDS || '300'),
-    updatedAt: nowIso(),
-  };
-}
-
-/** 将 WGS84 坐标按服务商转换为对应坐标系 */
-export function seedWgs84ToProvider(point: GeoPoint, provider: string | undefined): GeoPoint {
-  const providerNorm = normalizeProvider(provider);
-  const converted =
-    providerNorm === 'google'
-      ? { lat: point.lat, lng: point.lng }
-      : convertPoint(point, 'wgs84', 'gcj02');
-  return converted || point;
-}
-
-export function toMsNumber(value: unknown, fallback: number): number {
-  return toPositiveNumber(value, fallback);
-}
-
-export { getLocaleMeta, splitList };

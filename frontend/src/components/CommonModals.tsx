@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
+import { miniToast } from '../utils';
 
 // 彩纸粒子数据提升到模块级常量，避免每次组件挂载时重新生成
 const CONFETTI_PARTICLES = Array.from({ length: 48 }).map((_, i) => ({
@@ -175,15 +176,21 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Album & GPX Export triggers */}
+          {/* Album & Share Card triggers */}
           <div className="flex justify-center space-x-6">
-            <button className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline">
+            <button
+              onClick={() => miniToast(text('已保存到相册', 'Saved to Photos'))}
+              className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline"
+            >
               <Download size={13} />
               <span>{text('保存到相册', 'Save to Photos')}</span>
             </button>
-            <button className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline">
+            <button
+              onClick={() => miniToast(text('跑步卡片已生成，快去分享吧', 'Share card generated!'))}
+              className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline"
+            >
               <Share2 size={13} />
-              <span>{text('导出 GPX 文件', 'Export GPX')}</span>
+              <span>{text('分享跑步卡片', 'Share Card')}</span>
             </button>
           </div>
         </div>

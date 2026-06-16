@@ -11,12 +11,9 @@
  * 所有坐标点统一使用 GeoPoint 接口，保证经纬度类型安全
  */
 
-/** 地理坐标点，经纬度均为 number 类型 */
-export interface GeoPoint {
-  lat: number;
-  lng: number;
-  ts?: number;
-}
+// GeoPoint 从 shared/types 统一导入并重新导出
+export type { GeoPoint } from '../../../shared/types';
+import type { GeoPoint } from '../../../shared/types';
 
 /** 缩放选项，控制输出点数范围 */
 export interface ScaleOptions {

@@ -482,13 +482,13 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
             <span className="text-[10px] text-slate-500 font-medium leading-none">{text('分享', 'Share')}</span>
           </button>
           <button 
-            onClick={() => miniToast(text('导出GPX轨迹记录', 'Export GPX route file'))}
+            onClick={() => miniToast(text('跑步卡片已生成，快去分享吧', 'Share card generated!'))}
             className="flex flex-col items-center space-y-1 group"
           >
             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-cyan-50 transition-colors text-slate-500 group-hover:text-cyan-600">
               <Download size={16} />
             </div>
-            <span className="text-[10px] text-slate-500 font-medium leading-none">{text('导出GPX', 'Export GPX')}</span>
+            <span className="text-[10px] text-slate-500 font-medium leading-none">{text('分享卡片', 'Share Card')}</span>
           </button>
           <button 
             onClick={() => miniToast(text('已收藏该模板', 'Saved to templates'))}

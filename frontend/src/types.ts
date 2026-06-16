@@ -1,10 +1,28 @@
 /**
  * TraceCraft 前端类型定义
  *
- * ScreenId —— 应用内所有屏幕的唯一标识符
- * PresetShape —— 预设图形模板数据结构
- * HistoryRecord —— 跑步历史记录数据结构
+ * 共享类型（GeoPoint、Route、Session 等）从 shared/types.ts 统一导入，
+ * 此文件仅定义前端独有的类型（屏幕 ID、UI 组件数据结构等）。
  */
+
+// ===== 从 shared 重新导出前后端共享类型 =====
+export type {
+  GeoPoint,
+  RouteRiskLevel,
+  RouteRiskSegment,
+  RouteStartPointStatus,
+  Route,
+  RouteBounds,
+  RouteMeta,
+  SessionStatus,
+  SessionState,
+  FinishResult,
+  MapProvider,
+  CrsType,
+  ApiResponse,
+} from '../../shared/types';
+
+// ===== 前端独有类型 =====
 
 /** 应用屏幕 ID 枚举，对应各个功能页面 */
 export type ScreenId =
@@ -36,6 +54,9 @@ export type ScreenId =
   | 'post_detail'   // 25. 作品详情页（社区）
   | 'notifications'; // 26. 消息通知页
 
+/** 预设图形类型 */
+export type ShapeType = 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus' | 'cat';
+
 /** 预设图形模板（如五角星、心形等） */
 export interface PresetShape {
   id: string;
@@ -48,9 +69,6 @@ export interface PresetShape {
   isHot?: boolean;
 }
 
-/** 预设图形类型 */
-export type ShapeType = 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus' | 'cat';
-
 /** 跑步历史记录 */
 export interface HistoryRecord {
   id: string;
@@ -61,49 +79,5 @@ export interface HistoryRecord {
   shapeType: ShapeType;
 }
 
-export interface GeoPoint {
-  lat: number;
-  lng: number;
-  ts?: number;
-}
-
-export type RouteRiskLevel = 'low' | 'medium' | 'high';
-
-export interface RouteRiskSegment {
-  type: string;
-  level: RouteRiskLevel;
-  message: string;
-  from?: GeoPoint;
-  to?: GeoPoint;
-}
-
-export interface RouteStartPointStatus {
-  distanceM: number | null;
-  accuracyM: number | null;
-  status: 'ok' | 'far' | 'poor_accuracy' | 'unknown';
-  suggestRebase: boolean;
-}
-
-export interface GeneratedRoute {
-  id: string;
-  points: GeoPoint[];
-  providerHint: string;
-  crsHint: string;
-  startPoint: GeoPoint | null;
-  endPoint: GeoPoint | null;
-  meta: {
-    distanceM: number;
-    start: GeoPoint;
-    end: GeoPoint;
-  };
-  targetKm: number | null;
-  actualDistanceM: number;
-  riskLevel?: RouteRiskLevel;
-  riskSegments?: RouteRiskSegment[];
-  runnableScore?: number;
-  shapeSimilarityScore?: number;
-  startPointStatus?: RouteStartPointStatus;
-  confirmRequired?: boolean;
-  riskSummary?: string;
-  shapeType?: string;
-}
+/** 前端使用的路线类型（Route 的别名，保持向后兼容） */
+export type GeneratedRoute = import('../../shared/types').Route;
