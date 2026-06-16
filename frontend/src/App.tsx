@@ -13,6 +13,7 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { GeneratedRoute, ScreenId } from './types';
 import { AppViewport } from './components/AppViewport';
 import { I18nProvider } from './i18n';
+import { ToastProvider } from './components/common/Toast';
 import { createImageRoute, createTemplateRoute, startRoute } from './api/routes';
 import { miniToast } from './utils';
 
@@ -198,13 +199,8 @@ export default function App() {
   const handleNavigateFromProfileOrSettings = (screen: ScreenId) => {
     if (screen === 'login') {
       setIsLoggedIn(false);
-      setActiveNavbarTabState('home');
       navigateToScreen('login', { replace: true, resetHistory: true });
       return;
-    } else if (screen === 'profile') {
-      setActiveNavbarTabState('profile');
-    } else if (screen === 'my_traces') {
-      setActiveNavbarTabState('traces');
     }
 
     navigateToScreen(screen);
@@ -270,7 +266,8 @@ export default function App() {
 
   return (
     <I18nProvider>
-      <div
+      <ToastProvider>
+        <div
         id="main_wrapper"
         className="min-h-[100dvh] bg-[#0F172A] text-slate-100 font-sans antialiased"
       >
@@ -299,6 +296,7 @@ export default function App() {
           onStartGeneratedRoute={handleStartGeneratedRoute}
         />
       </div>
+      </ToastProvider>
     </I18nProvider>
   );
 }

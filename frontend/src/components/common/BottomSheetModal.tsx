@@ -21,8 +21,7 @@ export const BottomSheetModal: React.FC<BottomSheetModalProps> = ({
   onUploadImage,
   selectedShapeId,
 }) => {
-  const { t, language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { t, text } = useI18n();
   const shapes = [
     { id: 'circle', name: text('圆形', 'Circle'), color: 'bg-blue-500', icon: <Circle size={22} className="stroke-[3.5] text-white" /> },
     { id: 'triangle', name: text('三角形', 'Triangle'), color: 'bg-rose-500', icon: <Triangle size={22} className="stroke-[3.5] text-white" /> },

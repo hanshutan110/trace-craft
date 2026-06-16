@@ -3,6 +3,9 @@
  *
  * 模拟手机顶部状态栏：时间、网络信号、WiFi、电量
  * 支持深色/浅色主题切换（编辑器页面为深色）
+ *
+ * @deprecated 此组件已定义但未被任何地方引用，属于死代码。
+ * 待应用实际接入 Capacitor StatusBar 后再启用或删除。
  */
 import { Wifi } from 'lucide-react';
 import React from 'react';

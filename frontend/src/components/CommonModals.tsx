@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowRight,
   Download,
@@ -6,6 +6,17 @@ import {
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
+
+// 彩纸粒子数据提升到模块级常量，避免每次组件挂载时重新生成
+const CONFETTI_PARTICLES = Array.from({ length: 48 }).map((_, i) => ({
+  id: i,
+  left: `${Math.random() * 100}%`,
+  top: `${Math.random() * -100}px`,
+  delay: `${Math.random() * 2}s`,
+  color: ['#FF6B35', '#4FACFE', '#00F2FE', '#10B981', '#F59E0B', '#EC4899'][i % 6],
+  size: Math.random() * 8 + 4,
+  rotation: `${Math.random() * 360}deg`,
+}));
 
 /* ==========================================
    Screen 3: Success Share Screen (轨迹生成成功页)
@@ -15,29 +26,14 @@ interface SuccessScreenProps {
 }
 
 export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
-  // Simulate particles representing colorful paper confetti drop
-  const confettiParticles = useMemo(
-    () =>
-      Array.from({ length: 48 }).map((_, i) => ({
-        id: i,
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * -100}px`,
-        delay: `${Math.random() * 2}s`,
-        color: ['#FF6B35', '#4FACFE', '#00F2FE', '#10B981', '#F59E0B', '#EC4899'][i % 6],
-        size: Math.random() * 8 + 4,
-        rotation: `${Math.random() * 360}deg`,
-      })),
-    [],
-  );
+  const { text } = useI18n();
 
   return (
     <div className="flex flex-col h-full bg-white select-none relative overflow-hidden">
       
       {/* Confetti particles waterfall overlay */}
       <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-        {confettiParticles.map((p) => (
+        {CONFETTI_PARTICLES.map((p) => (
           <div
             key={p.id}
             style={{
@@ -216,29 +212,31 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
 interface LoadingScreenProps {
   onNavigate: (screen: ScreenId) => void;
   selectedShapeId: string;
+  isRouteGenerating?: boolean;
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({ 
   onNavigate,
   selectedShapeId,
+  isRouteGenerating = true,
 }) => {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [percent, setPercent] = useState(0);
 
-  // Load progress counting simulation
+  // 进度模拟：生成中持续增长至 95%，完成后跳至 100%
   useEffect(() => {
+    if (!isRouteGenerating) {
+      setPercent(100);
+      return;
+    }
     const timer = setInterval(() => {
       setPercent((prev) => {
-        if (prev >= 75) {
-          clearInterval(timer);
-          return 75; // Stayed target at 75% as per UI prompt specification
-        }
-        return prev + 5;
+        if (prev >= 95) return 95;
+        return prev + Math.max(1, Math.floor((95 - prev) / 10));
       });
-    }, 120);
+    }, 200);
     return () => clearInterval(timer);
-  }, []);
+  }, [isRouteGenerating]);
 
   const shapeTitle = selectedShapeId === 'heart'
     ? text('爱心', 'Heart')

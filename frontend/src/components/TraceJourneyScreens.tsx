@@ -122,8 +122,7 @@ const RUN_HISTORY_RECORDS = [
 // SCREEN 14: Splash Screen (启动页)
 // ----------------------------------------------------------------------
 export function SplashScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [loadingStep, setLoadingStep] = useState(0);
 
   useEffect(() => {
@@ -206,8 +205,7 @@ export function MyTracesScreen({
   activeNavbarTab: 'home' | 'traces' | 'profile';
   setActiveNavbarTab: (tab: 'home' | 'traces' | 'profile') => void;
 }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'all' | 'run' | 'unrun' | 'fav'>('all');
 
   const items = MY_TRACES_ITEMS;
@@ -341,8 +339,7 @@ export function MyTracesScreen({
 // SCREEN 16: Track Detail (轨迹详情)
 // ----------------------------------------------------------------------
 export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [favorite, setFavorite] = useState(false);
 
   return (
@@ -532,8 +529,7 @@ export function RunHistoryScreen({
   activeNavbarTab: 'home' | 'traces' | 'profile';
   setActiveNavbarTab: (tab: 'home' | 'traces' | 'profile') => void;
 }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'all' | 'month' | 'week' | 'custom'>('all');
 
   const records = RUN_HISTORY_RECORDS;
@@ -653,8 +649,7 @@ export function RunHistoryScreen({
 // SCREEN 18: Single Run Detail (单次跑步详情)
 // ----------------------------------------------------------------------
 export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between overflow-y-auto text-slate-800 animate-fadeIn">
       {/* Top Header */}

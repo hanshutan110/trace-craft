@@ -67,8 +67,7 @@ export function FavoritesScreen({
   activeNavbarTab: 'home' | 'traces' | 'profile';
   setActiveNavbarTab: (tab: 'home' | 'traces' | 'profile') => void;
 }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [showEmpty, setShowEmpty] = useState<boolean>(false);
   const [favoriteList, setFavoriteList] = useState([
     { id: 'f1', title: 'heart', dist: '2.2km', usage: '128', icon: 'heart', color: 'text-rose-500' },
@@ -216,8 +215,7 @@ export function FavoritesScreen({
 // SCREEN 20: Template Detail (模板详情)
 // ----------------------------------------------------------------------
 export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [favorite, setFavorite] = useState(true);
 
   return (
@@ -360,8 +358,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
 // SCREEN 21: Search (搜索)
 // ----------------------------------------------------------------------
 export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [query, setQuery] = useState('');
 
   const handleSearchTrigger = (val: string) => {
@@ -510,8 +507,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 // SCREEN 22: Search Result (搜索结果)
 // ----------------------------------------------------------------------
 export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [searchTab, setSearchTab] = useState<'all' | 'trace' | 'template' | 'user'>('all');
   const [favoriteStates, setFavoriteStates] = useState<Record<string, boolean>>({
     'cat_result': true,

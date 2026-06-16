@@ -3,6 +3,10 @@
  *
  * Mock data for preset shapes and run history.
  * This file is kept for future backend replacement.
+ *
+ * @deprecated presetShapes 和 historyRecords 目前未被任何组件引用。
+ * 首页“最近使用”记录已硬编码在 HomeAndLibrary.tsx 中。
+ * 待后端接入后替换为 API 数据源，届时可删除此文件。
  */
 import { HistoryRecord, PresetShape } from './types';
 

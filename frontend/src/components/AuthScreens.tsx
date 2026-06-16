@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
+import { useToast } from './common/Toast';
 
 /* ==========================================
    Screen 5: Onboarding Screen (首次使用引导页)
@@ -113,7 +114,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onNavigate }
 
         {/* Footnotes */}
         <button 
-          onClick={() => onNavigate('home')} 
+          onClick={() => onNavigate('login')} 
           className="text-center text-[12px] text-white/70 hover:text-white transition-colors"
         >
           {t('onboarding.has_account', '已有账号？')}<span className="underline font-bold">{t('onboarding.login', '登录')}</span>
@@ -133,34 +134,26 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
-  const { t, language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { t, text } = useI18n();
+  const { showToast } = useToast();
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [smsCode, setSmsCode] = useState('');
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showDocModal, setShowDocModal] = useState<'privacy' | 'agreement' | null>(null);
-
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 2500);
-  };
 
   const handleThirdPartyLogin = (platform: 'wechat' | 'douyin') => {
     setIsLoggingIn(true);
-    triggerToast(
+    showToast(
       platform === 'wechat'
         ? text('正在拉起微信协议授权...', 'Opening WeChat authorization...')
         : text('正在拉起抖音协议授权...', 'Opening Douyin authorization...'),
     );
     setTimeout(() => {
       setIsLoggingIn(false);
-      triggerToast(text('授权成功，已为您登录！', 'Authorization successful. You are logged in.'));
+      showToast(text('授权成功，已为您登录！', 'Authorization successful. You are logged in.'));
       setTimeout(() => {
         onNavigate('profile');
       }, 500);
@@ -169,35 +162,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
   const sendSMS = () => {
     if (!phoneNumber || phoneNumber.length < 11) {
-      triggerToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
+      showToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
       return;
     }
     setIsSendingCode(true);
-    triggerToast(text('验证码发送中...', 'Sending verification code...'));
+    showToast(text('验证码发送中...', 'Sending verification code...'));
     setTimeout(() => {
       setIsSendingCode(false);
       setCodeSent(true);
       setSmsCode('8888'); // Autofill mockup
-      triggerToast(text('验证码[8888]已发送', 'Code [8888] sent'));
+      showToast(text('验证码[8888]已发送', 'Code [8888] sent'));
     }, 1000);
   };
 
   const handlePhoneLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phoneNumber || phoneNumber.length < 11) {
-      triggerToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
+      showToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
       return;
     }
     if (!smsCode) {
-      triggerToast(text('请输入验证码', 'Enter the verification code'));
+      showToast(text('请输入验证码', 'Enter the verification code'));
       return;
     }
     setIsLoggingIn(true);
     setShowPhoneModal(false);
-    triggerToast(text('正在验证手机/短信授权...', 'Verifying phone/SMS authorization...'));
+    showToast(text('正在验证手机/短信授权...', 'Verifying phone/SMS authorization...'));
     setTimeout(() => {
       setIsLoggingIn(false);
-      triggerToast(text('登录成功，欢迎回来！', 'Login successful, welcome back!'));
+      showToast(text('登录成功，欢迎回来！', 'Login successful, welcome back!'));
       setTimeout(() => {
         onNavigate('profile');
       }, 500);
@@ -206,14 +199,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
 
   return (
     <div className="flex flex-col h-full bg-white text-slate-850 p-5 select-none justify-between relative overflow-hidden">
-      
-      {/* Toast Feedback */}
-      {toastMessage && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white text-[11px] font-bold px-4 py-2.5 rounded-full z-50 flex items-center space-x-2 shadow-lg backdrop-blur-md animate-bounce">
-          <div className="w-1.5 h-1.5 bg-[#00F2FE] rounded-full animate-ping"></div>
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* Top Section */}
       <div className="flex flex-col items-center pt-8">

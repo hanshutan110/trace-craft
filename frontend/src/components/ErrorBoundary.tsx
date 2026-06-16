@@ -22,6 +22,10 @@ class ErrorBoundaryBase extends React.Component<ErrorBoundaryProps, ErrorBoundar
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Uncaught error:', error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;

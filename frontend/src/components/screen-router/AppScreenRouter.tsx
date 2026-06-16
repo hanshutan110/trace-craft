@@ -217,6 +217,7 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
               props={{
                 onNavigate: activeScreen === 'success' ? navigateWithSuccess : navigate,
                 selectedShapeId,
+                isRouteGenerating,
               }}
             />
           )}

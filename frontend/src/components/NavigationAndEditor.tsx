@@ -34,8 +34,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
   onNavigate,
   selectedShapeId: _selectedShapeId,
 }) => {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [isPlaying, setIsPlaying] = useState(true);
   const [isVoiceOn, setIsVoiceOn] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(1935); // 约32分15秒
@@ -184,15 +183,9 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
 
       {/* 2.4 RIGHT LOWER CORNER MINI STATS HUD */}
       <div className="absolute bottom-32 right-4 z-10 bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-xl p-3 text-left shadow-lg text-white max-w-[90px]">
-        <div className="mb-1.5">
+        <div>
           <p className="text-[9px] uppercase text-gray-400 leading-none">{text('实时配速', 'Real-time Pace')}</p>
           <p className="font-mono text-xs font-bold mt-0.5">6:15/km</p>
-        </div>
-        <div>
-          <p className="text-[9px] uppercase text-gray-400 leading-none">{text('当前心率', 'Heart Rate')}</p>
-          <p className="font-mono text-xs font-bold text-emerald-400 flex items-center mt-0.5">
-            ❤️ {138 + Math.floor(Math.random() * 8)}
-          </p>
         </div>
       </div>
 
@@ -226,7 +219,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
         <div className="flex items-center justify-between px-2">
           {/* Pause / Play */}
           <button
-            onMouseUp={() => setIsPlaying(!isPlaying)}
+            onClick={() => setIsPlaying(!isPlaying)}
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
               isPlaying 
                 ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 active:scale-95' 
@@ -238,7 +231,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
 
           {/* Stop / Complete */}
           <button
-            onMouseUp={() => onNavigate('success')}
+            onClick={() => onNavigate('success')}
             className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/30 active:scale-95 transition-transform"
           >
             <StopIcon size={24} className="fill-white" />
@@ -246,7 +239,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
 
           {/* Voice Toggle */}
           <button
-            onMouseUp={() => setIsVoiceOn(!isVoiceOn)}
+            onClick={() => setIsVoiceOn(!isVoiceOn)}
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
               isVoiceOn 
                 ? 'bg-linear-to-r from-[#4FACFE] to-[#00F2FE] text-white' 
@@ -305,8 +298,7 @@ export const RoutePreviewScreen: React.FC<RoutePreviewScreenProps> = ({
   onGenerateTemplateRoute,
   onStartGeneratedRoute,
 }) => {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [riskConfirmed, setRiskConfirmed] = useState(false);
   const route = generatedRoute;
   const riskLevel = route?.riskLevel || 'low';
@@ -453,14 +445,15 @@ export const RoutePreviewScreen: React.FC<RoutePreviewScreenProps> = ({
 interface ParamAdjustScreenProps {
   onNavigate: (screen: ScreenId) => void;
   selectedShapeId: string;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
 }
 
 export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({ 
   onNavigate,
   selectedShapeId,
+  onGenerateTemplateRoute,
 }) => {
-  const { t, language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { t, text } = useI18n();
   const [scale, setScale] = useState(1.5);     // 1x - 3x
   const [rotate, setRotate] = useState(45);     // 0 - 360  
   const [stretch, setStretch] = useState(1.0);  // 0.5 - 2.0
@@ -644,7 +637,7 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
 
         {/* Apply & Navigate */}
         <button
-          onClick={() => onNavigate('loading')}
+          onClick={() => void onGenerateTemplateRoute(selectedShapeId, goalDistance)}
           className="w-full py-3.5 rounded-[32px] bg-linear-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-98 transition-all text-white font-extrabold text-[15px] shadow-md shadow-blue-500/20 text-center"
         >
           {text('应用并开始导航', 'Apply and Start Navigation')}
@@ -661,6 +654,8 @@ export const ParamAdjustScreen: React.FC<ParamAdjustScreenProps> = ({
    ========================================== */
 interface TraceEditorScreenProps {
   onNavigate: (screen: ScreenId) => void;
+  onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
+  selectedShapeId: string;
 }
 
 type Point = { x: number; y: number };
@@ -679,10 +674,11 @@ const INITIAL_STROKES: Stroke[] = [
 ];
 
 export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({ 
-  onNavigate 
+  onNavigate,
+  onGenerateTemplateRoute,
+  selectedShapeId,
 }) => {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [brushSize, setBrushSize] = useState(6); // width tracker
   const [activeTool, setActiveTool] = useState<'draw' | 'erase' | 'smooth'>('draw');
   // 使用 ref 作为单一数据源，避免 useState + useRef 双重状态管理
@@ -769,7 +765,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
         </button>
         <span className="text-base font-bold text-white tracking-wide">{text('编辑轨迹', 'Edit Route')}</span>
         <button 
-          onClick={() => onNavigate('loading')} 
+          onClick={() => void onGenerateTemplateRoute(selectedShapeId)} 
           className="text-xs font-bold text-[#4FACFE] bg-[#4FACFE]/10 px-3 py-1.5 rounded-full hover:bg-[#4FACFE]/20 active:opacity-75 transition-colors"
         >
           {text('保存', 'Save')}
@@ -927,7 +923,7 @@ export const TraceEditorScreen: React.FC<TraceEditorScreenProps> = ({
 
         {/* Big submit green button */}
         <button
-          onClick={() => onNavigate('loading')}
+          onClick={() => void onGenerateTemplateRoute(selectedShapeId)}
           className="w-full py-3.5 rounded-[32px] bg-emerald-500 hover:bg-emerald-600 active:scale-98 transition-all text-white font-extrabold text-[15px] shadow-lg shadow-emerald-950/20 text-center"
         >
           {text('确认路线', 'Confirm Route')}

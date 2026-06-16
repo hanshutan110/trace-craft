@@ -179,8 +179,7 @@ const NOTIFICATION_MESSAGES = [
 // SCREEN 23: Trace Share Preview (轨迹分享预览页)
 // ----------------------------------------------------------------------
 export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [description, setDescription] = useState('');
   const [topicTags, setTopicTags] = useState<string[]>([]);
 
@@ -380,8 +379,7 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 // SCREEN 24: Square / Community Feed (公开广场)
 // ----------------------------------------------------------------------
 export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'recommend' | 'hot' | 'latest' | 'follow'>('recommend');
 
   const cards = SQUARE_CARDS;
@@ -481,8 +479,7 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 // SCREEN 25: Community Post Detail (作品详情页-社区)
 // ----------------------------------------------------------------------
 export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [isFollowing, setIsFollowing] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [likesCount, setLikesCount] = useState(128);
@@ -704,8 +701,7 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 // SCREEN 26: Message notification Screen (消息通知页)
 // ----------------------------------------------------------------------
 export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
-  const { language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'all' | 'like' | 'comment' | 'follow' | 'sys'>('all');
   const [showEmpty, setShowEmpty] = useState(false);
   const [unreads, setUnreads] = useState<Record<string, boolean>>({
@@ -852,7 +848,7 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
                       <p className="text-[13px] text-slate-900 font-bold">
                         <span>{text(m.author, m.authorEn)}</span>
                         {m.actionText && (
-                          <span className="text-slate-400 font-medium text-[12.5px] ml-1">{text(m.actionText, m.actionTextEn)}</span>
+                          <span className="text-slate-400 font-medium text-[12.5px] ml-1">{text(m.actionText, m.actionTextEn ?? '')}</span>
                         )}
                       </p>
                       <p className="text-[12px] text-slate-600 truncate max-w-[170px] mt-0.5 leading-normal">

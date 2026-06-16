@@ -160,7 +160,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="space-y-3 bg-gray-55/40 p-1 rounded-2xl">
             {/* Quick List item with custom cat */}
             <div 
-              onClick={() => { onSelectShape('heart'); void onGenerateTemplateRoute('heart', 4.2); }}
+              onClick={() => { onSelectShape('cat'); void onGenerateTemplateRoute('cat', 5.0); }}
               className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-gray-100 shadow-[0_2px_6px_rgba(0,0,0,0.02)] cursor-pointer active:bg-gray-50 transition-colors"
             >
               <div className="flex items-center space-x-3">

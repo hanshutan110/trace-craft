@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
+import { useToast } from './common/Toast';
 import { BottomNavBar } from './common/BottomNavBar';
 
 /* ==========================================
@@ -37,26 +38,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   activeNavbarTab,
   setActiveNavbarTab,
 }) => {
-  const { t, language } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { t, text } = useI18n();
+  const { showToast } = useToast();
   const [showQRModal, setShowQRModal] = useState(false);
-  const [toastText, setToastText] = useState<string | null>(null);
-
-  const showToast = (txt: string) => {
-    setToastText(txt);
-    setTimeout(() => setToastText(null), 2000);
-  };
 
   return (
     <div className="flex flex-col min-h-full bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_24%,#eef7ff_100%)] text-slate-800 select-none relative pb-[calc(96px+env(safe-area-inset-bottom))]">
-      
-      {/* Toast overlay */}
-      {toastText && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-gray-900/95 text-white text-[11px] font-bold px-4 py-2 rounded-full z-50 shadow-sm flex items-center space-x-1 animate-pulse">
-          <span>🎯</span>
-          <span>{toastText}</span>
-        </div>
-      )}
 
       {/* Main Content Area Scrollable */}
       <div className="flex-1 overflow-y-auto pb-4 pt-4 shrink-0">
@@ -242,10 +229,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <button 
             id="btn_logout_action"
             onClick={() => {
-              showToast(text('已安全退出登录', 'Logged out safely'));
-              setTimeout(() => {
-                onNavigate('login');
-              }, 600);
+              onNavigate('login');
             }}
             className="text-[14px] font-bold text-slate-400 hover:text-red-400 active:scale-95 transition-all px-6 py-2.5 rounded-full"
           >
@@ -355,14 +339,12 @@ interface SettingsScreenProps {
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) => {
-  const [toastContent, setToastContent] = useState<string | null>(null);
-  
-  // Settings control states (iOS slider switches in React)
+  // Settings control states
   const [voiceBroadcast, setVoiceBroadcast] = useState(true);
   const [vibeDeviation, setVibeDeviation] = useState(true);
   const [distanceUnit, setDistanceUnit] = useState<'km' | 'mile'>('km');
-  const { t, language, setLanguage, languageOptions } = useI18n();
-  const text = (cn: string, en: string) => (language === 'en' ? en : cn);
+  const { t, text, language, setLanguage, languageOptions } = useI18n();
+  const { showToast } = useToast();
   const [mapStyleStyle, setMapStyleStyle] = useState<'light' | 'satellite'>('light');
   const [lineWeightThickness, setLineWeightThickness] = useState<'mid' | 'thick' | 'thin'>('mid');
   const [cacheMemoryMB, setCacheMemoryMB] = useState(128);
@@ -370,13 +352,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
   const [showLanguageSheet, setShowLanguageSheet] = useState(false);
   const [showMapSheet, setShowMapSheet] = useState(false);
   const [showThicknessSheet, setShowThicknessSheet] = useState(false);
-
-  const showToast = (msg: string) => {
-    setToastContent(msg);
-    setTimeout(() => {
-      setToastContent(null);
-    }, 2000);
-  };
 
   const clearCacheAction = () => {
     if (cacheMemoryMB === 0) {
@@ -392,14 +367,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
 
   return (
     <div className="flex flex-col min-h-full bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_24%,#eef7ff_100%)] text-slate-800 select-none relative">
-      
-      {/* Toast notifications */}
-      {toastContent && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-gray-900/95 text-white text-[11px] font-extrabold px-4.5 py-2.5 rounded-full z-50 text-center shadow-lg pointer-events-none flex items-center space-x-1.5 animate-bounce">
-          <div className="w-1.5 h-1.5 bg-[#4FACFE] rounded-full animate-ping"></div>
-          <span>{toastContent}</span>
-        </div>
-      )}
 
       {/* 1. TOP TITLE AREA BACK-HEADER */}
       <div className="h-[48px] border-b border-gray-100 flex items-center justify-between px-4 sticky top-0 bg-white/95 backdrop-blur-md z-10 shrink-0">
@@ -571,7 +538,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
                 <span className="text-[15px] font-medium text-slate-700">{t('settings.line_thickness', '轨迹线粗细')}</span>
               </div>
               <div className="flex items-center space-x-1.5 text-slate-400">
-                <span className="text-[14px] font-semibold text-slate-500 text-slate-500">
+                <span className="text-[14px] font-semibold text-slate-500">
                   {lineWeightThickness === 'mid' ? t('settings.normal', '中') : lineWeightThickness === 'thick' ? t('settings.thick', '粗') : t('settings.thin', '细')}
                 </span>
                 <ChevronRight size={16} />
@@ -675,8 +642,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
                   setLanguage(locale);
                   setShowLanguageSheet(false);
                   showToast(locale === 'cn'
-                    ? '已切换显示为: 简体中文'
-                    : 'Language switched to English');
+                    ? t('settings.lang_switch_cn', '已切换显示为: 简体中文')
+                    : t('settings.lang_switch_en', 'Language switched to English'));
                 }}
                 className={`py-3 rounded-xl font-bold text-xs flex justify-between px-4 ${
                   language === locale ? 'bg-[#4FACFE]/10 text-[#4FACFE]' : 'bg-slate-50 text-slate-700'

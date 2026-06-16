@@ -58,11 +58,6 @@ export const AppViewport: React.FC<AppViewportProps> = ({
     setIsBottomSheetOpen(false);
   };
 
-  // 关闭底部弹窗并跳转到参数调节页
-  const closeBottomSheet = () => {
-    clearBottomSheet();
-  };
-
   const selectShapeFromBottomSheet = (shapeId: string) => {
     onSelectShape(shapeId);
     if (shapeId !== 'custom') {
@@ -105,7 +100,7 @@ export const AppViewport: React.FC<AppViewportProps> = ({
             isOpen={isBottomSheetOpen}
             onSelect={selectShapeFromBottomSheet}
             onUploadImage={onUploadImageRoute}
-            onClose={closeBottomSheet}
+            onClose={clearBottomSheet}
           />
         </div>
       </div>

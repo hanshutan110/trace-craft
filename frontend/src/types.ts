@@ -49,7 +49,7 @@ export interface PresetShape {
 }
 
 /** 预设图形类型 */
-export type ShapeType = 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus';
+export type ShapeType = 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus' | 'cat';
 
 /** 跑步历史记录 */
 export interface HistoryRecord {
