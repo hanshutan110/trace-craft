@@ -240,6 +240,16 @@ const enUS: TextMap = {
 
   'splash.loading_to_login': 'Auto loading, moving to login...',
   'splash.tap_to_enter': 'Skip to Home',
+
+  // Route preview - map status hints
+  'preview.map.locating': 'Getting location...',
+  'preview.map.locate_failed': 'Location failed, using default',
+  'preview.map.no_route_data': 'No route coordinate data',
+  'preview.map.loading': 'Loading map...',
+  'preview.map.tiles_failed': 'Map tiles failed to load, check network',
+  'preview.map.fit_route': 'Fit route',
+  'preview.map.zoom_in': 'Zoom in',
+  'preview.map.zoom_out': 'Zoom out',
 };
 
 export default enUS;

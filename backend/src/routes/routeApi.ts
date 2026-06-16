@@ -4,7 +4,7 @@
  * 包含：创建路线（图片/模板）、查询路线、调整距离、重映射起终点、路线列表
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
 import {
   createRouteFromImage,
@@ -21,12 +21,48 @@ import {
   toOptionalNumber,
   asPositiveInt,
 } from './common';
+import { getRouteRecord } from '../services/storage';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: IMAGE_UPLOAD_MAX_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('unsupported_image_type'));
+  },
+});
+
+function uploadImage(req: Request, res: Response, next: NextFunction): void {
+  upload.single('image')(req, res, (err: unknown) => {
+    if (!err) {
+      next();
+      return;
+    }
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json(errorPayload('image file too large', 'image_too_large', 413, {
+        maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+      }));
+      return;
+    }
+    if ((err as Error).message === 'unsupported_image_type') {
+      res.status(415).json(errorPayload('unsupported image type', 'unsupported_image_type', 415, {
+        allowedTypes: Array.from(ALLOWED_IMAGE_MIME_TYPES),
+      }));
+      return;
+    }
+    res.status(400).json(errorPayload('invalid image upload', 'invalid_image_upload', 400));
+  });
+}
 
 // 核心接口：上传图片生成路线
-router.post('/routes', upload.single('image'), requireAuth, async (req: Request, res: Response) => {
+router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       res.status(400).json(errorPayload('missing image file', 'missing_image', 400));
@@ -89,8 +125,7 @@ router.post('/routes/from-template', requireAuth, async (req: Request, res: Resp
 router.get('/routes/:routeId', requireAuth, async (req: Request, res: Response) => {
   try {
     const routeId = req.params.routeId as string;
-    const runs = await listUserRuns(req.userId ?? null, { page: 1, limit: 1, search: routeId });
-    const route = runs.runs.find((item) => item.id === routeId);
+    const route = await getRouteRecord(routeId, req.userId ?? null);
     if (!route) {
       res.status(404).json(errorPayload('route not found', 'route_not_found', 404));
       return;

@@ -8,6 +8,7 @@
  *   4. 服务启动
  */
 
+import 'dotenv/config';
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import { getMapConfig } from './services/map-config';

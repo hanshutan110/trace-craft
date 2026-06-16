@@ -315,13 +315,25 @@ export class PostgresStorage implements IStorage {
     const statusFilter = status ? String(status) : null;
     const searchFilter = search ? `%${String(search).toLowerCase()}%` : null;
     const countRows = await this.query(
-      `SELECT COUNT(*)::int AS total FROM routes WHERE user_id = $1 AND ($2::text IS NULL OR status = $2)`,
-      [userId, statusFilter]
+      `SELECT COUNT(*)::int AS total FROM routes WHERE user_id = $1
+       AND ($2::text IS NULL OR status = $2)
+       AND (
+         $3::text IS NULL
+         OR LOWER(payload->>'id') LIKE $3
+         OR LOWER(COALESCE(payload->'source'->>'filename','')) LIKE $3
+         OR LOWER(COALESCE(payload->>'shapeType','')) LIKE $3
+       )`,
+      [userId, statusFilter, searchFilter]
     );
     const rows = await this.query(
       `SELECT payload FROM routes WHERE user_id = $1
        AND ($2::text IS NULL OR status = $2)
-       AND ($3::text IS NULL OR LOWER(payload->>'id') LIKE $3 OR LOWER(COALESCE(payload->'source'->>'filename','')) LIKE $3)
+       AND (
+         $3::text IS NULL
+         OR LOWER(payload->>'id') LIKE $3
+         OR LOWER(COALESCE(payload->'source'->>'filename','')) LIKE $3
+         OR LOWER(COALESCE(payload->>'shapeType','')) LIKE $3
+       )
        ORDER BY updated_at DESC LIMIT $4 OFFSET $5`,
       [userId, statusFilter, searchFilter, normalizedLimit, offset]
     );

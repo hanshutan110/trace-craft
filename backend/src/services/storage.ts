@@ -66,6 +66,9 @@ async function detectPostgres(): Promise<boolean> {
  */
 async function createStorage(): Promise<IStorage> {
   if (storage) return storage;
+  if (configuredMode === 'postgres' && !getConnectionString()) {
+    throw new Error('postgres_connection_string_missing');
+  }
   const shouldUsePg = await detectPostgres();
   if (!shouldUsePg) {
     storage = new MemoryStorage();
@@ -79,7 +82,10 @@ async function createStorage(): Promise<IStorage> {
     storage = pgStorage;
     usePostgres = true;
     return storage;
-  } catch {
+  } catch (err) {
+    if (configuredMode === 'postgres') {
+      throw err;
+    }
     storage = new MemoryStorage();
     await storage.init();
     usePostgres = false;

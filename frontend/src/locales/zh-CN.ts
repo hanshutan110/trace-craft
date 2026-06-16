@@ -240,6 +240,16 @@ const zhCN: TextMap = {
 
   'splash.loading_to_login': '正在自动识别并跳转登录...',
   'splash.tap_to_enter': '跳过并进入应用',
+
+  // 路线预览 - 地图状态提示
+  'preview.map.locating': '正在获取位置...',
+  'preview.map.locate_failed': '定位失败，使用默认位置',
+  'preview.map.no_route_data': '暂无路线坐标数据',
+  'preview.map.loading': '正在加载地图...',
+  'preview.map.tiles_failed': '地图瓦片加载失败，请检查网络',
+  'preview.map.fit_route': '适应路线',
+  'preview.map.zoom_in': '放大',
+  'preview.map.zoom_out': '缩小',
 };
 
 export default zhCN;
