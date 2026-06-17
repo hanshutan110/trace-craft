@@ -20,8 +20,9 @@ import {
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';
-import { CrsType, GeneratedRoute, GeoPoint, ScreenId } from '../types';
+import { CrsType, GeneratedRoute, GeoPoint, ScreenId, SessionState } from '../types';
 import { useI18n } from '../i18n';
+import { finishSession, getCurrentPoint, getSessionState, reportLocation } from '../api/routes';
 
 /* ==========================================
    Screen 2: Map Navigation Screen (导航界面)
@@ -29,38 +30,79 @@ import { useI18n } from '../i18n';
 interface MapNavigationScreenProps {
   onNavigate: (screen: ScreenId) => void;
   selectedShapeId: string;
+  generatedRoute?: GeneratedRoute | null;
+  activeSessionId?: string | null;
 }
 
 export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({ 
   onNavigate,
   selectedShapeId: _selectedShapeId,
+  generatedRoute,
+  activeSessionId,
 }) => {
   const { text } = useI18n();
   const [isPlaying, setIsPlaying] = useState(true);
   const [isVoiceOn, setIsVoiceOn] = useState(true);
-  const [elapsedSeconds, setElapsedSeconds] = useState(1935); // 约32分15秒
-  const [progress, setProgress] = useState(0.64); // 64% progress
-  const [deviation, setDeviation] = useState(8); // 8m deviation
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [sessionState, setSessionState] = useState<SessionState | null>(null);
+  const [navError, setNavError] = useState<string | null>(null);
   
-  // Dynamic state for simulating the runner's path
   useEffect(() => {
     if (!isPlaying) return;
-    const interval = setInterval(() => {
+    const timer = setInterval(() => {
       setElapsedSeconds(prev => prev + 1);
-      // Simulate slight variations in deviation meter
-      setDeviation(prev => {
-        const delta = Math.floor(Math.random() * 5) - 2;
-        const newVal = Math.max(0, prev + delta);
-        return newVal > 15 ? 10 : newVal;
-      });
-      // Simulate progress traveling loader
-      setProgress(prev => {
-        const next = prev + 0.005;
-        return next >= 1 ? 0 : next;
-      });
     }, 1000);
-    return () => clearInterval(interval);
+    return () => clearInterval(timer);
   }, [isPlaying]);
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    let cancelled = false;
+    const syncState = async () => {
+      try {
+        const state = await getSessionState(activeSessionId);
+        if (!cancelled) {
+          setSessionState(state);
+          setNavError(null);
+        }
+      } catch {
+        if (!cancelled) setNavError(text('导航状态同步失败', 'Navigation sync failed'));
+      }
+    };
+    void syncState();
+    const timer = setInterval(syncState, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [activeSessionId, text]);
+
+  useEffect(() => {
+    if (!activeSessionId || !isPlaying) return;
+    let cancelled = false;
+    const sendLocation = async () => {
+      try {
+        const current = await getCurrentPoint();
+        const state = await reportLocation(activeSessionId, {
+          ...current.point,
+          accuracy: current.accuracy,
+          ts: Date.now(),
+        });
+        if (!cancelled && state) {
+          setSessionState(state);
+          setNavError(null);
+        }
+      } catch {
+        if (!cancelled) setNavError(text('位置上报失败', 'Location report failed'));
+      }
+    };
+    void sendLocation();
+    const timer = setInterval(sendLocation, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [activeSessionId, isPlaying, text]);
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -68,37 +110,50 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Pre-drawn star route vertex calculations for blue tracker point
-  const starPoints = [
-    { x: 125, y: 50 },
-    { x: 147, y: 100 },
-    { x: 200, y: 104 },
-    { x: 160, y: 138 },
-    { x: 173, y: 190 },
-    { x: 125, y: 160 },
-    { x: 77, y: 190 },
-    { x: 90, y: 138 },
-    { x: 50, y: 104 },
-    { x: 103, y: 100 },
-  ];
+  const routePoints = generatedRoute?.points || [];
+  const progressPct = sessionState?.progressPct ?? 0;
+  const progress = Math.max(0, Math.min(1, progressPct / 100));
+  const deviation = sessionState?.deviationM ?? 0;
+  const plannedKm = (generatedRoute?.meta?.distanceM || 0) / 1000;
+  const remainingKm = Math.max(0, plannedKm * (1 - progress));
 
-  const getTrackerCoord = () => {
-    const numPoints = starPoints.length;
-    const pathIndex = progress * numPoints;
-    const currentIndex = Math.floor(pathIndex) % numPoints;
-    const nextIndex = (currentIndex + 1) % numPoints;
-    const ratio = pathIndex - Math.floor(pathIndex);
-    
-    const p1 = starPoints[currentIndex];
-    const p2 = starPoints[nextIndex];
-    
-    return {
-      x: p1.x + (p2.x - p1.x) * ratio,
-      y: p1.y + (p2.y - p1.y) * ratio
+  const projected = useMemo(() => {
+    const fallback = [
+      { x: 125, y: 50 }, { x: 147, y: 100 }, { x: 200, y: 104 }, { x: 160, y: 138 }, { x: 173, y: 190 },
+      { x: 125, y: 160 }, { x: 77, y: 190 }, { x: 90, y: 138 }, { x: 50, y: 104 }, { x: 103, y: 100 },
+    ];
+    if (!routePoints.length) return { path: fallback, tracker: fallback[0] };
+    const minLat = Math.min(...routePoints.map((point) => point.lat));
+    const maxLat = Math.max(...routePoints.map((point) => point.lat));
+    const minLng = Math.min(...routePoints.map((point) => point.lng));
+    const maxLng = Math.max(...routePoints.map((point) => point.lng));
+    const latSpan = Math.max(0.000001, maxLat - minLat);
+    const lngSpan = Math.max(0.000001, maxLng - minLng);
+    const project = (point: GeoPoint) => ({
+      x: 32 + ((point.lng - minLng) / lngSpan) * 186,
+      y: 246 - ((point.lat - minLat) / latSpan) * 196,
+    });
+    const path = routePoints.map(project);
+    const last = sessionState?.lastPosition ? project(sessionState.lastPosition) : path[Math.min(path.length - 1, Math.floor(progress * (path.length - 1)))];
+    return { path, tracker: last };
+  }, [progress, routePoints, sessionState?.lastPosition]);
+
+  const completedPath = projected.path.slice(0, Math.max(1, Math.ceil(progress * projected.path.length)));
+
+  const handleFinish = async () => {
+    if (!activeSessionId) {
+      onNavigate('success');
+      return;
+    }
+    try {
+      await finishSession(activeSessionId);
+      onNavigate('success');
+    } catch {
+      setNavError(text('结束跑步失败，请稍后重试', 'Finish failed, try again'));
     };
   };
 
-  const tracker = getTrackerCoord();
+  const tracker = projected.tracker;
 
   return (
     <div className="flex flex-col h-full bg-slate-100 relative select-none overflow-hidden">
@@ -124,8 +179,8 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
           <path d="M 30,220 C 130,220 200,180 260,250" fill="none" stroke="#E1E5EB" strokeWidth="2.5" />
 
           {/* Target Star glowing trajectory path */}
-          <polygon
-            points={starPoints.map(p => `${p.x},${p.y}`).join(' ')}
+          <polyline
+            points={projected.path.map(p => `${p.x},${p.y}`).join(' ')}
             fill="none"
             stroke="#FF6B35"
             strokeWidth="4"
@@ -135,7 +190,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
           
           {/* Already ran paths (in green) */}
           <polyline
-            points={starPoints.slice(0, Math.ceil(progress * starPoints.length)).map(p => `${p.x},${p.y}`).join(' ')}
+            points={completedPath.map(p => `${p.x},${p.y}`).join(' ')}
             fill="none"
             stroke="#10B981"
             strokeWidth="4"
@@ -165,7 +220,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
         <div>
           <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">{text('剩余距离', 'Remaining Distance')}</span>
           <span className="text-[15px] font-extrabold text-gray-800">
-            {isPlaying ? (3.2 * (1 - progress)).toFixed(2) : '2.3'}km
+            {remainingKm.toFixed(2)}km
           </span>
         </div>
         <div className="text-right">
@@ -179,7 +234,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
       {/* 2.3 FLOATING DIRECTIVE BANNER */}
       <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 bg-linear-to-r from-blue-600/90 to-[#4FACFE]/90 text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-full shadow-md flex items-center space-x-1.5 animate-bounce">
         <span>⚡</span>
-        <span>{text('直行 150m 后右转跑', 'Go straight 150 m then turn right')}</span>
+        <span>{navError || (sessionState?.needRedirect ? text('偏离路线，请回到最近路线点', 'Off route, return to nearest point') : text('沿当前路线继续前进', 'Continue along current route'))}</span>
       </div>
 
       {/* 2.4 RIGHT LOWER CORNER MINI STATS HUD */}
@@ -204,7 +259,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
         <div className="flex justify-between items-center mb-4">
           <div className="text-left">
             <span className="text-[20px] font-extrabold text-gray-800">
-              {(3.2 * progress).toFixed(2)}
+              {(plannedKm * progress).toFixed(2)}
             </span>
             <span className="text-xs text-gray-400 ml-0.5">{text('km已跑', 'km run')}</span>
           </div>
@@ -232,7 +287,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
 
           {/* Stop / Complete */}
           <button
-            onClick={() => onNavigate('success')}
+            onClick={() => void handleFinish()}
             className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/30 active:scale-95 transition-transform"
           >
             <StopIcon size={24} className="fill-white" />
@@ -544,7 +599,7 @@ const RoutePreviewMap: React.FC<{
       {/* ── 加载骨架屏 ── */}
       {isLoading && (
         <div className="absolute inset-0 z-[500] flex flex-col items-center justify-center bg-[#eaf3fa]/90 backdrop-blur-xs">
-          {/* 脉冲地图模拟 */}
+          {/* 脉冲地图状态 */}
           <div className="w-48 h-32 rounded-xl bg-white/60 animate-pulse mb-4 relative overflow-hidden">
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:16px_16px] opacity-60" />
           </div>

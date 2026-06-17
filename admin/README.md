@@ -1,41 +1,45 @@
-# TraceCraft Admin Demo (Mock Mode)
+# TraceCraft Admin Panel (API Mode)
 
-This folder builds a lightweight browser-side admin demo with:
+This folder contains a lightweight browser-side admin panel for:
 
 - User management
 - Content management
 - Template management
 
-All operations currently rely on `localStorage` mock data and can be switched to real APIs later.
+All operations call the backend API and persist to PostgreSQL.
 
 ## Run
 
-Open `admin/index.html` directly in a browser, or use a local static server.
+Start the backend first, then open `admin/index.html` directly in a browser or use a local static server.
 
 ```bash
-# Example (if Python is available)
-cd admin
+cd backend
+npm run start
+
+cd ../admin
 python -m http.server 8080
-# Then open http://localhost:8080/index.html
 ```
 
-## Data source
+Default API base: `http://localhost:3001/api`.
 
-- Default data is defined in `admin.js` as `DEFAULT_DB`.
-- The mock database persists under:
+To override it before loading `admin.js`, set:
 
-`localStorage["tracecraft-admin-mock-db-v2"]`
+```html
+<script>
+  window.TRACECRAFT_API_BASE = 'http://localhost:3001/api';
+</script>
+```
 
-- Click **Reset Mock Data** to restore defaults.
+## Data Source
 
-## Integration idea for real backend later
+The `service` object in `admin.js` calls:
 
-The variable `service` in `admin.js` is a mock data layer:
+- `GET /api/admin/users`
+- `GET /api/admin/contents`
+- `GET /api/admin/templates`
+- `GET /api/admin/roleLibrary`
+- `POST /api/admin/{module}`
+- `PUT /api/admin/{module}/{id}`
+- `DELETE /api/admin/{module}/{id}`
 
-- `list`
-- `create`
-- `update`
-- `remove`
-
-You can replace this object with `fetch` calls when backend APIs are ready (keep same method names and return shape).  
-No major UI refactor is needed afterward.
+MVP note: admin login is not implemented yet. Add admin authentication before public deployment.

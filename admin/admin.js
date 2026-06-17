@@ -1,139 +1,22 @@
 /**
- * TraceCraft 后台管理 Demo
+ * TraceCraft 后台管理面板
  *
- * 当前为纯前端 Mock 模式，所有数据存储在 localStorage 中
+ * 当前通过后端 API 读写 PostgreSQL。
  * 三大管理模块：
  *   1. 用户管理（users）—— 增删改查、角色分配、启用/禁用
  *   2. 内容管理（contents）—— 公告/FAQ/帮助/政策，草稿/发布/归档
  *   3. 模板管理（templates）—— 地图/路线/UI 模板，启用/禁用/设为默认
  *
- * 未来将替换为后端 API 调用，保留 service 方法签名做最小侵入替换
  */
 
-// localStorage 存储键名
-const STORAGE_KEY = 'tracecraft-admin-mock-db-v2';
+const API_BASE = (window.TRACECRAFT_API_BASE || 'http://localhost:3001/api').replace(/\/$/, '');
 
 // ===== 工具函数 =====
-
-/** 获取当前 ISO 时间戳 */
-function now() {
-  return new Date().toISOString();
-}
 
 /** 深拷贝对象 */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
-
-/** 模拟网络延迟 */
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// ===== Mock 默认数据 =====
-const DEFAULT_DB = {
-  users: [
-    {
-      id: 'u-001',
-      username: 'super_admin',
-      name: 'System Admin',
-      phone: '13800000001',
-      email: 'admin@tracecraft.local',
-      roles: ['super_admin'],
-      status: 'active',
-      updatedAt: now(),
-    },
-    {
-      id: 'u-002',
-      username: 'operator01',
-      name: 'Operator',
-      phone: '13800000002',
-      email: 'ops@tracecraft.local',
-      roles: ['operator'],
-      status: 'disabled',
-      updatedAt: now(),
-    },
-  ],
-  roleLibrary: [
-    {
-      code: 'super_admin',
-      name: 'System Admin',
-      desc: 'Manage system configuration and permissions',
-    },
-    {
-      code: 'operator',
-      name: 'Operator',
-      desc: 'Publish content and map configuration',
-    },
-    {
-      code: 'content_editor',
-      name: 'Content Editor',
-      desc: 'Maintain and edit business content',
-    },
-  ],
-  contents: [
-    {
-      id: 'c-001',
-      key: 'home-banner',
-      type: 'announcement',
-      title: 'Welcome banner',
-      summary: 'Show latest service announcement',
-      body: 'Used for system notice and operation reminders.',
-      status: 'published',
-      sortOrder: 1,
-      updatedAt: now(),
-    },
-    {
-      id: 'c-002',
-      key: 'faq-collect',
-      type: 'faq',
-      title: 'FAQ',
-      summary: 'Common problem descriptions',
-      body: 'Includes common device errors and route anomalies.',
-      status: 'draft',
-      sortOrder: 2,
-      updatedAt: now(),
-    },
-  ],
-  templates: [
-    {
-      id: 't-001',
-      code: 'map-default-cn',
-      name: 'Default Map Template',
-      category: 'map',
-      providerHint: 'amap',
-      payload: JSON.stringify(
-        {style: 'default', showPoi: true, showTrackHeat: false},
-        null,
-        2,
-      ),
-      isDefault: true,
-      isActive: true,
-      version: 1,
-      sortOrder: 1,
-      updatedAt: now(),
-      description: 'Default map style for daily tracking',
-    },
-    {
-      id: 't-002',
-      code: 'route-dark',
-      name: 'Dark Route Card',
-      category: 'route',
-      providerHint: 'amap',
-      payload: JSON.stringify(
-        {theme: 'dark', trackWidth: 4, labelSize: 'small'},
-        null,
-        2,
-      ),
-      isDefault: false,
-      isActive: true,
-      version: 2,
-      sortOrder: 2,
-      updatedAt: now(),
-      description: 'Dark theme layout for route page',
-    },
-  ],
-};
 
 // ===== 各模块配置（搜索字段、状态选项、标签等） =====
 const moduleConfig = {
@@ -188,7 +71,7 @@ const moduleConfig = {
 };
 
 // ===== 全局状态 =====
-let state = loadState();
+let state = {users: [], roleLibrary: [], contents: [], templates: []};
 // 当前选中的管理模块
 let currentModule = 'users';
 // 搜索关键词
@@ -198,77 +81,54 @@ let filterStatus = '';
 // 弹窗状态
 let modalState = {open: false, module: 'users', mode: 'create', editingId: ''};
 
-// ===== Mock 数据服务层（未来替换为后端 API 调用） =====
+// ===== API 数据服务层 =====
 const service = {
   /** 查询列表 */
   async list(moduleKey) {
-    await delay(120);
-    return clone(state[moduleKey]);
+    const response = await fetch(`${API_BASE}/admin/${moduleKey}`);
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'admin_list_failed');
+    return clone(payload.rows || []);
   },
   /** 创建记录 */
   async create(moduleKey, payload) {
-    await delay(160);
-    const prefix = moduleKey === 'users' ? 'u' : moduleKey === 'contents' ? 'c' : 't';
-    const record = {
-      ...payload,
-      id: `${prefix}-${Date.now()}`,
-      updatedAt: now(),
-    };
-    state[moduleKey] = [...state[moduleKey], record];
-    persistState();
-    return clone(record);
+    const response = await fetch(`${API_BASE}/admin/${moduleKey}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'admin_create_failed');
+    return clone(data.record);
   },
   /** 更新记录 */
   async update(moduleKey, id, payload) {
-    await delay(160);
-    const list = clone(state[moduleKey]);
-    const index = list.findIndex((row) => row.id === id);
-    if (index < 0) {
-      return null;
-    }
-    list[index] = {...list[index], ...payload, updatedAt: now()};
-    state[moduleKey] = list;
-    persistState();
-    return clone(list[index]);
+    const response = await fetch(`${API_BASE}/admin/${moduleKey}/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'admin_update_failed');
+    return clone(data.record);
   },
   /** 删除记录 */
   async remove(moduleKey, id) {
-    await delay(120);
-    const list = clone(state[moduleKey]);
-    const index = list.findIndex((row) => row.id === id);
-    if (index < 0) {
-      return false;
-    }
-    list.splice(index, 1);
-    state[moduleKey] = list;
-    persistState();
-    return true;
+    const response = await fetch(`${API_BASE}/admin/${moduleKey}/${encodeURIComponent(id)}`, {method: 'DELETE'});
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'admin_remove_failed');
+    return Boolean(data.removed);
   },
 };
 
-/** 从 localStorage 加载状态，首次使用时初始化为默认数据 */
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return clone(DEFAULT_DB);
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      ...clone(DEFAULT_DB),
-      users: Array.isArray(parsed.users) ? parsed.users : clone(DEFAULT_DB.users),
-      roleLibrary: Array.isArray(parsed.roleLibrary) ? parsed.roleLibrary : clone(DEFAULT_DB.roleLibrary),
-      contents: Array.isArray(parsed.contents) ? parsed.contents : clone(DEFAULT_DB.contents),
-      templates: Array.isArray(parsed.templates) ? parsed.templates : clone(DEFAULT_DB.templates),
-    };
-  } catch (_err) {
-    return clone(DEFAULT_DB);
-  }
-}
-
-/** 将状态持久化到 localStorage */
-function persistState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+async function reloadState() {
+  const [users, roleLibrary, contents, templates] = await Promise.all([
+    service.list('users'),
+    service.list('roleLibrary'),
+    service.list('contents'),
+    service.list('templates'),
+  ]);
+  state = {users, roleLibrary, contents, templates};
 }
 
 // ===== DOM 工具函数 =====
@@ -348,7 +208,7 @@ function renderShell() {
   const layout = el('div', {className: 'layout'});
   const sidebar = el('aside', {className: 'card sidebar'});
 
-  const brand = el('div', {className: 'brand'}, 'TraceCraft Admin Demo');
+  const brand = el('div', {className: 'brand'}, 'TraceCraft Admin Panel');
   sidebar.append(brand);
   Object.entries(moduleConfig).forEach(([key, cfg]) => {
     sidebar.append(
@@ -362,7 +222,7 @@ function renderShell() {
       ),
     );
   });
-  sidebar.append(el('div', {className: 'helper status-line'}, 'This page currently uses mock data and can be switched to API later.'));
+  sidebar.append(el('div', {className: 'helper status-line'}, 'PostgreSQL API mode'));
 
   const main = el('section', {className: 'card main'});
   main.append(el('div', {id: 'main-body'}));
@@ -424,13 +284,12 @@ function renderToolbar(buttonText, onAdd) {
         'button',
         {
           className: 'btn btn-muted',
-          onclick: () => {
-            localStorage.removeItem(STORAGE_KEY);
-            state = clone(DEFAULT_DB);
+          onclick: async () => {
+            await reloadState();
             renderMain(document.getElementById('main-body'));
           },
         },
-        'Reset Mock Data',
+        'Reload',
       ),
     ]),
   ]);
@@ -791,7 +650,7 @@ function openModal(module, mode, id = '') {
 
   modalState = {open: true, module, mode, editingId: id};
   title.textContent = `${mode === 'create' ? 'Create' : 'Edit'} ${cfg.singular}`;
-  tip.textContent = `This form is for local mock data only.`
+  tip.textContent = `This form writes to PostgreSQL through the backend API.`
 ;
   const form = el('form', {id: 'admin-modal-form'});
   renderFormByModule(module, item).forEach((node) => form.append(node));
@@ -910,8 +769,17 @@ async function removeItem(module, id) {
 }
 
 // ===== 初始化入口 =====
-function init() {
-  renderShell();
+async function init() {
+  try {
+    await reloadState();
+    renderShell();
+  } catch (err) {
+    const root = document.getElementById('admin-root');
+    if (root) {
+      root.innerHTML = '<div class="card main"><h1>Admin API unavailable</h1><p class="helper">Start TraceCraft backend and refresh this page.</p></div>';
+    }
+    console.error(err);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

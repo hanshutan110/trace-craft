@@ -230,7 +230,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const { text } = useI18n();
   const [percent, setPercent] = useState(0);
 
-  // 进度模拟：生成中持续增长至 95%，完成后跳至 100%
+  // 生成进度：生成中持续增长至 95%，完成后跳至 100%
   useEffect(() => {
     if (!isRouteGenerating) {
       setPercent(100);
@@ -258,7 +258,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   return (
     <div className="flex flex-col h-full bg-white select-none relative overflow-hidden">
       
-      {/* Blurred background map mock */}
+      {/* Blurred background map preview */}
       <div className="absolute inset-0 z-0 opacity-40 blur-md pointer-events-none">
         <svg width="100%" height="100%" viewBox="0 0 250 400" className="object-cover scale-110">
           <rect width="250" height="400" fill="#F3F4F6" />

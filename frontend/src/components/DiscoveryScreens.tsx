@@ -1,4 +1,5 @@
 ﻿import { useState } from 'react';
+import { useEffect } from 'react';
 import { miniToast } from '../utils';
 import { 
   ArrowLeft, 
@@ -12,48 +13,52 @@ import {
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
 import { BottomNavBar } from './common/BottomNavBar';
+import {
+  addFavorite,
+  getSearchHints,
+  getSelectedTemplateId,
+  getTemplate,
+  listFavorites,
+  removeFavorite,
+  searchTraceCraft,
+  selectTemplate,
+  type RouteTemplateItem,
+  type SearchResultItem,
+} from '../api/discovery';
 
-const SEARCH_HISTORY = [
-  { cn: '历史A', en: 'History A' },
-  { cn: '历史B', en: 'History B' },
-  { cn: '历史C', en: 'History C' },
-  { cn: '历史D', en: 'History D' }
-] as const;
+function shapeColor(shapeType: string): string {
+  const colors: Record<string, string> = {
+    heart: 'text-rose-500',
+    star: 'text-yellow-500',
+    circle: 'text-blue-500',
+    triangle: 'text-emerald-500',
+    square: 'text-cyan-500',
+    hexagon: 'text-violet-500',
+  };
+  return colors[shapeType] || 'text-slate-500';
+}
 
-const SEARCH_HOT = [
-  { cn: '🔥 方形', en: '🔥 Square', queryCn: '方形', queryEn: 'Square' },
-  { cn: '🔥 心形', en: '🔥 Heart', queryCn: '心形', queryEn: 'Heart' },
-  { cn: '圆形', en: 'Circle', queryCn: '圆形', queryEn: 'Circle' },
-  { cn: '三角', en: 'Triangle', queryCn: '三角', queryEn: 'Triangle' },
-  { cn: '五角', en: 'Pentagram', queryCn: '五角', queryEn: 'Pentagram' }
-] as const;
-
-const SEARCH_CATEGORIES = [
-  { cn: '地形', en: 'Terrain' },
-  { cn: '风景', en: 'Scenery' },
-  { cn: '文字', en: 'Text' },
-  { cn: '情侣', en: 'Couple' },
-  { cn: '自定义', en: 'Custom' }
-] as const;
-
-const SEARCH_RECOMMENDED = [
-  {
-    cn: '方形',
-    en: 'Square',
-    titleCn: '热门方形',
-    titleEn: 'Hot Square',
-    countCn: '1288 次',
-    countEn: '1,288 runs'
-  },
-  {
-    cn: '心形',
-    en: 'Heart',
-    titleCn: '热门心形',
-    titleEn: 'Hot Heart',
-    countCn: '980 次',
-    countEn: '980 runs'
+function shapeIcon(shapeType: string, className: string = 'w-14 h-14') {
+  const colorClass = `${className} ${shapeColor(shapeType)}`;
+  if (shapeType === 'star') {
+    return <svg className={colorClass} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" /></svg>;
   }
-] as const;
+  if (shapeType === 'circle') {
+    return <svg className={colorClass} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><circle cx="50" cy="50" r="30" /></svg>;
+  }
+  if (shapeType === 'triangle') {
+    return <svg className={colorClass} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><path d="M 50,15 L 85,80 L 15,80 Z" /></svg>;
+  }
+  if (shapeType === 'square') {
+    return <svg className={colorClass} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><rect x="22" y="22" width="56" height="56" /></svg>;
+  }
+  if (shapeType === 'hexagon') {
+    return <svg className={colorClass} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><path d="M 50,15 L 80,32 L 80,68 L 50,85 L 20,68 L 20,32 Z" /></svg>;
+  }
+  return <svg className={colorClass} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" /></svg>;
+}
+
+const SEARCH_QUERY_KEY = 'tracecraft_search_query';
 
 // ----------------------------------------------------------------------
 // SCREEN 19: Favorites (收藏模板)
@@ -69,14 +74,28 @@ export function FavoritesScreen({
 }) {
   const { text } = useI18n();
   const [showEmpty, setShowEmpty] = useState<boolean>(false);
-  const [favoriteList, setFavoriteList] = useState([
-    { id: 'f1', title: 'heart', dist: '2.2km', usage: '128', icon: 'heart', color: 'text-rose-500' },
-    { id: 'f2', title: 'star', dist: '3.0km', usage: '95', icon: 'star', color: 'text-yellow-500' },
-    { id: 'f3', title: 'circle', dist: '2.5km', usage: '203', icon: 'circle', color: 'text-blue-500' },
-    { id: 'f4', title: 'cat', dist: '3.0km', usage: '47', icon: 'cat', color: 'text-orange-500' }
-  ]);
+  const [favoriteList, setFavoriteList] = useState<RouteTemplateItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleRemove = (id: string, name: string) => {
+  useEffect(() => {
+    let cancelled = false;
+    listFavorites()
+      .then((items) => {
+        if (!cancelled) setFavoriteList(items.map((item) => item.template).filter(Boolean) as RouteTemplateItem[]);
+      })
+      .catch(() => {
+        if (!cancelled) setFavoriteList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleRemove = async (id: string, name: string) => {
+    await removeFavorite('template', id);
     setFavoriteList(prev => prev.filter(item => item.id !== id));
     miniToast(text(`已删除 ${name}`, `Removed ${name}`));
   };
@@ -92,11 +111,11 @@ export function FavoritesScreen({
         <button 
           onClick={() => {
             setShowEmpty(!showEmpty);
-            miniToast(showEmpty ? text('当前无收藏数据', 'No saved items') : text('已清空收藏数据', 'Cleared saved items'));
+            miniToast(showEmpty ? text('显示收藏数据', 'Show saved items') : text('临时查看空态', 'Preview empty state'));
           }}
           className="text-xs text-cyan-600 font-extrabold hover:underline"
         >
-          {showEmpty ? text('恢复数据', 'Restore data') : text('置空模拟', 'Simulate empty')}
+          {showEmpty ? text('恢复数据', 'Restore data') : text('查看空态', 'Empty state')}
         </button>
       </div>
 
@@ -108,7 +127,9 @@ export function FavoritesScreen({
 
       {/* Grid or Empty view */}
       <div className="flex-1 overflow-y-auto px-4 py-3 pb-[calc(96px+env(safe-area-inset-bottom))]">
-        {showEmpty || favoriteList.length === 0 ? (
+        {loading ? (
+          <div className="py-24 text-center text-[12px] text-slate-400 font-bold">{text('正在加载收藏...', 'Loading favorites...')}</div>
+        ) : showEmpty || favoriteList.length === 0 ? (
           /* EMPTY VIEW */
           <div className="py-24 flex flex-col items-center justify-center text-center space-y-4 px-6 animate-pulse select-none">
             <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
@@ -133,47 +154,32 @@ export function FavoritesScreen({
             {favoriteList.map((item) => (
               <div 
                 key={item.id}
-                onClick={() => onNavigate('template_detail')}
+                onClick={() => {
+                  selectTemplate(item.id);
+                  onNavigate('template_detail');
+                }}
                 className="bg-white p-3 rounded-[16px] border border-slate-100 shadow-[0_4px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between space-y-2 hover:shadow-md hover:border-slate-200 transition-all cursor-pointer relative group"
               >
-                {/* SVG mock path top */}
+                {/* SVG path preview */}
                 <div className="h-[90px] rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shrink-0">
-                  {item.icon === 'heart' && (
-                    <svg className="w-14 h-14 text-rose-500 animate-pulse" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-                      <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-                    </svg>
-                  )}
-                  {item.icon === 'star' && (
-                    <svg className="w-14 h-14 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-                      <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
-                    </svg>
-                  )}
-                  {item.icon === 'circle' && (
-                    <svg className="w-14 h-14 text-blue-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-                      <circle cx="50" cy="50" r="30" />
-                    </svg>
-                  )}
-                  {item.icon === 'cat' && (
-                    <svg className="w-14 h-14 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-                      <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" />
-                    </svg>
-                  )}
+                  {shapeIcon(item.shapeType)}
                 </div>
 
                 <div>
-                  <h4 className="text-[13px] font-black text-slate-900 truncate leading-none mt-1">{item.title}</h4>
-                  <p className="text-[10px] text-slate-400 mt-1">{item.dist}</p>
+                  <h4 className="text-[13px] font-black text-slate-900 truncate leading-none mt-1">{text(item.title, item.titleEn)}</h4>
+                  <p className="text-[10px] text-slate-400 mt-1">{item.distanceKm.toFixed(1)}km</p>
                 </div>
 
                 <div className="flex items-center justify-between pt-1 border-t border-slate-50">
                     <span className="text-[10px] text-rose-500 font-bold flex items-center gap-0.5">
-                    ❤️ {item.usage}
+                    ❤️ {item.usageCount}
                   </span>
                   
                   {/* use button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      selectTemplate(item.id);
                       miniToast(`open detail: ${item.title}`);
                       onNavigate('param_adjust');
                     }}
@@ -217,6 +223,37 @@ export function FavoritesScreen({
 export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const { text } = useI18n();
   const [favorite, setFavorite] = useState(true);
+  const [template, setTemplate] = useState<RouteTemplateItem | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const templateId = getSelectedTemplateId() || 'tpl-heart';
+    getTemplate(templateId)
+      .then((item) => {
+        if (!cancelled) setTemplate(item);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplate(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const shapeType = template?.shapeType || 'heart';
+  const title = template ? text(template.title, template.titleEn) : text('爱心挑战', 'Heart Challenge');
+  const distanceKm = template?.distanceKm ?? 4.2;
+  const usageCount = template?.usageCount ?? 128;
+  const toggleFavorite = async () => {
+    if (!template) return;
+    if (favorite) {
+      await removeFavorite('template', template.id);
+    } else {
+      await addFavorite('template', template.id);
+    }
+    setFavorite(!favorite);
+    miniToast(text(favorite ? '取消收藏' : '已添加收藏', favorite ? 'Removed from favorites' : 'Added to favorites'));
+  };
 
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between overflow-y-auto text-slate-800 animate-fadeIn">
@@ -230,7 +267,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
           <button onClick={() => miniToast(text('分享模板数据', 'Share template data'))} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <ExternalLink size={16} className="text-slate-600" />
           </button>
-          <button onClick={() => { setFavorite(!favorite); miniToast(text(favorite ? '取消收藏' : '已添加收藏', favorite ? 'Removed from favorites' : 'Added to favorites')); }} className="p-1.5 hover:bg-neutral-100 rounded-full">
+          <button onClick={() => { void toggleFavorite(); }} className="p-1.5 hover:bg-neutral-100 rounded-full">
             <Heart size={16} fill={favorite ? 'red' : 'none'} className={favorite ? 'text-red-500' : 'text-slate-600'} />
           </button>
         </div>
@@ -242,12 +279,10 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
         {/* Template graphic preview area */}
         <div className="py-6 px-4 flex flex-col items-center justify-center bg-slate-50/50 border-b border-slate-100 relative">
           <div className="w-48 h-48 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center justify-center p-3">
-            <svg className="w-36 h-36 text-rose-500 drop-shadow-sm animate-pulse" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-              <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-            </svg>
+            {shapeIcon(shapeType, 'w-36 h-36 drop-shadow-sm animate-pulse')}
           </div>
 
-          <h3 className="text-[20px] font-black text-slate-900 mt-4">{text('爱心挑战', 'Heart Challenge')}</h3>
+          <h3 className="text-[20px] font-black text-slate-900 mt-4">{title}</h3>
           <p className="text-[11px] text-[#4FACFE] font-bold mt-1">{text('❤️ 官方推荐跑步打卡艺术经典路线', 'Officially recommended art route for running check-ins')}</p>
         </div>
 
@@ -260,7 +295,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
                 <span className="text-slate-500">{text('预计跑距', 'Estimated distance')}</span>
               </div>
-                <strong className="text-slate-900 font-bold">4.2 km</strong>
+                <strong className="text-slate-900 font-bold">{distanceKm.toFixed(1)} km</strong>
             </div>
 
             <div className="flex items-center justify-between text-[13px] border-b border-slate-50 pb-2.5">
@@ -276,7 +311,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
                 <span className="text-slate-500">{text('已完成', 'Completed')}</span>
               </div>
-              <strong className="text-slate-930 text-rose-500 font-extrabold">{text('128 次', '128 runs')}</strong>
+              <strong className="text-slate-930 text-rose-500 font-extrabold">{text(`${usageCount} 次`, `${usageCount} runs`)}</strong>
             </div>
 
             <div className="flex items-center justify-between text-[13px]">
@@ -312,9 +347,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
                 onClick={() => { miniToast(text(`查看第 ${val} 种使用场景`, `View use case ${val}`)); }}
               >
                 <div className="w-12 h-12 bg-white rounded-full border border-slate-100 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
-                    <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-                  </svg>
+                  {shapeIcon(shapeType, 'w-8 h-8')}
                 </div>
                 <span className="text-[9px] text-slate-400 font-semibold truncate max-w-full">
                   {text(val === 1 ? '舒适' : val === 2 ? '节奏' : '竞技', val === 1 ? 'Comfort' : val === 2 ? 'Rhythm' : 'Competition')}
@@ -331,7 +364,7 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
         <div className="px-4 mt-5 grid grid-cols-2 gap-3">
           <button 
             onClick={() => {
-              miniToast(text('为您模拟生成大地图实景预览..', 'Simulating large map preview...'));
+              miniToast(text('正在生成大地图实景预览..', 'Generating large map preview...'));
               onNavigate('trace_detail');
             }}
             className="py-3 px-4 border border-slate-200 text-slate-700 bg-white hover:bg-neutral-50 active:scale-98 text-xs font-black rounded-full transition-all text-center uppercase tracking-wider"
@@ -360,9 +393,37 @@ export function TemplateDetailScreen({ onNavigate }: { onNavigate: (screen: Scre
 export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const { text } = useI18n();
   const [query, setQuery] = useState('');
+  const [history, setHistory] = useState<string[]>([]);
+  const [hot, setHot] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSearchHints()
+      .then((hints) => {
+        if (cancelled) return;
+        setHistory(hints.history);
+        setHot(hints.hot);
+        setCategories(hints.categories);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHistory([]);
+        setHot([]);
+        setCategories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [text]);
 
   const handleSearchTrigger = (val: string) => {
     setQuery(val);
+    try {
+      localStorage.setItem(SEARCH_QUERY_KEY, val);
+    } catch {
+      // Result page falls back to default keyword.
+    }
     miniToast(text(`正在搜索: ${val}`, `Searching: ${val}`));
     setTimeout(() => {
       onNavigate('search_result');
@@ -423,13 +484,13 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {SEARCH_HISTORY.map((tag) => (
+            {history.map((tag) => (
               <span 
-                key={tag.cn}
-                onClick={() => handleSearchTrigger(text(tag.cn, tag.en))}
+                key={tag}
+                onClick={() => handleSearchTrigger(tag)}
                 className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-100 text-[11px] text-slate-600 font-medium rounded-full cursor-pointer transition-colors"
               >
-                {text(tag.cn, tag.en)} <span className="text-[9px] text-slate-400 ml-1">×</span>
+                {tag} <span className="text-[9px] text-slate-400 ml-1">×</span>
               </span>
             ))}
           </div>
@@ -439,13 +500,13 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
         <div>
           <span className="text-[13px] font-black text-slate-900 block mb-2.5">{text('热门搜索', 'Hot searches')}</span>
           <div className="flex flex-wrap gap-2">
-            {SEARCH_HOT.map((tag) => (
+            {hot.map((tag) => (
               <span 
-                key={tag.cn}
-                onClick={() => handleSearchTrigger(text(tag.queryCn, tag.queryEn))}
+                key={tag}
+                onClick={() => handleSearchTrigger(tag)}
                 className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-100 text-[11px] text-slate-600 font-bold rounded-full cursor-pointer transition-colors"
               >
-                {text(tag.cn, tag.en)}
+                {tag}
               </span>
             ))}
           </div>
@@ -455,7 +516,7 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
         <div>
           <span className="text-[13px] font-black text-slate-900 block mb-2.5">{text('按分类浏览', 'Browse by category')}</span>
           <div className="grid grid-cols-3 gap-2">
-            {SEARCH_CATEGORIES.map((cat, idx) => {
+            {categories.map((cat, idx) => {
               const bgGrads = [
                 'from-teal-400 to-cyan-500',
                 'from-orange-400 to-[#FF8038]',
@@ -467,34 +528,14 @@ export function SearchScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
               return (
                 <div 
-                  key={cat.cn}
-                  onClick={() => handleSearchTrigger(text(cat.cn, cat.en))}
+                  key={cat}
+                  onClick={() => handleSearchTrigger(cat)}
                   className={`h-14 rounded-2xl bg-gradient-to-br ${useGrad} p-2 flex items-end justify-start font-black text-white hover:brightness-105 active:scale-95 transition-all text-left truncate cursor-pointer shadow-sm`}
                 >
-                  <span className="text-[11px] drop-shadow-md tracking-wider">{text(cat.cn, cat.en)}</span>
+                  <span className="text-[11px] drop-shadow-md tracking-wider">{cat}</span>
                 </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Popular recommendation preview list */}
-        <div>
-          <span className="text-[13px] font-black text-slate-900 block mb-2">{text('热门推荐', 'Popular picks')}</span>
-          <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-none">
-            {SEARCH_RECOMMENDED.map((item, i) => (
-              <div 
-                key={item.cn}
-                onClick={() => handleSearchTrigger(text(item.cn, item.en))}
-                className="w-28 p-2 bg-white rounded-2xl border border-slate-100 shadow-[0_3px_10px_rgba(0,0,0,0.02)] shrink-0 cursor-pointer hover:shadow-md transition-shadow text-center flex flex-col items-center space-y-1"
-              >
-                <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center">
-                  <Star size={14} className={i === 0 ? 'text-yellow-500' : 'text-rose-500'} fill="currentColor" />
-                </div>
-                <span className="text-[11px] font-black text-slate-900">{text(item.titleCn, item.titleEn)}</span>
-                <span className="text-[8px] text-slate-400">{text(item.countCn, item.countEn)}</span>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -513,10 +554,49 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
     'cat_result': true,
     'hex_result': false
   });
+  const [query, setQuery] = useState(text('五角星', 'Pentagram'));
+  const [results, setResults] = useState<SearchResultItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    let q = text('五角星', 'Pentagram');
+    try {
+      q = localStorage.getItem(SEARCH_QUERY_KEY) || q;
+    } catch {
+      // Keep default keyword.
+    }
+    setQuery(q);
+    setLoading(true);
+    searchTraceCraft(q, searchTab, 30)
+      .then((items) => {
+        if (!cancelled) {
+          setResults(items);
+          const nextFavorites: Record<string, boolean> = {};
+          items.forEach((item) => {
+            nextFavorites[item.id] = Boolean(item.isFavorited);
+          });
+          setFavoriteStates(nextFavorites);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchTab, text]);
 
   const toggleFavorite = (id: string) => {
     setFavoriteStates(prev => {
       const next = !prev[id];
+      const item = results.find((r) => r.id === id);
+      if (item?.type === 'template') {
+        void (next ? addFavorite('template', id) : removeFavorite('template', id));
+      }
       miniToast(next ? text('已收藏', 'Saved') : text('取消收藏', 'Removed from saved'));
       return { ...prev, [id]: next };
     });
@@ -536,7 +616,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
           className="flex-1 mx-3 bg-slate-50 px-3 py-1.5 rounded-full flex items-center space-x-1 border border-slate-100/80 cursor-pointer"
         >
           <Search size={13} className="text-slate-400" />
-          <span className="text-[12px] font-bold text-slate-900">{text('五角星', 'Pentagram')}</span>
+          <span className="text-[12px] font-bold text-slate-900">{query}</span>
         </div>
 
         <button onClick={() => onNavigate('home')} className="text-[12px] text-slate-500 hover:text-slate-700 font-semibold">
@@ -546,7 +626,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
 
       {/* Filter panel info */}
       <div className="px-4 py-1.5 bg-slate-50 flex items-center justify-between text-[11px] text-slate-500 shrink-0 font-semibold border-b border-slate-100/50">
-        <span>{text("找到 23 个含有'五角星'的结果", "Found 23 results containing 'Pentagram'")}</span>
+        <span>{text(`找到 ${results.length} 个含有'${query}'的结果`, `Found ${results.length} results containing '${query}'`)}</span>
         <div className="flex space-x-2">
           <button onClick={() => miniToast(text('查看收藏夹', 'Open favorites'))} className="hover:text-cyan-600">{text('打开收藏夹', 'Open favorites')}</button>
           <button onClick={() => { miniToast(text('关闭', 'Close')); }} className="hover:text-cyan-600">{text('关闭', 'Close')}</button>
@@ -575,9 +655,77 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
 
       {/* Search results list */}
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3 pb-8 select-none">
+        {loading && (
+          <div className="py-20 text-center text-[12px] text-slate-400 font-bold">{text('正在搜索...', 'Searching...')}</div>
+        )}
+
+        {!loading && results.length === 0 && (
+          <div className="py-20 text-center text-[12px] text-slate-400 font-bold">{text('暂无搜索结果', 'No results')}</div>
+        )}
+
+        {!loading && results.map((item) => (
+          <div
+            key={`${item.type}-${item.id}`}
+            onClick={() => {
+              if (item.type === 'template') {
+                selectTemplate(item.id);
+                onNavigate('template_detail');
+              } else if (item.type === 'route') {
+                try {
+                  localStorage.setItem('tracecraft_selected_route_id', item.id);
+                } catch {
+                  // Detail page can still show fallback.
+                }
+                onNavigate('trace_detail');
+              } else {
+                onNavigate('profile');
+              }
+            }}
+            className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
+          >
+            <div className="flex items-center space-x-3 overflow-hidden">
+              <div className="w-[54px] h-[54px] rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                {item.type === 'user' ? <User size={24} className="text-slate-400" /> : shapeIcon(item.shapeType || 'heart', 'w-10 h-10')}
+              </div>
+              <div className="text-left overflow-hidden">
+                <h4 className="text-[14px] font-black text-slate-900 truncate">{item.title}</h4>
+                <div className="flex items-center space-x-1.5 mt-0.5">
+                  <span className="px-1 py-0.2 bg-cyan-50 border border-cyan-200 text-cyan-600 rounded text-[8px] font-bold">
+                    {item.type === 'route' && text('轨迹', 'Route')}
+                    {item.type === 'template' && text('模板', 'Template')}
+                    {item.type === 'user' && text('用户', 'User')}
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-medium font-mono truncate">{item.subtitle}</span>
+                </div>
+              </div>
+            </div>
+
+            {item.type === 'template' ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite(item.id);
+                }}
+                className="p-1.5 hover:bg-slate-100 rounded-full text-rose-500"
+              >
+                <Heart size={15} fill={favoriteStates[item.id] ? 'red' : 'none'} stroke="currentColor" />
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  miniToast(item.type === 'user' ? text('查看用户主页', 'Open user profile') : text('打开轨迹详情', 'Open route detail'));
+                }}
+                className="px-2.5 py-1 border border-cyan-500 text-cyan-600 hover:bg-cyan-50 active:scale-95 text-[10px] font-black rounded-full transition-all"
+              >
+                {item.type === 'user' ? text('查看', 'View') : text('打开', 'Open')}
+              </button>
+            )}
+          </div>
+        ))}
         
         {/* RESULT 1: TRACK */}
-        {(searchTab === 'all' || searchTab === 'trace') && (
+        {false && (searchTab === 'all' || searchTab === 'trace') && (
           <div 
             onClick={() => onNavigate('trace_detail')}
             className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
@@ -610,7 +758,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
         )}
 
         {/* RESULT 2: TEMPLATE */}
-        {(searchTab === 'all' || searchTab === 'template') && (
+        {false && (searchTab === 'all' || searchTab === 'template') && (
           <div 
             onClick={() => onNavigate('template_detail')}
             className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
@@ -644,7 +792,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
         )}
 
         {/* RESULT 3: USER */}
-        {(searchTab === 'all' || searchTab === 'user') && (
+        {false && (searchTab === 'all' || searchTab === 'user') && (
           <div 
             onClick={() => {
               miniToast(text('查看用户主页', 'Open user profile'));
@@ -675,7 +823,7 @@ export function SearchResultScreen({ onNavigate }: { onNavigate: (screen: Screen
         )}
 
         {/* RESULT 4: ANOTHER TRACK */}
-        {(searchTab === 'all' || searchTab === 'trace') && (
+        {false && (searchTab === 'all' || searchTab === 'trace') && (
           <div 
             onClick={() => { miniToast(text('打开轨迹详情', 'Open route detail')); onNavigate('trace_detail'); }}
             className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"

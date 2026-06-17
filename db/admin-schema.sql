@@ -159,5 +159,5 @@ ON CONFLICT (code) DO NOTHING;
 
 -- 回填超级管理员账号样例（password_hash 请换成真实 hash）
 INSERT INTO admin_users (id, username, password_hash, display_name, status, created_by)
-VALUES ('admin-root', 'admin', '$2y$12$placeholder_hash_need_replace', 'TraceCraft Admin', 'active', NULL)
+VALUES ('admin-root', 'admin', 'password_login_disabled_until_admin_auth_ready', 'TraceCraft Admin', 'active', NULL)
 ON CONFLICT (username) DO NOTHING;

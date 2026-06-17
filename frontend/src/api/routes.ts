@@ -1,20 +1,27 @@
-import type { GeneratedRoute, GeoPoint } from '../types';
+import type { FinishResult, GeneratedRoute, GeoPoint, SessionState } from '../types';
+import { getAuthToken } from './auth';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
-const DEMO_USER_TOKEN = 'user:demo';
 
 interface RouteApiPayload {
   ok: boolean;
   route?: GeneratedRoute;
   sessionId?: string;
   session?: { id?: string };
+  state?: SessionState;
+  routeState?: SessionState;
+  result?: FinishResult;
   error?: string;
   code?: string;
 }
 
 function authHeaders(extra: HeadersInit = {}): HeadersInit {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('auth_required');
+  }
   return {
-    Authorization: `Bearer ${DEMO_USER_TOKEN}`,
+    Authorization: `Bearer ${token}`,
     ...extra,
   };
 }
@@ -68,6 +75,24 @@ export async function createTemplateRoute(shapeType: string, targetKm: number = 
   return parseRouteResponse(response);
 }
 
+export async function listUserRuns(): Promise<GeneratedRoute[]> {
+  const response = await fetch(`${API_BASE}/runs?limit=100`, {
+    headers: authHeaders(),
+  });
+  const payload = (await response.json()) as RouteApiPayload & { runs?: GeneratedRoute[] };
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || payload.code || 'list_runs_failed');
+  }
+  return payload.runs || [];
+}
+
+export async function getRoute(routeId: string): Promise<GeneratedRoute> {
+  const response = await fetch(`${API_BASE}/routes/${routeId}`, {
+    headers: authHeaders(),
+  });
+  return parseRouteResponse(response);
+}
+
 export async function createImageRoute(file: File, targetKm: number = 5): Promise<GeneratedRoute> {
   const current = await getCurrentPoint();
   const body = new FormData();
@@ -102,4 +127,46 @@ export async function startRoute(routeId: string, riskConfirmed: boolean): Promi
     throw new Error(payload.error || payload.code || 'start_route_failed');
   }
   return sessionId;
+}
+
+export async function getSessionState(sessionId: string): Promise<SessionState> {
+  const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    headers: authHeaders(),
+  });
+  const payload = (await response.json()) as RouteApiPayload;
+  if (!response.ok || !payload.ok || !payload.state) {
+    throw new Error(payload.error || payload.code || 'session_state_failed');
+  }
+  return payload.state;
+}
+
+export async function reportLocation(sessionId: string, point: GeoPoint & { accuracy?: number | null }): Promise<SessionState | null> {
+  const response = await fetch(`${API_BASE}/sessions/${sessionId}/location`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      lat: point.lat,
+      lng: point.lng,
+      accuracy: point.accuracy ?? null,
+      ts: point.ts ?? Date.now(),
+    }),
+  });
+  const payload = (await response.json()) as RouteApiPayload;
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || payload.code || 'location_report_failed');
+  }
+  return payload.routeState || null;
+}
+
+export async function finishSession(sessionId: string): Promise<FinishResult> {
+  const response = await fetch(`${API_BASE}/sessions/${sessionId}/finish`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({}),
+  });
+  const payload = (await response.json()) as RouteApiPayload;
+  if (!response.ok || !payload.ok || !payload.result) {
+    throw new Error(payload.error || payload.code || 'finish_session_failed');
+  }
+  return payload.result;
 }

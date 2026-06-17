@@ -15,6 +15,7 @@ import { AppViewport } from './components/AppViewport';
 import { I18nProvider } from './i18n';
 import { ToastProvider } from './components/common/Toast';
 import { createImageRoute, createTemplateRoute, startRoute } from './api/routes';
+import { clearAuthSession, getAuthToken } from './api/auth';
 import { miniToast } from './utils';
 
 // localStorage 持久化键名（移至组件外部，避免每次渲染重新创建）
@@ -40,6 +41,7 @@ export default function App() {
   // 是否已登录
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [generatedRoute, setGeneratedRoute] = useState<GeneratedRoute | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isRouteGenerating, setIsRouteGenerating] = useState<boolean>(false);
   const [routeGenerationError, setRouteGenerationError] = useState<string | null>(null);
   // 记录页面返回栈，给安卓返回键/右滑返回用
@@ -86,7 +88,7 @@ export default function App() {
   useEffect(() => {
     try {
       const onboardingDone = localStorage.getItem(STORAGE_KEYS.onboardingDone) === '1';
-      const loggedIn = localStorage.getItem(STORAGE_KEYS.isLoggedIn) === '1';
+      const loggedIn = localStorage.getItem(STORAGE_KEYS.isLoggedIn) === '1' && Boolean(getAuthToken());
       setHasCompletedOnboarding(onboardingDone);
       setIsLoggedIn(loggedIn);
     } catch {
@@ -199,6 +201,7 @@ export default function App() {
   const handleNavigateFromProfileOrSettings = (screen: ScreenId) => {
     if (screen === 'login') {
       setIsLoggedIn(false);
+      clearAuthSession();
       navigateToScreen('login', { replace: true, resetHistory: true });
       return;
     }
@@ -208,6 +211,7 @@ export default function App() {
 
   const handleGenerateTemplateRoute = useCallback(async (shapeId: string, targetKm?: number) => {
     setSelectedShapeId(shapeId);
+    setActiveSessionId(null);
     setIsRouteGenerating(true);
     setRouteGenerationError(null);
     navigateToScreen('loading');
@@ -227,6 +231,7 @@ export default function App() {
 
   const handleUploadImageRoute = useCallback(async (file: File) => {
     setIsRouteGenerating(true);
+    setActiveSessionId(null);
     setRouteGenerationError(null);
     navigateToScreen('loading');
     try {
@@ -250,7 +255,8 @@ export default function App() {
       return;
     }
     try {
-      await startRoute(generatedRoute.id, riskConfirmed);
+      const sessionId = await startRoute(generatedRoute.id, riskConfirmed);
+      setActiveSessionId(sessionId);
       navigateToScreen('nav');
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
@@ -289,6 +295,7 @@ export default function App() {
           onNavigateFromLogin={handleNavigateFromLogin}
           onNavigateFromProfileOrSettings={handleNavigateFromProfileOrSettings}
           generatedRoute={generatedRoute}
+          activeSessionId={activeSessionId}
           isRouteGenerating={isRouteGenerating}
           routeGenerationError={routeGenerationError}
           onGenerateTemplateRoute={handleGenerateTemplateRoute}

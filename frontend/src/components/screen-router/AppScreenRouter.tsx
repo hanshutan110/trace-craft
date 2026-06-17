@@ -121,6 +121,7 @@ interface AppScreenRouterProps {
   openBottomSheet: () => void;
   onSuccessNavigate?: () => void;
   generatedRoute: GeneratedRoute | null;
+  activeSessionId: string | null;
   isRouteGenerating: boolean;
   routeGenerationError: string | null;
   onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
@@ -149,6 +150,7 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
   openBottomSheet,
   onSuccessNavigate,
   generatedRoute,
+  activeSessionId,
   isRouteGenerating,
   routeGenerationError,
   onGenerateTemplateRoute,
@@ -203,6 +205,7 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
                 onNavigate: navigate,
                 selectedShapeId,
                 generatedRoute,
+                activeSessionId,
                 isRouteGenerating,
                 routeGenerationError,
                 onGenerateTemplateRoute,

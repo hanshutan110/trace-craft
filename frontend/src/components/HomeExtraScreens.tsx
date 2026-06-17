@@ -4,7 +4,7 @@
  * 从 HomeAndLibrary.tsx 拆分，包含 QuickTemplateScreen 和 FullLibraryScreen。
  * 避免 AppScreenRouter 对 HomeAndLibrary 的静态/动态混合导入冲突。
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowLeft,
   Star,
@@ -18,49 +18,7 @@ import {
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
-
-const QUICK_TEMPLATE_CARDS = [
-  {
-    id: 'heart',
-    title: '爱心路线',
-    distance: '约4.2km',
-    gradient: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)',
-    icon: <Heart size={44} className="fill-white stroke-none text-white/90" />,
-    tagColor: 'bg-rose-500/20 text-white'
-  },
-  {
-    id: 'star',
-    title: '星形挑战',
-    distance: '约5km',
-    gradient: 'linear-gradient(135deg, #FFD166 0%, #FFB347 100%)',
-    icon: <Star size={44} className="fill-white stroke-none text-white/95" />,
-    tagColor: 'bg-amber-600/20 text-white'
-  },
-  {
-    id: 'circle',
-    title: '环湖路线',
-    distance: '约3.5km',
-    gradient: 'linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%)',
-    icon: <Circle size={40} className="stroke-[3.5] text-white" />,
-    tagColor: 'bg-blue-600/20 text-white'
-  },
-  {
-    id: 'triangle',
-    title: '三角冲刺',
-    distance: '约3km',
-    gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A24 100%)',
-    icon: <Triangle size={40} className="stroke-[3.5] text-white" />,
-    tagColor: 'bg-red-650/20 text-white'
-  },
-  {
-    id: 'square',
-    title: '方形地图',
-    distance: '约4km',
-    gradient: 'linear-gradient(135deg, #A8E6CF 0%, #3BAC6A 100%)',
-    icon: <Square size={40} className="stroke-[3.5] text-white" />,
-    tagColor: 'bg-emerald-650/15 text-white'
-  }
-];
+import { listTemplates, selectTemplate, type RouteTemplateItem } from '../api/discovery';
 
 const FULL_LIBRARY_TABS = [
   { id: 'recommend', label: '推荐' },
@@ -70,84 +28,42 @@ const FULL_LIBRARY_TABS = [
   { id: 'holiday', label: '节日' },
 ] as const;
 
-const FULL_LIBRARY_GRID_ITEMS = [
-  {
-    id: 'circle',
-    title: '圆形',
-    bg: 'from-[#FF6B6B] to-[#FF8E53]',
-    icon: <Circle size={28} className="stroke-[3] text-white" />,
-    km: '约3.5km',
-    badge: 'star'
-  },
-  {
-    id: 'triangle',
-    title: '三角形',
-    bg: 'from-[#FF9F43] to-[#FFC575]',
-    icon: <Triangle size={28} className="stroke-[3] text-white" />,
-    km: '约3.0km',
-    badge: 'star'
-  },
-  {
-    id: 'star',
-    title: '五角星',
-    bg: 'from-[#FFD166] to-[#FFB347]',
-    icon: <Star size={28} className="fill-white stroke-none text-white/95" />,
-    km: '约5km',
-    badge: 'hot'
-  },
-  {
-    id: 'square',
-    title: '正方形',
-    bg: 'from-[#3BAC6A] to-[#68D391]',
-    icon: <Square size={28} className="stroke-[3] text-white" />,
-    km: '约4公里',
-    badge: 'star'
-  },
-  {
-    id: 'heart',
-    title: '心形',
-    bg: 'from-[#FF758C] to-[#FF7EB3]',
-    icon: <Heart size={28} className="fill-white stroke-none text-white/95" />,
-    km: '约4.2km',
-    badge: 'hot'
-  },
-  {
-    id: 'hexagon',
-    title: '六边形',
-    bg: 'from-[#A29BFE] to-[#6C5CE7]',
-    icon: <span className="font-bold text-white text-base">六</span>,
-    km: '约4.8km',
-    badge: 'star'
-  }
-] as const;
+function templateIcon(shapeType: string, size: number = 40) {
+  if (shapeType === 'heart') return <Heart size={size} className="fill-white stroke-none text-white/95" />;
+  if (shapeType === 'star') return <Star size={size} className="fill-white stroke-none text-white/95" />;
+  if (shapeType === 'circle') return <Circle size={size} className="stroke-[3.5] text-white" />;
+  if (shapeType === 'triangle') return <Triangle size={size} className="stroke-[3.5] text-white" />;
+  if (shapeType === 'square') return <Square size={size} className="stroke-[3.5] text-white" />;
+  return <span className="font-bold text-white text-base">{shapeType.slice(0, 1).toUpperCase()}</span>;
+}
 
-const FULL_LIBRARY_VARIANT_ITEMS = {
-  animal: [
-    { id: 'cat', title: '小猫路线', bg: 'from-blue-400 to-indigo-500', icon: <span className="text-2xl">🐱</span>, km: '5.1km', badge: 'hot' },
-    { id: 'panda', title: '熊猫脚印', bg: 'from-gray-700 to-slate-900', icon: <span className="text-2xl">🐼</span>, km: '6.5km', badge: 'star' },
-  ],
-  text: [
-    { id: 'love', title: 'LOVE字母', bg: 'from-pink-500 to-rose-400', icon: <span className="font-sans font-black text-xl text-white">L-O-V-E</span>, km: '8.2km', badge: 'hot' },
-    { id: 'star_t', title: 'RUN', bg: 'from-orange-400 to-red-500', icon: <span className="font-sans font-black text-xl text-white">R-U-N</span>, km: '4.5km', badge: 'star' },
-  ],
-  holiday: [
-    { id: 'tree', title: '圣诞树', bg: 'from-green-600 to-emerald-800', icon: <span className="text-2xl">🎄</span>, km: '6.4km', badge: 'star' },
-    { id: 'moon', title: '中秋圆月', bg: 'from-amber-300 to-orange-400', icon: <span className="text-2xl">🌙</span>, km: '3.8km', badge: 'hot' },
-  ],
-} as const;
+function templateGradient(shapeType: string): string {
+  const gradients: Record<string, string> = {
+    heart: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)',
+    star: 'linear-gradient(135deg, #FFD166 0%, #FFB347 100%)',
+    circle: 'linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%)',
+    triangle: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A24 100%)',
+    square: 'linear-gradient(135deg, #A8E6CF 0%, #3BAC6A 100%)',
+    hexagon: 'linear-gradient(135deg, #A29BFE 0%, #6C5CE7 100%)',
+  };
+  return gradients[shapeType] || 'linear-gradient(135deg, #64748B 0%, #0F766E 100%)';
+}
 
+function templateClassGradient(shapeType: string): string {
+  const gradients: Record<string, string> = {
+    heart: 'from-[#FF758C] to-[#FF7EB3]',
+    star: 'from-[#FFD166] to-[#FFB347]',
+    circle: 'from-[#4FACFE] to-[#00F2FE]',
+    triangle: 'from-[#FF6B6B] to-[#EE5A24]',
+    square: 'from-[#3BAC6A] to-[#68D391]',
+    hexagon: 'from-[#A29BFE] to-[#6C5CE7]',
+  };
+  return gradients[shapeType] || 'from-slate-500 to-teal-700';
+}
 
-const getLibraryItems = (activeTab: 'base' | 'recommend' | 'animal' | 'text' | 'holiday') => {
-  if (activeTab === 'recommend') {
-    return FULL_LIBRARY_GRID_ITEMS.filter((item) => item.badge === 'hot');
-  }
-
-  if (activeTab === 'animal' || activeTab === 'text' || activeTab === 'holiday') {
-    return FULL_LIBRARY_VARIANT_ITEMS[activeTab];
-  }
-
-  return FULL_LIBRARY_GRID_ITEMS;
-};
+function templateToShapeId(template: RouteTemplateItem): string {
+  return ['circle','triangle','star','square','heart','hexagon'].includes(template.shapeType) ? template.shapeType : 'star';
+}
 
 /* ==========================================
    Screen 8: Quick Presets (快速模板卡片页)
@@ -166,8 +82,31 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
   onUploadImageRoute,
 }) => {
   const { t, text } = useI18n();
-  const cards = QUICK_TEMPLATE_CARDS;
+  const [templates, setTemplates] = useState<RouteTemplateItem[]>([]);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const cards = templates.slice(0, 6).map((item) => ({
+        id: item.id,
+        shapeId: templateToShapeId(item),
+        title: item.title,
+        distance: `约${item.distanceKm.toFixed(1)}km`,
+        gradient: templateGradient(item.shapeType),
+        icon: templateIcon(item.shapeType, 44),
+        tagColor: 'bg-white/20 text-white',
+      }));
+
+  useEffect(() => {
+    let cancelled = false;
+    listTemplates({ featured: true, limit: 8 })
+      .then((items) => {
+        if (!cancelled) setTemplates(items);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-white select-none">
@@ -191,8 +130,9 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
               <div
                 key={card.id}
                 onClick={() => {
-                  onSelectShape(card.id);
-                  void onGenerateTemplateRoute(card.id);
+                  selectTemplate(card.id);
+                  onSelectShape(card.shapeId);
+                  void onGenerateTemplateRoute(card.shapeId);
                 }}
                 style={{ background: card.gradient }}
                 className="min-w-[144px] w-[144px] h-[168px] rounded-[24px] p-4 flex flex-col justify-between text-white shadow-[0_6px_16px_rgba(0,0,0,0.06)] cursor-pointer active:scale-98 transition-all hover:brightness-105"
@@ -202,10 +142,10 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
                 </div>
                 <div>
                   <h3 className="text-[14px] font-bold tracking-tight">
-                    {t(`quick.card.${card.id}`, card.title)}
+                    {t(`quick.card.${card.shapeId}`, card.title)}
                   </h3>
                   <p className="text-[10px] text-white/80 mt-0.5">
-                    {t(`quick.card.${card.id}_dist`, card.distance)}
+                    {t(`quick.card.${card.shapeId}_dist`, card.distance)}
                   </p>
                 </div>
               </div>
@@ -287,9 +227,33 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
 }) => {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'base' | 'recommend' | 'animal' | 'text' | 'holiday'>('base');
+  const [templates, setTemplates] = useState<RouteTemplateItem[]>([]);
   const tabs = FULL_LIBRARY_TABS;
 
-  const currentItems = getLibraryItems(activeTab);
+  useEffect(() => {
+    let cancelled = false;
+    const category = activeTab === 'recommend' ? undefined : activeTab;
+    listTemplates({ category, featured: activeTab === 'recommend', limit: 40 })
+      .then((items) => {
+        if (!cancelled) setTemplates(items);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
+
+  const currentItems = templates.map((item) => ({
+        id: item.id,
+        shapeId: templateToShapeId(item),
+        title: item.title,
+        bg: templateClassGradient(item.shapeType),
+        icon: templateIcon(item.shapeType, 28),
+        km: `约${item.distanceKm.toFixed(1)}km`,
+        badge: item.isFeatured ? 'hot' : 'star',
+      }));
 
   return (
     <div className="flex flex-col h-full bg-white select-none">
@@ -333,10 +297,9 @@ export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
             <div
               key={item.id}
               onClick={() => {
-                // Keep star logic if it maps correctly
-                const shapeId = ['circle','triangle','star','square','heart','hexagon'].includes(item.id) ? item.id : 'star';
-                onSelectShape(shapeId);
-                void onGenerateTemplateRoute(shapeId);
+                selectTemplate(item.id);
+                onSelectShape(item.shapeId);
+                void onGenerateTemplateRoute(item.shapeId);
               }}
               className={`rounded-[24px] bg-linear-to-tr ${item.bg} p-4 h-[124px] flex flex-col justify-between text-white relative shadow-md cursor-pointer hover:scale-[1.02] active:scale-98 transition-all overflow-hidden group`}
             >

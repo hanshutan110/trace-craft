@@ -14,8 +14,13 @@ import cors from 'cors';
 import { getMapConfig } from './services/map-config';
 import { initStorage, storageMode } from './services/storage';
 import { buildTraceId, parseUserId, successPayload, applyIfMatch } from './routes/common';
+import authApi from './routes/authApi';
 import routeApi from './routes/routeApi';
 import sessionApi from './routes/sessionApi';
+import userApi from './routes/userApi';
+import discoveryApi from './routes/discoveryApi';
+import communityApi from './routes/communityApi';
+import adminApi from './routes/adminApi';
 
 const app = express();
 
@@ -53,8 +58,13 @@ app.get('/api/maps/config', applyIfMatch, (req: Request, res: Response) => {
 });
 
 // ===== 路由模块 =====
+app.use('/api', authApi);
+app.use('/api', userApi);
 app.use('/api', routeApi);
 app.use('/api', sessionApi);
+app.use('/api', discoveryApi);
+app.use('/api', communityApi);
+app.use('/api', adminApi);
 
 // 兜底 404 处理
 app.use((_req: Request, res: Response) => {

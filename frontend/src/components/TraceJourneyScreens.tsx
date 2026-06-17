@@ -20,103 +20,108 @@ import {
 import { ScreenId } from '../types';
 import { BottomNavBar } from './common/BottomNavBar';
 import { useI18n } from '../i18n';
+import type { GeneratedRoute } from '../types';
+import { getRoute, listUserRuns } from '../api/routes';
+import { getRunHistory, type RunHistoryEntry } from '../api/user';
 
-const MY_TRACES_ITEMS = [
-  {
-    id: 'cat_trace_1',
-    title: '猫咪轨迹',
-    titleEn: 'Cat Route',
-    distance: '5.0km',
-    date: '2026-06-09',
-    status: 'unrun',
-    isFavorite: true,
-    svgPath: (
-      <svg className="w-10 h-10 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-        <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="20" cy="80" r="4" fill="green" />
-        <circle cx="80" cy="80" r="4" fill="red" />
-      </svg>
-    )
-  },
-  {
-    id: 'heart_trace_2',
-    title: '心形徽标',
-    titleEn: 'Heart Badge',
-    distance: '4.2km',
-    date: '2026-06-07',
-    status: 'completed',
-    isFavorite: true,
-    svgPath: (
-      <svg className="w-10 h-10 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="50" cy="75" r="4" fill="red" />
-      </svg>
-    )
-  },
-  {
-    id: 'star_trace_3',
-    title: '五角徽标',
-    titleEn: 'Star Badge',
-    distance: '5.0km',
-    date: '2026-06-05',
-    status: 'unrun',
-    isFavorite: false,
-    svgPath: (
-      <svg className="w-10 h-10 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="50" cy="15" r="4" fill="green" />
-      </svg>
-    )
-  }
-] as const;
+const SELECTED_ROUTE_ID_KEY = 'tracecraft_selected_route_id';
+const SELECTED_RUN_SESSION_ID_KEY = 'tracecraft_selected_run_session_id';
 
-const RUN_HISTORY_RECORDS = [
-  {
-    id: 'r1',
-    title: '猫咪之路',
-    titleEn: 'Cat Run',
-    date: '2026-06-09',
-    dist: '5.01km',
-    duration: '32:15',
-    pace: '6:27/km',
-    accuracy: 94,
-    svg: (
-      <svg className="w-10 h-10 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-        <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  },
-  {
-    id: 'r2',
-    title: '爱心挑战',
-    titleEn: 'Heart Challenge',
-    date: '2026-06-07',
-    dist: '4.18km',
-    duration: '28:30',
-    pace: '6:49/km',
-    accuracy: 97,
-    svg: (
-      <svg className="w-10 h-10 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-      </svg>
-    )
-  },
-  {
-    id: 'r3',
-    title: '星际挑战',
-    titleEn: 'Star Challenge',
-    date: '2026-06-05',
-    dist: '5.08km',
-    duration: '34:20',
-    pace: '6:45/km',
-    accuracy: 91,
-    svg: (
-      <svg className="w-10 h-10 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
-      </svg>
-    )
+interface TraceListItem {
+  id: string;
+  title: string;
+  titleEn: string;
+  distance: string;
+  date: string;
+  status: 'completed' | 'unrun';
+  isFavorite: boolean;
+  route: GeneratedRoute;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '--';
+  return value.slice(0, 10);
+}
+
+function formatKm(valueM: number | null | undefined): string {
+  const km = Number(valueM || 0) / 1000;
+  return `${km.toFixed(km >= 10 ? 1 : 2)}km`;
+}
+
+function formatDuration(seconds: number | null | undefined): string {
+  const total = Math.max(0, Math.round(Number(seconds || 0)));
+  const minutes = Math.floor(total / 60);
+  const sec = total % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function routeTitle(route: GeneratedRoute | null | undefined): { title: string; titleEn: string } {
+  if (!route) return { title: '未命名轨迹', titleEn: 'Untitled Route' };
+  if (route.shapeType) {
+    const labels: Record<string, [string, string]> = {
+      circle: ['圆形路线', 'Circle Route'],
+      triangle: ['三角路线', 'Triangle Route'],
+      square: ['方形路线', 'Square Route'],
+      star: ['星形路线', 'Star Route'],
+      heart: ['爱心路线', 'Heart Route'],
+      hexagon: ['六边形路线', 'Hexagon Route'],
+      custom: ['图片路线', 'Image Route'],
+    };
+    const [title, titleEn] = labels[route.shapeType] || ['创意路线', 'Creative Route'];
+    return { title, titleEn };
   }
-] as const;
+  const filename = route.source?.filename;
+  return {
+    title: filename ? `${filename} 路线` : '图片路线',
+    titleEn: filename ? `${filename} Route` : 'Image Route',
+  };
+}
+
+function routeIcon(route: GeneratedRoute | null | undefined, className: string = 'w-10 h-10 text-cyan-500') {
+  const shape = route?.shapeType || 'custom';
+  if (shape === 'heart') {
+    return <svg className={className.replace('text-cyan-500', 'text-rose-500')} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  }
+  if (shape === 'star') {
+    return <svg className={className.replace('text-cyan-500', 'text-yellow-500')} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  }
+  if (shape === 'circle') {
+    return <svg className={className} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><circle cx="50" cy="50" r="32" /></svg>;
+  }
+  return <svg className={className.replace('text-cyan-500', 'text-orange-500')} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4"><path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function toTraceListItem(route: GeneratedRoute): TraceListItem {
+  const title = routeTitle(route);
+  return {
+    id: route.id,
+    ...title,
+    distance: formatKm(route.actualDistanceM || route.meta?.distanceM),
+    date: formatDate(route.updatedAt || route.createdAt),
+    status: route.status === 'finished' || route.status === 'completed' ? 'completed' : 'unrun',
+    isFavorite: Boolean(route.isFavorite),
+    route,
+  };
+}
+
+function toHistoryRecord(entry: RunHistoryEntry) {
+  const title = routeTitle(entry.route);
+  const durationSec = Number(entry.metrics?.timeSec || 0);
+  const distanceM = Number(entry.metrics?.actualDistanceM || entry.metrics?.plannedDistanceM || entry.route?.actualDistanceM || 0);
+  const paceSec = distanceM > 0 ? durationSec / (distanceM / 1000) : 0;
+  const pace = paceSec > 0 ? `${Math.floor(paceSec / 60)}:${String(Math.round(paceSec % 60)).padStart(2, '0')}/km` : '--/km';
+  return {
+    id: entry.sessionId,
+    ...title,
+    date: formatDate(entry.finishedAt || entry.startedAt || entry.createdAt),
+    dist: formatKm(distanceM),
+    duration: formatDuration(durationSec),
+    pace,
+    accuracy: Math.round(Number(entry.metrics?.completionRate || entry.route?.shapeSimilarityScore || 0)),
+    svg: routeIcon(entry.route),
+    entry,
+  };
+}
 
 // ----------------------------------------------------------------------
 // SCREEN 14: Splash Screen (启动页)
@@ -207,8 +212,29 @@ export function MyTracesScreen({
 }) {
   const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'all' | 'run' | 'unrun' | 'fav'>('all');
+  const [items, setItems] = useState<TraceListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const items = MY_TRACES_ITEMS;
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    listUserRuns()
+      .then((routes) => {
+        if (!mounted) return;
+        setItems(routes.map(toTraceListItem));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setItems([]);
+        miniToast(text('轨迹数据加载失败', 'Failed to load traces'));
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [text]);
 
   const filtered = items.filter(item => {
     if (activeTab === 'run') return item.status === 'completed';
@@ -265,7 +291,11 @@ export function MyTracesScreen({
 
       {/* Trace items lists scrollable */}
       <div className="flex-1 overflow-y-auto px-4 pb-[calc(96px+env(safe-area-inset-bottom))] space-y-3">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="py-20 text-center text-slate-400 space-y-2">
+            <p className="text-sm">{text('正在加载轨迹数据...', 'Loading trace data...')}</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="py-20 text-center text-slate-400 space-y-2">
             <p className="text-sm">{text('暂无我的轨迹内容', 'No trace content yet')}</p>
             <p className="text-xs text-slate-300">{text('下拉刷新，查看历史记录和统计数据', 'Pull to refresh and view history and stats')}</p>
@@ -274,13 +304,16 @@ export function MyTracesScreen({
           filtered.map(item => (
             <div 
               key={item.id}
-              onClick={() => onNavigate('trace_detail')}
+              onClick={() => {
+                localStorage.setItem(SELECTED_ROUTE_ID_KEY, item.id);
+                onNavigate('trace_detail');
+              }}
               className="bg-white p-3 rounded-[16px] border border-slate-100 shadow-[0_4px_12px_rgba(0,0,0,0.04)] hover:shadow-md transition-all active:scale-[0.99] flex items-center justify-between cursor-pointer group"
             >
               {/* Thumbnail left */}
               <div className="flex items-center space-x-3">
                 <div className="w-[60px] h-[60px] rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100/60 overflow-hidden">
-                  {item.svgPath}
+                  {routeIcon(item.route)}
                 </div>
                 <div>
                   <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-cyan-600 transition-colors">{text(item.title, item.titleEn)}</h3>
@@ -341,6 +374,19 @@ export function MyTracesScreen({
 export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const { text } = useI18n();
   const [favorite, setFavorite] = useState(false);
+  const [route, setRoute] = useState<GeneratedRoute | null>(null);
+
+  useEffect(() => {
+    const routeId = localStorage.getItem(SELECTED_ROUTE_ID_KEY);
+    if (!routeId) return;
+    getRoute(routeId)
+      .then(setRoute)
+      .catch(() => miniToast(text('轨迹详情加载失败', 'Failed to load trace detail')));
+  }, [text]);
+
+  const title = routeTitle(route);
+  const routeDistance = route ? formatKm(route.actualDistanceM || route.meta?.distanceM) : '0.00km';
+  const routeStatus = route?.status === 'finished' || route?.status === 'completed' ? 'completed' : 'unrun';
 
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between overflow-y-auto text-slate-800 animate-fadeIn">
@@ -364,17 +410,11 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
       <div className="flex-1 overflow-y-auto pb-4">
         {/* Map area */}
         <div className="h-[230px] bg-slate-50 border-b border-slate-100 relative overflow-hidden flex items-center justify-center">
-          {/* Mock Grid Map Background */}
+          {/* Grid map background */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#eef2f6_1px,transparent_1px),linear-gradient(to_bottom,#eef2f6_1px,transparent_1px)] bg-[size:20px_20px] opacity-60"></div>
           
           {/* Drawn cat-shape track line */}
-          <svg className="w-48 h-48 text-orange-500 drop-shadow-md relative z-10" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="3.5">
-            <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" strokeLinecap="round" strokeLinejoin="round" />
-            
-            {/* Start flag green, End flag red */}
-            <circle cx="20" cy="80" r="5" fill="#10B981" stroke="#FFFFFF" strokeWidth="1.5" />
-            <circle cx="80" cy="80" r="5" fill="#EF4444" stroke="#FFFFFF" strokeWidth="1.5" />
-          </svg>
+          <div className="relative z-10">{routeIcon(route, 'w-48 h-48 text-cyan-500 drop-shadow-md')}</div>
 
           {/* Indicators overlay */}
           <div className="absolute top-2.5 left-2.5 bg-slate-900/80 text-white text-[9px] px-2 py-0.5 rounded-full border border-slate-800 z-20 font-bold select-none flex items-center space-x-1">
@@ -395,8 +435,10 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
           <div className="bg-white p-4 rounded-[24px] shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-slate-100/85">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <span className="text-[20px] font-black text-slate-900">{text('猫咪路线', 'Cat Route')}</span>
-                <span className="px-1.5 py-0.5 text-[9px] bg-orange-50 text-orange-600 font-bold rounded">{text('未完成', 'Unfinished')}</span>
+                <span className="text-[20px] font-black text-slate-900">{text(title.title, title.titleEn)}</span>
+                <span className="px-1.5 py-0.5 text-[9px] bg-orange-50 text-orange-600 font-bold rounded">
+                  {routeStatus === 'completed' ? text('已完成', 'Completed') : text('未完成', 'Unfinished')}
+                </span>
               </div>
               <button 
                 onClick={() => onNavigate('editor')}
@@ -410,22 +452,22 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
               <div className="flex items-center space-x-2">
                 <span className="text-slate-400 font-bold">{text('长', 'D')}</span>
                 <span>{text('总长度:', 'Distance:')}</span>
-                <strong className="text-slate-900">5.0 km</strong>
+                <strong className="text-slate-900">{routeDistance}</strong>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-slate-400 font-bold">{text('耗', 'T')}</span>
                 <span>{text('耗时:', 'Duration:')}</span>
-                <strong className="text-slate-900">{text('30 分钟', '30 min')}</strong>
+                <strong className="text-slate-900">{route?.targetKm ? `${route.targetKm}km` : text('未开始', 'Not started')}</strong>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-slate-400 font-bold">{text('时', 'C')}</span>
                 <span>{text('创建时间:', 'Created:')}</span>
-                <span className="text-slate-900 font-mono">2026-06-09</span>
+                <span className="text-slate-900 font-mono">{formatDate(route?.createdAt)}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-slate-400 font-bold">{text('配', 'P')}</span>
-                <span>{text('平均配速:', 'Avg pace:')}</span>
-                <span className="text-slate-900 font-mono">6'27"/km</span>
+                <span>{text('可跑分:', 'Runnable:')}</span>
+                <span className="text-slate-900 font-mono">{Math.round(Number(route?.runnableScore || 0)) || '--'}</span>
               </div>
             </div>
           </div>
@@ -460,8 +502,8 @@ export function TraceDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenI
           </button>
           <button 
             onClick={() => {
-              miniToast(text('开始地图导航...', 'Starting map navigation...'));
-              onNavigate('nav');
+              miniToast(text('请先重新生成路线并确认风险', 'Regenerate and confirm route first'));
+              onNavigate('quick_cards');
             }}
             className="py-3 px-4 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-98 transition-all text-white font-black text-sm rounded-[32px] flex items-center justify-center space-x-2 shadow-md shadow-cyan-400/20"
           >
@@ -531,8 +573,32 @@ export function RunHistoryScreen({
 }) {
   const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'all' | 'month' | 'week' | 'custom'>('all');
+  const [history, setHistory] = useState<RunHistoryEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const records = RUN_HISTORY_RECORDS;
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    getRunHistory()
+      .then((items) => {
+        if (mounted) setHistory(items);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setHistory([]);
+        miniToast(text('历史记录加载失败', 'Failed to load run history'));
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [text]);
+
+  const records = history.map(toHistoryRecord);
+  const totalDistanceKm = records.reduce((sum, rec) => sum + Number(rec.dist.replace('km', '') || 0), 0);
+  const totalMinutes = history.reduce((sum, item) => sum + Math.round(Number(item.metrics?.timeSec || 0) / 60), 0);
 
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between text-slate-800 animate-fadeIn">
@@ -558,15 +624,15 @@ export function RunHistoryScreen({
           <span className="text-[10px] text-teal-400 font-extrabold uppercase tracking-widest block mb-2">{text('RUNNING SUMMARY / 运动总结', 'RUNNING SUMMARY')}</span>
           <div className="grid grid-cols-3 gap-1 select-none">
             <div className="text-center border-r border-slate-800/80">
-              <span className="text-[20px] font-black font-mono text-white">28</span>
+              <span className="text-[20px] font-black font-mono text-white">{records.length}</span>
               <p className="text-[9px] text-slate-400 mt-0.5">{text('里程 (km)', 'Distance (km)')}</p>
             </div>
             <div className="text-center border-r border-slate-800/80">
-              <span className="text-[20px] font-black font-mono text-white">328</span>
+              <span className="text-[20px] font-black font-mono text-white">{totalDistanceKm.toFixed(1)}</span>
               <p className="text-[9px] text-slate-400 mt-0.5">{text('距离 (KM)', 'Distance (km)')}</p>
             </div>
             <div className="text-center">
-              <span className="text-[20px] font-black font-mono text-white">42</span>
+              <span className="text-[20px] font-black font-mono text-white">{totalMinutes}</span>
               <p className="text-[9px] text-slate-400 mt-0.5">{text('时间 (分钟)', 'Time (min)')}</p>
             </div>
           </div>
@@ -595,7 +661,16 @@ export function RunHistoryScreen({
 
       {/* List content */}
       <div className="flex-1 overflow-y-auto px-4 pb-[calc(96px+env(safe-area-inset-bottom))] space-y-3">
-        {records.map(rec => {
+        {isLoading ? (
+          <div className="py-20 text-center text-slate-400 space-y-2">
+            <p className="text-sm">{text('正在加载历史记录...', 'Loading history...')}</p>
+          </div>
+        ) : records.length === 0 ? (
+          <div className="py-20 text-center text-slate-400 space-y-2">
+            <p className="text-sm">{text('暂无跑步历史', 'No run history yet')}</p>
+            <p className="text-xs text-slate-300">{text('完成一次导航后会自动写入数据库', 'Finish a navigation session to save history')}</p>
+          </div>
+        ) : records.map(rec => {
           const isExcellent = rec.accuracy >= 95;
           const isWarn = rec.accuracy < 95 && rec.accuracy >= 90;
           const accuracyColor = isExcellent ? 'text-emerald-500' : isWarn ? 'text-amber-500' : 'text-rose-500';
@@ -603,7 +678,10 @@ export function RunHistoryScreen({
           return (
             <div
               key={rec.id}
-              onClick={() => onNavigate('run_detail')}
+              onClick={() => {
+                localStorage.setItem(SELECTED_RUN_SESSION_ID_KEY, rec.id);
+                onNavigate('run_detail');
+              }}
               className="bg-white p-3.5 rounded-[16px] border border-slate-100 shadow-[0_4px_12px_rgba(0,0,0,0.03)] cursor-pointer flex items-center justify-between group active:scale-[0.99] transition-all"
             >
               <div className="flex items-center space-x-3">
@@ -650,6 +728,24 @@ export function RunHistoryScreen({
 // ----------------------------------------------------------------------
 export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const { text } = useI18n();
+  const [entry, setEntry] = useState<RunHistoryEntry | null>(null);
+
+  useEffect(() => {
+    const sessionId = localStorage.getItem(SELECTED_RUN_SESSION_ID_KEY);
+    getRunHistory()
+      .then((items) => {
+        setEntry(items.find((item) => item.sessionId === sessionId) || items[0] || null);
+      })
+      .catch(() => miniToast(text('跑步详情加载失败', 'Failed to load run detail')));
+  }, [text]);
+
+  const title = routeTitle(entry?.route);
+  const metrics = entry?.metrics || {};
+  const distanceM = Number(metrics.actualDistanceM || metrics.plannedDistanceM || entry?.route?.actualDistanceM || 0);
+  const durationSec = Number(metrics.timeSec || 0);
+  const paceSec = distanceM > 0 && durationSec > 0 ? durationSec / (distanceM / 1000) : 0;
+  const paceLabel = paceSec > 0 ? `${Math.floor(paceSec / 60)}'${String(Math.round(paceSec % 60)).padStart(2, '0')}"` : '--';
+
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between overflow-y-auto text-slate-800 animate-fadeIn">
       {/* Top Header */}
@@ -678,22 +774,9 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
           <div className="relative w-44 h-44 flex items-center justify-center z-10">
             <svg className="absolute inset-0" viewBox="0 0 100 100" fill="none">
               {/* Planned trail (orange dashed) */}
-              <path 
-                d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" 
-                stroke="#FF8038" 
-                strokeWidth="2.5" 
-                strokeDasharray="4,4" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
+              <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" stroke="#FF8038" strokeWidth="2.5" strokeDasharray="4,4" strokeLinecap="round" strokeLinejoin="round" />
               {/* Actual trail (blue solid) */}
-              <path 
-                d="M 21,80 Q 24,42 34,41 Q 39,23 48,42 Q 58,26 67,41 Q 74,43 79,79 Q 49,83 21,80" 
-                stroke="#1D4ED8" 
-                strokeWidth="3.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
+              <path d={entry?.actualPath?.length ? 'M 21,80 Q 24,42 34,41 Q 39,23 48,42 Q 58,26 67,41 Q 74,43 79,79 Q 49,83 21,80' : 'M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80'} stroke="#1D4ED8" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
 
               {/* Start & End indicator pins */}
               <circle cx="21" cy="80" r="4.5" fill="#10B981" stroke="#FFFFFF" strokeWidth="1" />
@@ -719,8 +802,8 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
           <div className="bg-white p-4 rounded-[24px] shadow-[0_6px_20px_rgba(0,0,0,0.05)] border border-slate-100">
             <div className="flex items-center justify-between border-b border-slate-50 pb-2 mb-3">
               <div>
-                <h3 className="text-[17px] font-black text-slate-900">{text('小猫跑', 'Cat Run')}</h3>
-                <span className="text-[11px] text-slate-500 font-mono">{text('2026-06-08 周一', 'Mon, 2026-06-08')}</span>
+                <h3 className="text-[17px] font-black text-slate-900">{text(title.title, title.titleEn)}</h3>
+                <span className="text-[11px] text-slate-500 font-mono">{formatDate(entry?.finishedAt || entry?.startedAt || entry?.createdAt)}</span>
               </div>
               <div className="text-right">
                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-extrabold rounded-md border border-emerald-200">
@@ -732,15 +815,15 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             {/* Core workout stats row 1 */}
             <div className="grid grid-cols-3 gap-2 text-center pb-3 border-b border-slate-50">
               <div>
-                <span className="text-[18px] font-black text-slate-900 font-mono">5.01</span>
+                <span className="text-[18px] font-black text-slate-900 font-mono">{(distanceM / 1000).toFixed(2)}</span>
                 <p className="text-[9px] text-slate-400 mt-0.5">{text('总公里(km)', 'Distance (km)')}</p>
               </div>
               <div>
-                <span className="text-[18px] font-black text-slate-900 font-mono">32:15</span>
+                <span className="text-[18px] font-black text-slate-900 font-mono">{formatDuration(durationSec)}</span>
                 <p className="text-[9px] text-slate-400 mt-0.5">{text('用时 (分钟)', 'Duration (min)')}</p>
               </div>
               <div>
-                <span className="text-[18px] font-black text-slate-900 font-mono">6'27"</span>
+                <span className="text-[18px] font-black text-slate-900 font-mono">{paceLabel}</span>
                 <p className="text-[9px] text-slate-400 mt-0.5">{text('平均配速', 'Avg pace')}</p>
               </div>
             </div>
@@ -748,15 +831,15 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             {/* Core workout stats row 2 */}
             <div className="grid grid-cols-3 gap-2 text-center pt-3 select-none">
               <div>
-                <span className="text-[18px] font-black text-emerald-500 font-mono">94%</span>
+                <span className="text-[18px] font-black text-emerald-500 font-mono">{Math.round(Number(metrics.completionRate || 0)) || '--'}%</span>
                 <p className="text-[9px] text-slate-400 mt-0.5">{text('图形贴合度', 'Shape fit')}</p>
               </div>
               <div>
-                <span className="text-[18px] font-black text-slate-900 font-mono">23m</span>
+                <span className="text-[18px] font-black text-slate-900 font-mono">{Math.round(Number(metrics.avgDeviationM || 0)) || '--'}m</span>
                 <p className="text-[9px] text-slate-400 mt-0.5">{text('最大偏离', 'Max deviation')}</p>
               </div>
               <div>
-                <span className="text-[18px] font-black text-slate-900 font-mono">8m</span>
+                <span className="text-[18px] font-black text-slate-900 font-mono">{Math.round(Number(metrics.avgDeviationM || 0)) || '--'}m</span>
                 <p className="text-[9px] text-slate-400 mt-0.5">{text('平均偏差', 'Avg deviation')}</p>
               </div>
             </div>
@@ -873,8 +956,8 @@ export function RunDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId)
             </button>
             <button 
               onClick={() => {
-                miniToast(text('查看并添加该轨迹到导航', 'View and add to navigation'));
-                onNavigate('nav');
+                miniToast(text('请先重新生成路线并确认风险', 'Regenerate and confirm route first'));
+                onNavigate('quick_cards');
               }}
               className="py-3 px-4 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 hover:shadow-cyan-400/25 text-white text-xs font-black rounded-full text-center tracking-wider transition-all shadow-md"
             >

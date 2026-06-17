@@ -15,6 +15,7 @@ export type {
   RouteBounds,
   RouteMeta,
   SessionStatus,
+  SessionMetrics,
   SessionState,
   FinishResult,
   MapProvider,

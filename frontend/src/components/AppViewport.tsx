@@ -25,6 +25,7 @@ interface AppViewportProps {
   onNavigateFromLogin: (screen: ScreenId) => void;
   onNavigateFromProfileOrSettings: (screen: ScreenId) => void;
   generatedRoute: GeneratedRoute | null;
+  activeSessionId: string | null;
   isRouteGenerating: boolean;
   routeGenerationError: string | null;
   onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
@@ -47,6 +48,7 @@ export const AppViewport: React.FC<AppViewportProps> = ({
   onNavigateFromLogin,
   onNavigateFromProfileOrSettings,
   generatedRoute,
+  activeSessionId,
   isRouteGenerating,
   routeGenerationError,
   onGenerateTemplateRoute,
@@ -87,6 +89,7 @@ export const AppViewport: React.FC<AppViewportProps> = ({
             onSelectShape={onSelectShape}
             openBottomSheet={openBottomSheet}
             generatedRoute={generatedRoute}
+            activeSessionId={activeSessionId}
             isRouteGenerating={isRouteGenerating}
             routeGenerationError={routeGenerationError}
             onGenerateTemplateRoute={onGenerateTemplateRoute}

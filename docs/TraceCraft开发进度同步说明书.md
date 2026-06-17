@@ -1,8 +1,8 @@
 # TraceCraft 开发进度同步说明书
 
-**版本**：V1.6
+**版本**：V1.7
 **适用范围**：TraceCraft 单仓项目（backend + frontend + shared + docs）
-**更新时间**：2026-06-16
+**更新时间**：2026-06-17
 
 ## 1. 目的
 
@@ -107,7 +107,7 @@
 
 ## 9. 里程碑交付清单（示例）
 
-- [ ] MVP 闭环 demo 在本地稳定运行（后端 + 前端）
+- [ ] MVP 闭环在本地稳定运行（后端 + 前端）
 - [ ] `maps/config` 可读 provider 特性
 - [ ] 路线缩放与重映射接口都有对应日志
 - [ ] 模板/自定义图片生成后进入路线预览页
@@ -123,7 +123,98 @@
 3. 标注下周高优先级两项
 4. 列出阻塞项及处理建议
 
-## 11. 最新进度表（2026-06-16）
+## 11. 最新进度表（2026-06-17）
+
+### 本次同步目标（数据库接入 + 用户数据页真实化 + 后续表结构预建）
+
+1. 在 VMware VM 上使用 Docker 准备 TraceCraft MVP 必需数据库
+2. 打通快捷注册登录，去掉登录页抖音入口，改为微信/支付宝/手机号
+3. 将我的轨迹、跑步历史、轨迹详情、个人中心统计、设置项改为数据库驱动
+4. 检索剩余静态页面，提前保存后续所需 PostgreSQL 建表 SQL
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 基础设施 | VM `192.168.252.128` 启动 PostgreSQL Docker 容器 | 已完成 | 容器 `tracecraft-postgres`，PostgreSQL 14.23，卷 `tracecraft_pgdata` |
+| 后端配置 | `backend/.env` 指向 VM PostgreSQL | 已完成 | `DATABASE_URL=postgresql://tracecraft:***@192.168.252.128:5432/tracecraft` |
+| 核心表 | `users/routes/route_versions/run_sessions/run_location_events/run_audit_logs` | 已完成 | 后端 PostgresStorage 自动建表 |
+| 快捷登录 | 新增微信/支付宝快捷注册登录 API | 已完成 | `POST /api/auth/quick-login` |
+| 手机登录 | 新增手机号测试登录 API | 已完成 | `POST /api/auth/phone-login`，测试码 `8888` |
+| 前端登录 | 登录页移除抖音，替换为支付宝 | 已完成 | 登录成功保存 token，后续 API 使用真实登录 token |
+| 用户资料 | 新增当前用户资料/统计接口 | 已完成 | `GET /api/me` |
+| 用户设置 | 设置项保存到 `users.metadata.settings` | 已完成 | `PUT /api/me/settings` |
+| 我的轨迹 | `MY_TRACES_ITEMS` 静态数组移除，改读数据库 | 已完成 | 前端调用 `GET /api/runs` |
+| 轨迹详情 | 改为按 routeId 拉取真实路线 | 已完成 | 前端调用 `GET /api/routes/:routeId` |
+| 跑步历史 | 改为读 `run_sessions + routes` | 已完成 | `GET /api/run-history` |
+| 跑步详情 | 改为根据选中 session 展示真实指标 | 已完成 | 无历史时显示空态 |
+| 模板库 | 快速模板、完整模板库改读数据库 | 已完成 | `GET /api/templates`、`GET /api/templates/:templateId` |
+| 收藏 | 收藏列表、收藏/取消收藏改写数据库 | 已完成 | `GET/POST/DELETE /api/favorites` |
+| 搜索 | 搜索提示、搜索历史、热门词、搜索结果接数据库 | 已完成 | `GET /api/search/hints`、`GET /api/search` |
+| 社区 | 分享发布、广场、帖子详情、评论、点赞、关注、通知接数据库 | 已完成 | `community_posts/comments/reactions/user_follows/notifications` |
+| 后台管理 | admin 用户、内容、模板管理从 localStorage 改为 API | 已完成 | `GET/POST/PUT/DELETE /api/admin/{module}` |
+| 完整 Schema SQL | 维护并执行 MVP 完整数据库表设计 | 已完成 | `db/feature-precreate-schema.sql` 覆盖核心链路和后续页面表 |
+| 文档 | README、DB README、进度说明书更新 | 已完成 | 本节记录 |
+
+### 已验证证据
+
+| 验证项 | 结果 |
+| --- | --- |
+| VM 5432 端口 | 本机可连接 |
+| PostgreSQL 容器 | `healthy` |
+| 快捷登录接口 | `ok=true`，返回 `user:<id>` token |
+| `/api/me` | 通过 |
+| `/api/me/settings` | 通过，可写入 `distanceUnit=目前测试为 mile` |
+| `/api/runs` | 通过，新测试账号返回 `routes=0` 属正常 |
+| `/api/run-history` | 通过，新测试账号返回 `historyCount=0` 属正常 |
+| `/api/templates` | 通过，返回模板库种子数据 |
+| `/api/favorites` | 通过，可收藏/取消收藏模板 |
+| `/api/search?q=心形` | 通过，中文同义词命中 `tpl-heart` |
+| `/api/community/posts` | 通过，可发布、列表、评论、点赞 |
+| `/api/notifications` | 通过，通知列表和已读接口可用 |
+| `/api/admin/users` | 通过，后台 API 读 PostgreSQL |
+| `backend npm run typecheck` | 通过 |
+| `backend npm run build` | 通过 |
+| `frontend npx tsc --noEmit` | 通过 |
+| `frontend npm run build` | 通过 |
+
+### 当前数据库表状态
+
+已存在表：
+
+| 表 | 来源 | 状态 |
+| --- | --- | --- |
+| `users` | PostgresStorage | 已建 |
+| `auth_identities` | 快捷登录 | 已建 |
+| `routes` | PostgresStorage | 已建 |
+| `route_versions` | PostgresStorage | 已建 |
+| `run_sessions` | PostgresStorage | 已建 |
+| `run_location_events` | PostgresStorage | 已建 |
+| `run_audit_logs` | PostgresStorage | 已建 |
+
+已保存并已执行的预建表 SQL：
+
+| 文件 | 覆盖范围 | 执行状态 |
+| --- | --- | --- |
+| `db/feature-precreate-schema.sql` | 核心用户/路线/会话、快捷登录身份、后台管理、模板库、收藏、搜索、社区、评论、点赞、关注、通知、分享、用户素材、反馈 | 已执行并维护为完整 schema |
+
+### 未完成/待处理
+
+| 模块 | 待办 | 目标日期 | 风险 |
+| --- | --- | --- | --- |
+| 授权 | MVP 开发直通替换为真实微信/支付宝 SDK | 上线前 | 中 |
+| 文件 | 头像、分享图、路线封面接本地文件服务或 OSS | 内测前 | 中 |
+| 后台安全 | 管理员登录鉴权、权限校验、操作审计完善 | 上线前 | 高 |
+| 社区审核 | 社区审核流接入后台操作界面 | 内测前 | 中 |
+
+### 版本与里程碑映射
+
+- 当前状态：MVP 主链路、发现页、社区页、通知页、后台管理已经从本地静态/浏览器本地数据迁移到 PostgreSQL 数据链路。
+- 核心闭环：登录 -> 生成路线 -> 预览 -> 开始导航 -> 上报位置 -> 完成 -> 我的轨迹/历史/个人统计 -> 模板库/收藏/搜索 -> 社区发布/互动/通知 -> 后台管理。
+- 技术决策：暂不接 OSS；图片上传仍以内存处理为主，文件长期保存等到头像/分享图/封面需求明确后再接。
+- 下一步建议：优先补真实第三方授权、文件存储、后台管理员鉴权和社区审核操作。
+
+## 12. 历史进度表（2026-06-16）
 
 ### 本次同步目标（路线预览地图真实化 + UX 增强）
 
@@ -160,11 +251,11 @@
 | 验证 | 补充模板路线、自定义图片、风险阻断三条手工验收用例 | 2026-06-20 | 中 |
 
 ### 版本与里程碑映射
-- 关键改动：路线预览从 SVG 示意图升级为真实地图，街道名来自地图瓦片数据，不再使用硬编码假数据
+- 关键改动：路线预览从 SVG 示意图升级为真实地图，街道名来自地图瓦片数据，不再使用硬编码街道名
 - 技术决策：选用 Leaflet（轻量、免费、无需 API Key）而非 AMap JS SDK，降低接入成本
 - 下次同步建议：数据库连通后执行 `admin-schema.sql` 建表，验证 PostgresStorage 全链路
 
-## 12. 历史进度表（2026-06-10）
+## 13. 历史进度表（2026-06-10）
 
 ### 本次同步目标（前端代码审查与优化）
 
@@ -205,7 +296,7 @@
 
 | 模块 | 待办 | 目标日期 | 风险 |
 | --- | --- | --- | --- |
-| 后台管理 | admin mock service 迁移为后端 API（用户/内容/模板管理接口） | 2026-06-15 | 中 |
+| 后台管理 | admin 本地数据 service 迁移为后端 API（用户/内容/模板管理接口） | 2026-06-15 | 中 |
 | 数据库 | 执行 `admin-schema.sql` 建表并验证索引 | 2026-06-12 | 低 |
 | 测试 | 补充本地交互冒烟（关键按钮：开始/暂停/继续/分享/返回） | 2026-06-12 | 中 |
 | 样式 | 严格匹配设计稿，追加字体系统与字号规范化 | 2026-06-15 | 低 |
@@ -243,24 +334,24 @@
   - `npx tsc --noEmit` → 零错误
   - 服务启动 → `/health` 返回 `{"ok":true,"service":"tracecraft-backend","storage":"memory"}`
 - 下一步动作：
-  - P1：Admin mock service 迁移为后端 API
+  - P1：Admin 本地数据 service 迁移为后端 API
   - P2：shared/types.ts 逐步替换各文件内的本地重复类型定义
   - P3：前端大组件内部补充函数级注释
 
 ## 2026-06-09：全量运行现状同步
 
-- 当前状态：后台管理页与 App 展示页均为 mock data 驱动，未走“落库/持久化生产链路”。
+- 当前状态：本节为历史快照，相关本地演示数据层已在后续版本迁移到 PostgreSQL API；当前状态以 2026-06-17 最新进度表为准。
 - 后台管理确认：
-  - 文件 `admin/admin.js` 使用 `DEFAULT_DB` 与 `service.list/create/update/remove` 的本地 mock 数据层。
-  - 状态持久化只落到 `localStorage["tracecraft-admin-mock-db-v2"]`，不是数据库或后端 API。
-  - 启动页与列表/编辑都通过该 mock service 返回数据。
+  - 文件 `admin/admin.js` 已通过 `service.list/create/update/remove` 调用后端 API。
+  - 状态不再写入浏览器本地数据仓库。
+  - 启动页与列表/编辑通过 `/api/admin/{module}` 返回数据。
 - App 页面确认：
   - 文件 `frontend/public/tracecraft.js` 的种子、草稿、会话摘要都基于 `localStorage`（`tc_nav_seed` 等）进行读写。
   - 页面切换与参数拼接为运行时 seed/query 的本地拼装逻辑，不依赖后端分页/查询接口。
   - `frontend/src/App.tsx` 只把 onboarding/login 状态写入 `localStorage`，用于体验状态保持。
   - `frontend/src/i18n.ts` 仍有 `/v1/maps/config` 的可选远端回退，但失败时会使用本地默认文案，不阻断前端展示。
-- 兼容说明：仓库内存在 `frontend/App.js` 旧路径示例，当前实现中 `userId: 'demo'` 与 `fakeImage` 仍属于演示行为（非真实持久化）。
+- 兼容说明：历史旧路径示例已不作为当前运行入口；当前运行入口以 `frontend/src/App.tsx` 和后端 API 为准。
 - 下一步动作（已冻结为阶段性计划）：
-  - P1：Admin mock service 迁移为后端 API（用户、内容、模板三类管理接口），保留 `service` 方法签名做最小侵入替换。
+  - P1：Admin service 迁移为后端 API（用户、内容、模板三类管理接口），保留 `service` 方法签名做最小侵入替换。
   - P2：App 展示页改造为服务端会话与记录管理链路（历史/完成态/模板/运行状态）后再退回 `localStorage` 作为短期缓存。
   - P3：后端技术架构按接口化/服务化重构（鉴权、持久层、离线兜底、可观测性）逐层上线，替代当前硬编码/浏览器本地依赖。

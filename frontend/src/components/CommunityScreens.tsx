@@ -1,4 +1,5 @@
 ﻿import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { miniToast } from '../utils';
 import { 
   ArrowLeft, 
@@ -15,165 +16,45 @@ import {
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
+import {
+  addCommunityComment,
+  createCommunityPost,
+  getCommunityPost,
+  getSelectedPostId,
+  listCommunityPosts,
+  listNotifications,
+  markNotificationsRead,
+  selectPost,
+  toggleCommunityLike,
+  toggleFollowUser,
+  type CommunityCommentItem,
+  type CommunityPostItem,
+  type NotificationItem,
+} from '../api/community';
 
-const SQUARE_CARDS = [
-  {
-    id: 'post_1',
-    author: '跑者小美',
-    authorEn: 'Runner Xiaomei',
-    title: '爱心跑',
-    titleEn: 'Heart Run',
-    likes: 128,
-    comments: 23,
-    dist: '5.0km',
-    height: 'h-[110px]',
-    svg: (
-      <svg className="w-16 h-16 text-rose-500 animate-pulse" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
-        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-      </svg>
-    )
-  },
-  {
-    id: 'post_2',
-    author: '星星行者',
-    authorEn: 'Star Walker',
-    title: '星形挑战',
-    titleEn: 'Star Challenge',
-    likes: 95,
-    comments: 12,
-    dist: '5.0km',
-    height: 'h-[100px]',
-    svg: (
-      <svg className="w-16 h-16 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
-        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
-      </svg>
-    )
-  },
-  {
-    id: 'post_3',
-    author: '猫跑',
-    authorEn: 'Cat Runner',
-    title: '小猫跑',
-    titleEn: 'Cat Run',
-    likes: 203,
-    comments: 45,
-    dist: '5.0km',
-    height: 'h-[120px]',
-    svg: (
-      <svg className="w-16 h-16 text-orange-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
-        <path d="M 20,80 Q 25,40 35,40 Q 40,25 50,40 Q 60,25 65,40 Q 75,40 80,80 Q 50,85 20,80" />
-      </svg>
-    )
-  },
-  {
-    id: 'post_4',
-    author: '环湖高手',
-    authorEn: 'Lake Loop Pro',
-    title: '环湖跑',
-    titleEn: 'Lake Loop Run',
-    likes: 67,
-    comments: 8,
-    dist: '3.5km',
-    height: 'h-[95px]',
-    svg: (
-      <svg className="w-16 h-16 text-blue-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5">
-        <circle cx="50" cy="50" r="28" />
-      </svg>
-    )
+function communityShapeSvg(shapeType: string, className: string = 'w-16 h-16 text-rose-500') {
+  if (shapeType === 'star') {
+    return <svg className={className.replace('text-rose-500', 'text-yellow-500')} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5"><path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" /></svg>;
   }
-];
-
-const POST_COMMENTS = [
-  { id: 'c1', user: '设计小王', userEn: 'Designer Xiao Wang', avatar: 'M', time: '1小时前', timeEn: '1h ago', text: '这条路线的配色很喜欢，建议加点动态滤镜看看。', textEn: 'Love the color theme. Try adding a motion filter.' },
-  { id: 'c2', user: '旅行助手', userEn: 'Travel Helper', avatar: 'X', time: '30分钟前', timeEn: '30m ago', text: '很实用的路线分享，细节很到位！', textEn: 'Very practical route share with great details!' }
-];
-
-const NOTIFICATION_MESSAGES = [
-  {
-    id: 'n1',
-    type: 'like',
-    author: '小明',
-    authorEn: 'Xiao Ming',
-    actionText: '点赞了你的作品',
-    actionTextEn: 'liked your work',
-    target: '作品已更新',
-    targetEn: 'Your work was updated',
-    time: '5分钟前',
-    timeEn: '5m ago',
-    unread: true,
-    hasThumbnail: true,
-    thumbnailSvg: (
-      <svg className="w-7 h-7 text-rose-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
-        <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-      </svg>
-    )
-  },
-  {
-    id: 'n2',
-    type: 'comment',
-    author: '旅行者',
-    authorEn: 'Traveler',
-    actionText: '评论了你的作品',
-    actionTextEn: 'commented on your work',
-    target: '可以看看下面这个路线吗？',
-    targetEn: 'Can you take a look at this route below?',
-    time: '1小时前',
-    timeEn: '1h ago',
-    unread: true,
-    hasThumbnail: true,
-    thumbnailSvg: (
-      <svg className="w-7 h-7 text-yellow-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
-        <path d="M 50,15 L 61,38 L 86,41 L 67,58 L 72,83 L 50,70 L 28,83 L 33,58 L 14,41 L 39,38 Z" />
-      </svg>
-    )
-  },
-  {
-    id: 'n3',
-    type: 'follow',
-    author: '活动创作者',
-    authorEn: 'Event Creator',
-    actionText: '关注了你',
-    actionTextEn: 'followed you',
-    target: '',
-    targetEn: '',
-    time: '2小时前',
-    timeEn: '2h ago',
-    unread: false,
-    hasThumbnail: false
-  },
-  {
-    id: 'n4',
-    type: 'sys',
-    author: '系统通知',
-    authorEn: 'System Notice',
-    actionText: '',
-    target: '欢迎加入 TraceCraft 最新版本',
-    targetEn: 'Welcome to the latest TraceCraft build',
-    time: '5分钟前',
-    timeEn: '5m ago',
-    unread: true,
-    hasThumbnail: false
-  },
-  {
-    id: 'n5',
-    type: 'like',
-    author: '系统推荐',
-    authorEn: 'System Pick',
-    actionText: '点赞了你的作品',
-    actionTextEn: 'liked your work',
-    target: '你的路线被推荐',
-    targetEn: 'Your route was featured',
-    time: '2小时前',
-    timeEn: '2h ago',
-    unread: false,
-    hasThumbnail: true,
-    thumbnailSvg: (
-      <svg className="w-7 h-7 text-blue-500" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="6">
-        <circle cx="50" cy="50" r="28" />
-      </svg>
-    )
+  if (shapeType === 'circle') {
+    return <svg className={className.replace('text-rose-500', 'text-blue-500')} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5"><circle cx="50" cy="50" r="28" /></svg>;
   }
-];
+  if (shapeType === 'hexagon') {
+    return <svg className={className.replace('text-rose-500', 'text-violet-500')} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5"><path d="M 50,15 L 80,32 L 80,68 L 50,85 L 20,68 L 20,32 Z" /></svg>;
+  }
+  return <svg className={className} viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="5"><path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" /></svg>;
+}
+
+function formatRelativeTime(value: string, text: (cn: string, en: string) => string): string {
+  const diff = Math.max(0, Date.now() - new Date(value).getTime());
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return text('刚刚', 'Just now');
+  if (minutes < 60) return text(`${minutes}分钟前`, `${minutes}m ago`);
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return text(`${hours}小时前`, `${hours}h ago`);
+  const days = Math.floor(hours / 24);
+  return text(`${days}天前`, `${days}d ago`);
+}
 
 // ----------------------------------------------------------------------
 // SCREEN 23: Trace Share Preview (轨迹分享预览页)
@@ -183,11 +64,23 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
   const [description, setDescription] = useState('');
   const [topicTags, setTopicTags] = useState<string[]>([]);
 
-  const handlePublish = () => {
-    miniToast(text('轨迹路线成功发布至公开社区！', 'Route published to the public community!'));
-    setTimeout(() => {
-      onNavigate('square');
-    }, 400);
+  const handlePublish = async () => {
+    try {
+      const post = await createCommunityPost({
+        title: text('路线分享', 'Route Share'),
+        content: description.trim() || text('分享一次新的 TraceCraft 路线。', 'Sharing a new TraceCraft route.'),
+        topicTags,
+        metrics: { distanceKm: 5.01, duration: '32:15', pace: '6\'27" /km' },
+        mediaPayload: { shapeType: 'heart' },
+      });
+      selectPost(post.id);
+      miniToast(text('轨迹路线成功发布至公开社区！', 'Route published to the public community!'));
+      setTimeout(() => {
+        onNavigate('square');
+      }, 400);
+    } catch {
+      miniToast(text('发布失败，请稍后重试', 'Publish failed. Try again later.'));
+    }
   };
 
   const handleSelectTag = (tagId: string) => {
@@ -258,7 +151,7 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
               </div>
             </div>
 
-            {/* Small dynamic mock QR code */}
+            {/* Small dynamic QR code preview */}
             <div className="w-7 h-7 bg-slate-100 border border-slate-200 p-0.5 rounded flex flex-wrap gap-[1px]">
               {[...Array(9)].map((_, i) => (
                 <div key={i} className={`w-[7px] h-[7px] ${i % 3 === 0 || i === 7 || i === 2 ? 'bg-slate-800' : 'bg-transparent'}`}></div>
@@ -381,8 +274,26 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) => void }) {
   const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'recommend' | 'hot' | 'latest' | 'follow'>('recommend');
+  const [posts, setPosts] = useState<CommunityPostItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const cards = SQUARE_CARDS;
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listCommunityPosts(activeTab)
+      .then((items) => {
+        if (!cancelled) setPosts(items);
+      })
+      .catch(() => {
+        if (!cancelled) setPosts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between text-slate-800 animate-fadeIn select-none">
@@ -424,16 +335,29 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
 
       {/* Waterfall Grid List 2 Column scrollable */}
       <div className="flex-1 overflow-y-auto px-4 py-3 pb-16">
+        {loading && (
+          <div className="py-20 text-center text-[12px] text-slate-400 font-bold">{text('正在加载广场...', 'Loading feed...')}</div>
+        )}
+        {!loading && posts.length === 0 && (
+          <div className="py-20 text-center text-[12px] text-slate-400 font-bold">{text('暂无社区作品，发布第一条轨迹吧', 'No community posts yet. Publish the first route.')}</div>
+        )}
         <div className="grid grid-cols-2 gap-3">
-          {cards.map(item => (
+          {posts.map((item, index) => {
+            const shapeType = String(item.mediaPayload?.shapeType || 'heart');
+            const distance = Number(item.metrics?.distanceKm || item.metrics?.distance || 0);
+            const height = ['h-[110px]', 'h-[100px]', 'h-[120px]', 'h-[95px]'][index % 4];
+            return (
             <div
               key={item.id}
-              onClick={() => onNavigate('post_detail')}
+              onClick={() => {
+                selectPost(item.id);
+                onNavigate('post_detail');
+              }}
               className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.99] group relative"
             >
               {/* Graphic container */}
-              <div className={`${item.height} bg-slate-50 flex items-center justify-center p-3 relative select-none border-b border-slate-50 shrink-0`}>
-                {item.svg}
+              <div className={`${height} bg-slate-50 flex items-center justify-center p-3 relative select-none border-b border-slate-50 shrink-0`}>
+                {communityShapeSvg(shapeType)}
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -452,22 +376,23 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
                 <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 font-semibold">
                   <span className="flex items-center space-x-1 max-w-[50px] truncate">
                     <User size={10} />
-                    <span className="truncate">{text(item.author, item.authorEn)}</span>
+                    <span className="truncate">{item.author}</span>
                   </span>
-                  <span>{text('距离', 'Distance')} {item.dist}</span>
+                  <span>{text('距离', 'Distance')} {distance ? `${distance.toFixed(1)}km` : '--'}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pb-0.5 font-bold border-t border-slate-50/50 pt-2 text-[#4FACFE]">
-                  <span>❤ {item.likes}</span>
-                  <span>💬 {item.comments}</span>
+                  <span>❤ {item.likeCount}</span>
+                  <span>💬 {item.commentCount}</span>
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
 
           <p className="text-[11px] text-slate-400 py-4 text-center">
-          {text('暂时已经没有更多测试数据，先去发现广场看看吧。', 'No more test data for now. Explore Discover.')}
+          {text('已经到底啦', 'No more posts')}
           </p>
       </div>
 
@@ -482,38 +407,72 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
   const { text } = useI18n();
   const [isFollowing, setIsFollowing] = useState(false);
   const [commentInput, setCommentInput] = useState('');
-  const [likesCount, setLikesCount] = useState(128);
+  const [likesCount, setLikesCount] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
-  const [comments, setComments] = useState(POST_COMMENTS);
+  const [comments, setComments] = useState<CommunityCommentItem[]>([]);
+  const [post, setPost] = useState<CommunityPostItem | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleSendComment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentInput.trim()) return;
-    const newComment = {
-      id: Date.now().toString(),
-      user: '当前用户',
-      userEn: 'Current user',
-      avatar: '我',
-      time: '刚刚',
-      timeEn: 'Just now',
-      text: commentInput.trim(),
-      textEn: commentInput.trim()
+  useEffect(() => {
+    let cancelled = false;
+    const postId = getSelectedPostId();
+    if (!postId) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    getCommunityPost(postId)
+      .then((data) => {
+        if (cancelled) return;
+        setPost(data.post);
+        setComments(data.comments);
+        setLikesCount(data.post.likeCount);
+        setHasLiked(data.post.hasLiked);
+        setIsFollowing(data.post.isFollowing);
+      })
+      .catch(() => {
+        if (!cancelled) setPost(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
-    setComments(prev => [newComment, ...prev]);
-    setCommentInput('');
-    miniToast(text('评论发布成功！', 'Comment posted successfully!'));
+  }, []);
+
+  const handleSendComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentInput.trim() || !post) return;
+    try {
+      const newComment = await addCommunityComment(post.id, commentInput.trim());
+      setComments(prev => [...prev, newComment]);
+      setCommentInput('');
+      setPost(prev => prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev);
+      miniToast(text('评论发布成功！', 'Comment posted successfully!'));
+    } catch {
+      miniToast(text('评论失败，请稍后重试', 'Comment failed. Try again later.'));
+    }
   };
 
-  const handleLike = () => {
-    if (hasLiked) {
-      setLikesCount(prev => Math.max(prev - 1, 0));
-      setHasLiked(false);
-      miniToast(text('已取消点赞', 'Like removed'));
-    } else {
-      setLikesCount(prev => prev + 1);
-      setHasLiked(true);
-      miniToast(text('已点赞', 'Liked'));
+  const handleLike = async () => {
+    if (!post) return;
+    try {
+      const result = await toggleCommunityLike(post.id);
+      setLikesCount(result.likeCount);
+      setHasLiked(result.liked);
+      miniToast(result.liked ? text('已点赞', 'Liked') : text('已取消点赞', 'Like removed'));
+    } catch {
+      miniToast(text('点赞失败，请稍后重试', 'Like failed. Try again later.'));
     }
+  };
+
+  const handleFollow = async () => {
+    if (!post) return;
+    const following = await toggleFollowUser(post.userId);
+    setIsFollowing(following);
+    miniToast(following ? text('关注成功', 'Followed') : text('取消关注', 'Unfollowed'));
   };
 
   return (
@@ -531,6 +490,14 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 
       {/* Main Body */}
       <div className="flex-1 overflow-y-auto pb-4">
+        {loading && (
+          <div className="py-20 text-center text-[12px] text-slate-400 font-bold">{text('正在加载帖子...', 'Loading post...')}</div>
+        )}
+        {!loading && !post && (
+          <div className="py-20 text-center text-[12px] text-slate-400 font-bold">{text('帖子不存在或已删除', 'Post not found')}</div>
+        )}
+        {post && (
+        <>
         
         {/* Author info block */}
         <div className="px-4 py-3 flex items-center justify-between border-b border-slate-50">
@@ -539,16 +506,13 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
               M
             </div>
             <div className="text-left">
-              <h4 className="text-[14px] font-bold text-slate-900">{text('设计小王', 'Designer Xiao Wang')}</h4>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">{text('2小时前发布 · 北京路线', 'Published 2h ago · Beijing route')}</p>
+              <h4 className="text-[14px] font-bold text-slate-900">{post.author}</h4>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">{formatRelativeTime(post.createdAt, text)}</p>
             </div>
           </div>
 
           <button
-            onClick={() => {
-              setIsFollowing(!isFollowing);
-              miniToast(isFollowing ? text('取消关注', 'Unfollowed') : text('关注成功', 'Followed'));
-            }}
+            onClick={() => { void handleFollow(); }}
             className={
               'px-3.5 py-1 text-xs font-bold rounded-full border transition-all ' +
                (isFollowing
@@ -573,22 +537,22 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
         {/* Post metrics card */}
         <div className="px-4 mt-3">
           <div className="bg-white p-4 rounded-[24px] shadow-[0_4px_16px_rgba(0,0,0,0.03)] border border-slate-100">
-            <h3 className="text-[17px] font-black text-slate-900 text-left">{text('这条路线的汇总信息', 'Route summary')}</h3>
+            <h3 className="text-[17px] font-black text-slate-900 text-left">{text(post.title, post.titleEn)}</h3>
             <p className="text-[12px] text-slate-500 mt-1 lines-relaxed text-left">
-              {text('轻轻记录下这次路线的节奏和里程，配色以明快风格为主，适合继续复盘和分享给朋友。', 'A light summary of pacing and distance with a vivid style, good for review and sharing.')}
+              {text(post.content, post.contentEn)}
             </p>
 
               <div className="grid grid-cols-3 gap-2 text-center pt-3 mt-3 border-t border-slate-50 select-none">
                 <div className="border-r border-slate-100">
-                  <span className="text-[15px] font-extrabold text-slate-900">5.01 km</span>
+                  <span className="text-[15px] font-extrabold text-slate-900">{Number(post.metrics?.distanceKm || 0).toFixed(2)} km</span>
                   <p className="text-[9px] text-slate-400 mt-0.5">{text('距离', 'Distance')}</p>
                 </div>
                 <div className="border-r border-slate-100">
-                  <span className="text-[15px] font-extrabold text-slate-900">32:15</span>
+                  <span className="text-[15px] font-extrabold text-slate-900">{String(post.metrics?.duration || '--')}</span>
                   <p className="text-[9px] text-slate-400 mt-0.5">{text('时间', 'Time')}</p>
                 </div>
               <div>
-                <span className="text-[15px] font-extrabold text-slate-900">6'27" /km</span>
+                <span className="text-[15px] font-extrabold text-slate-900">{String(post.metrics?.pace || '--')}</span>
                 <p className="text-[9px] text-slate-400 mt-0.5">{text('平均配速', 'Avg pace')}</p>
               </div>
             </div>
@@ -655,19 +619,21 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
             {comments.map((comment) => (
               <div key={comment.id} className="flex items-start space-x-2.5 border-b border-slate-50/60 pb-2.5">
                 <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-205 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
-                  {comment.avatar}
+                  {comment.author.slice(0, 1)}
                 </div>
                 <div>
                   <div className="flex items-baseline space-x-1.5">
-                    <span className="text-[12px] font-bold text-slate-900">{text(comment.user, comment.userEn)}</span>
-                    <span className="text-[9px] text-slate-400 font-mono">{text(comment.time, comment.timeEn)}</span>
+                    <span className="text-[12px] font-bold text-slate-900">{comment.author}</span>
+                    <span className="text-[9px] text-slate-400 font-mono">{formatRelativeTime(comment.createdAt, text)}</span>
                   </div>
-                  <p className="text-[11.5px] text-slate-700 mt-1 lines-relaxed">{text(comment.text, comment.textEn)}</p>
+                  <p className="text-[11.5px] text-slate-700 mt-1 lines-relaxed">{comment.content}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
+        </>
+        )}
 
       </div>
 
@@ -683,10 +649,7 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
           {text('使用参数发布路线', 'Publish with parameters')}
         </button>
         <button 
-            onClick={() => {
-            setIsFollowing(!isFollowing);
-            miniToast(isFollowing ? text('已取消关注', 'Unfollowed') : text('关注成功', 'Followed'));
-          }}
+            onClick={() => { void handleFollow(); }}
           className="py-2.5 px-4 border border-slate-200 text-slate-500 text-xs font-black rounded-full text-center hover:bg-neutral-50 active:bg-slate-100 transition-colors"
           >
             {isFollowing ? text('已取消关注', 'Unfollowed') : text('关注', 'Follow')}
@@ -704,30 +667,39 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
   const { text } = useI18n();
   const [activeTab, setActiveTab] = useState<'all' | 'like' | 'comment' | 'follow' | 'sys'>('all');
   const [showEmpty, setShowEmpty] = useState(false);
-  const [unreads, setUnreads] = useState<Record<string, boolean>>({
-    'n1': true,
-    'n2': true,
-    'n4': true
-  });
+  const [msgList, setMsgList] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [followBacks, setFollowBacks] = useState<Record<string, boolean>>({
     'white': false
   });
 
-  const [msgList] = useState(NOTIFICATION_MESSAGES);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listNotifications(activeTab)
+      .then((items) => {
+        if (!cancelled) setMsgList(items);
+      })
+      .catch(() => {
+        if (!cancelled) setMsgList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
-  const handleMarkAllRead = () => {
-    setUnreads({});
+  const handleMarkAllRead = async () => {
+    await markNotificationsRead();
+    setMsgList(prev => prev.map(item => ({ ...item, isRead: true })));
     miniToast(text('已清空未读消息列表', 'Cleared unread notifications'));
   };
 
-  const filtered = msgList.filter(m => {
-    if (activeTab === 'like') return m.type === 'like';
-    if (activeTab === 'comment') return m.type === 'comment';
-    if (activeTab === 'follow') return m.type === 'follow';
-    if (activeTab === 'sys') return m.type === 'sys';
-    return true;
-  });
+  const filtered = msgList;
+  const unreadCount = msgList.filter(m => !m.isRead).length;
 
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between text-slate-800 animate-fadeIn select-none">
@@ -778,7 +750,9 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
 
       {/* Main Container */}
       <div className="flex-1 overflow-y-auto">
-        {(showEmpty || filtered.length === 0) ? (
+        {loading ? (
+          <div className="py-28 text-center text-[12px] text-slate-400 font-bold">{text('正在加载消息...', 'Loading notifications...')}</div>
+        ) : (showEmpty || filtered.length === 0) ? (
           
           /* EMPTY NOTIFICATIONS STATE */
           <div className="py-28 flex flex-col items-center justify-center text-center px-6 animate-pulse select-none space-y-4">
@@ -800,25 +774,23 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
           /* MESSAGES LISTED ROW */
           <div className="divide-y divide-slate-100/70">
             {filtered.map(m => {
-              const hasUnreadDot = unreads[m.id];
+              const hasUnreadDot = !m.isRead;
 
               return (
                 <div 
                   key={m.id}
-                  onClick={() => {
+                  onClick={async () => {
                     // Mark single clicked unread as read
                     if (hasUnreadDot) {
-                      setUnreads(prev => {
-                        const next = { ...prev };
-                        delete next[m.id];
-                        return next;
-                      });
+                      await markNotificationsRead(m.id);
+                      setMsgList(prev => prev.map(item => item.id === m.id ? { ...item, isRead: true } : item));
                     }
                     if (m.type === 'like' || m.type === 'comment') {
+                      if (m.targetId) selectPost(m.targetId);
                       onNavigate('post_detail');
                     } else if (m.type === 'follow') {
                       onNavigate('profile');
-                    } else if (m.type === 'sys') {
+                    } else if (m.type === 'system') {
                       onNavigate('square');
                     }
                   }}
@@ -834,40 +806,31 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
 
                   <div className="flex items-start space-x-3 pl-1 overflow-hidden">
                     {/* User Avatar icon */}
-                    {m.type === 'sys' ? (
+                    {m.type === 'system' ? (
                       <div className="w-[42px] h-[42px] rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 shrink-0">
                         <Volume2 size={18} />
                       </div>
                     ) : (
                       <div className="w-[42px] h-[42px] rounded-full bg-slate-100 border border-slate-205 flex items-center justify-center shrink-0 text-slate-400 font-bold text-sm">
-                        {m.author[0]}
+                        {(m.actorUserId || m.title).slice(0, 1)}
                       </div>
                     )}
 
                     <div className="text-left overflow-hidden">
                       <p className="text-[13px] text-slate-900 font-bold">
-                        <span>{text(m.author, m.authorEn)}</span>
-                        {m.actionText && (
-                          <span className="text-slate-400 font-medium text-[12.5px] ml-1">{text(m.actionText, m.actionTextEn ?? '')}</span>
-                        )}
+                        <span>{m.title}</span>
                       </p>
                       <p className="text-[12px] text-slate-600 truncate max-w-[170px] mt-0.5 leading-normal">
-                        {text(m.target, m.targetEn)}
+                        {m.body}
                       </p>
                       <span className="text-[9.5px] text-slate-400 mt-1 block font-mono font-medium leading-none">
-                        {text(m.time, m.timeEn)}
+                        {formatRelativeTime(m.createdAt, text)}
                       </span>
                     </div>
                   </div>
 
                   {/* Right segment action/thumbnail */}
                   <div className="shrink-0 flex items-center">
-                    {m.hasThumbnail && m.thumbnailSvg && (
-                      <div className="w-[42px] h-[42px] bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                        {m.thumbnailSvg}
-                      </div>
-                    )}
-
                     {m.type === 'follow' && (
                       <button 
                         onClick={(e) => {
@@ -896,7 +859,7 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
       </div>
 
       {/* Bottom mark as read action bar */}
-      {!showEmpty && Object.keys(unreads).length > 0 && (
+      {!showEmpty && unreadCount > 0 && (
         <div className="px-4 py-2 border-t border-slate-50 text-center bg-white shrink-0">
           <button 
             onClick={handleMarkAllRead}
@@ -910,6 +873,3 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
     </div>
   );
 }
-
-
-

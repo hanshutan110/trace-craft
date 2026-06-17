@@ -7,6 +7,7 @@ import {
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
 import { useToast } from './common/Toast';
+import { phoneLogin, quickLogin, type QuickLoginProvider } from '../api/auth';
 
 /* ==========================================
    Screen 5: Onboarding Screen (首次使用引导页)
@@ -144,20 +145,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showDocModal, setShowDocModal] = useState<'privacy' | 'agreement' | null>(null);
 
-  const handleThirdPartyLogin = (platform: 'wechat' | 'douyin') => {
+  const handleThirdPartyLogin = async (platform: QuickLoginProvider) => {
     setIsLoggingIn(true);
     showToast(
       platform === 'wechat'
         ? text('正在拉起微信协议授权...', 'Opening WeChat authorization...')
-        : text('正在拉起抖音协议授权...', 'Opening Douyin authorization...'),
+        : text('正在拉起支付宝协议授权...', 'Opening Alipay authorization...'),
     );
-    setTimeout(() => {
+    try {
+      const auth = await quickLogin(platform);
       setIsLoggingIn(false);
-      showToast(text('授权成功，已为您登录！', 'Authorization successful. You are logged in.'));
+      showToast(auth.isNewUser
+        ? text('快捷注册成功，已为您登录！', 'Quick registration complete. You are logged in.')
+        : text('授权成功，已为您登录！', 'Authorization successful. You are logged in.'));
       setTimeout(() => {
         onNavigate('profile');
       }, 500);
-    }, 1500);
+    } catch {
+      setIsLoggingIn(false);
+      showToast(text('快捷登录失败，请稍后重试', 'Quick login failed. Try again later.'));
+    }
   };
 
   const sendSMS = () => {
@@ -170,12 +177,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     setTimeout(() => {
       setIsSendingCode(false);
       setCodeSent(true);
-      setSmsCode('8888'); // Autofill mockup
+      setSmsCode('8888');
       showToast(text('验证码[8888]已发送', 'Code [8888] sent'));
     }, 1000);
   };
 
-  const handlePhoneLoginSubmit = (e: React.FormEvent) => {
+  const handlePhoneLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phoneNumber || phoneNumber.length < 11) {
       showToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
@@ -188,13 +195,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     setIsLoggingIn(true);
     setShowPhoneModal(false);
     showToast(text('正在验证手机/短信授权...', 'Verifying phone/SMS authorization...'));
-    setTimeout(() => {
+    try {
+      const auth = await phoneLogin(phoneNumber, smsCode);
       setIsLoggingIn(false);
-      showToast(text('登录成功，欢迎回来！', 'Login successful, welcome back!'));
+      showToast(auth.isNewUser
+        ? text('手机号注册成功，已为您登录！', 'Phone registration complete. You are logged in.')
+        : text('登录成功，欢迎回来！', 'Login successful, welcome back!'));
       setTimeout(() => {
         onNavigate('profile');
       }, 500);
-    }, 1200);
+    } catch {
+      setIsLoggingIn(false);
+      showToast(text('手机号登录失败，请检查验证码', 'Phone login failed. Check the code.'));
+    }
   };
 
   return (
@@ -267,7 +280,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         {/* Wechat Login */}
         <button 
           id="btn_wechat_login"
-          onClick={() => handleThirdPartyLogin('wechat')}
+          onClick={() => void handleThirdPartyLogin('wechat')}
           className="w-[85%] h-[52px] bg-white rounded-[32px] shadow-[0_5px_15px_rgba(0,0,0,0.06)] hover:shadow-md border border-gray-100 flex items-center px-6 active:scale-[0.98] transition-all cursor-pointer justify-center relative overflow-hidden group"
         >
           {/* Inner slick highlight */}
@@ -281,19 +294,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
           <span className="text-[16px] font-bold text-slate-700">{t('auth.wechat_login', '微信一键登录')}</span>
         </button>
 
-        {/* Douyin Login */}
+        {/* Alipay Login */}
         <button 
-          id="btn_douyin_login"
-          onClick={() => handleThirdPartyLogin('douyin')}
+          id="btn_alipay_login"
+          onClick={() => void handleThirdPartyLogin('alipay')}
           className="w-[85%] h-[52px] bg-white rounded-[32px] shadow-[0_5px_15px_rgba(0,0,0,0.06)] hover:shadow-md border border-gray-100 flex items-center px-6 active:scale-[0.98] transition-all cursor-pointer justify-center relative group"
         >
-          {/* Black musical note icon */}
-          <div className="absolute left-6 text-black font-semibold">
+          <div className="absolute left-6 text-[#1677FF] font-semibold">
             <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="currentColor">
-              <path d="M12,2a1,1,0,0,0-1,1v10.5a2.5,2.5,0,1,1-3.5-2.28V7a1,1,0,0,0-1-1H4A1,1,0,0,0,3,7a9,9,0,1,0,9-5Zm0,18a7,7,0,1,1,5-1.93A5.49,5.49,0,0,0,14,13V3h1.5A5.5,5.5,0,0,1,21,8.5v1.5a1,1,0,0,1-1,1h-1.5A5.5,5.5,0,0,1,13,7.18V20A7,7,0,0,1,12,20Z"/>
+              <path d="M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Zm4.9 13.8c-1.5-.5-2.9-1.1-4.1-1.8-1.1 1.3-2.5 2.1-4.2 2.1-1.5 0-2.6-.8-2.6-2 0-1.4 1.4-2.2 3.3-2.2.9 0 1.8.2 2.7.5.3-.6.6-1.3.8-2.1H7.2V9.3h3.3V8.1H6.6V6.6h3.9V5.1h1.7v1.5h4v1.5h-4v1.2h3.3v1.3c-.3 1.1-.7 2.1-1.2 3 1 .5 2.2 1 3.5 1.3l-.9 1.4Zm-7.7-1.1c1 0 1.8-.5 2.5-1.4-.8-.3-1.5-.4-2.2-.4-1 0-1.6.4-1.6 1 0 .5.5.8 1.3.8Z"/>
             </svg>
           </div>
-          <span className="text-[16px] font-bold text-slate-700">{t('auth.douyin_login', '抖音一键登录')}</span>
+          <span className="text-[16px] font-bold text-slate-700">{t('auth.alipay_login', '支付宝一键登录')}</span>
         </button>
 
         {/* Divider */}
@@ -422,7 +434,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
               <p>{t('auth.doc_p1', '欢迎阁下使用"轨迹工坊"运动绘图寻航应用软件！')}</p>
               <p>{t('auth.doc_p2', '为了保障您的合法合法权益，请务必仔细阅读本文件。我们深度关注您的个人信息和隐私数据保护：')}</p>
               <p>{t('auth.doc_p3', '1. 我们仅在您使用"手动描边(4)"或"图片寻回(9)"以及位置跟踪时访问您的地理坐标，且采用最严格的脱敏算法保密，坚决不上送任何社交无关机密。')}</p>
-              <p>{t('auth.doc_p4', '2. 账号绑定基于微信/抖音官方静默授权流程，提供一键免密码注册，不采集不索要明文账户密码。')}</p>
+              <p>{t('auth.doc_p4', '2. 账号绑定基于微信/支付宝官方授权流程，提供一键免密码注册，不采集不索要明文账户密码。')}</p>
               <p>{t('auth.doc_p5', '3. 您有随时清除本地生成图片缓存(13)以及彻底注销本人账号权利。')}</p>
             </div>
 

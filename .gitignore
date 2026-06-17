@@ -62,6 +62,7 @@ frontend/.env
 frontend/.env.*
 !frontend/.env.example
 backend/data/state.json
+data/state.json
 *.pem
 *.key
 *.p12

@@ -90,6 +90,10 @@ router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Respo
     }));
   } catch (err) {
     console.error(err);
+    if (['image_buffer_empty', 'image_has_no_visible_contour', 'image_contour_too_weak', 'image_contour_too_sparse'].includes((err as Error).message)) {
+      res.status(400).json(errorPayload('image contour is too weak', 'image_contour_too_weak', 400));
+      return;
+    }
     res.status(500).json(errorPayload('route generation failed', 'route_generation_failed', 500));
   }
 });

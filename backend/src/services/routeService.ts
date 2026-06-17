@@ -2,7 +2,7 @@
  * TraceCraft 路线服务模块（TypeScript 版）
  *
  * 核心职责：
- *   1. 路线生成（从图片生成 Demo 路线）
+ *   1. 路线生成（从图片或模板生成路线）
  *   2. 路线调整（缩放距离、重映射起终点）
  *   3. 导航会话管理（创建、上报位置、暂停/恢复、完成）
  *   4. 地图配置（服务商、语言、坐标系统）
@@ -11,6 +11,7 @@
  */
 
 import crypto from 'crypto';
+import sharp from 'sharp';
 import { pointDistanceMeters, scalePathPreserveShape, latLngCentroid, resampleByDistance, angleSmooth } from '../utils/geo';
 import type { GeoPoint } from '../utils/geo';
 import { convertPoint } from '../utils/coordAdapter';
@@ -155,12 +156,26 @@ function routePathDistanceMeters(path: GeoPoint[]): number {
   return sum;
 }
 
+function alignFirstPointToStart(points: GeoPoint[], start: GeoPoint | null): GeoPoint[] {
+  if (!start || points.length === 0) return points;
+  const first = points[0];
+  const shift = {
+    lat: start.lat - first.lat,
+    lng: start.lng - first.lng,
+  };
+  return points.map((point) => ({
+    ...point,
+    lat: point.lat + shift.lat,
+    lng: point.lng + shift.lng,
+  }));
+}
+
 /**
- * 根据 seed 生成 Demo 路线点集
+ * 根据 seed 生成兜底路线点集
  * 以中心点为基准，使用极坐标绘制不规则闭合曲线
  * 默认中心点为上海（31.2304, 121.4737）
  */
-function generateDemoPoints(seed: number, count: number, center?: GeoPoint | null): GeoPoint[] {
+function generateFallbackRoutePoints(seed: number, count: number, center?: GeoPoint | null): GeoPoint[] {
   const origin = center || { lat: 31.2304, lng: 121.4737 };
   const radius = 0.004 + seed * 0.0015;
   const points: GeoPoint[] = [];
@@ -175,6 +190,100 @@ function generateDemoPoints(seed: number, count: number, center?: GeoPoint | nul
     });
   }
   return points;
+}
+
+async function extractImageContourUnitPoints(buffer: Buffer): Promise<Array<{ x: number; y: number }>> {
+  const image = await sharp(buffer, { limitInputPixels: 16_000_000 })
+    .rotate()
+    .resize({ width: 96, height: 96, fit: 'inside', withoutEnlargement: true })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = image.info;
+  const data = image.data;
+  const luminance = new Float32Array(width * height);
+  const alpha = new Uint8Array(width * height);
+  let sum = 0;
+  let visible = 0;
+  for (let i = 0; i < width * height; i += 1) {
+    const offset = i * channels;
+    const a = data[offset + 3] ?? 255;
+    const l = data[offset] * 0.299 + data[offset + 1] * 0.587 + data[offset + 2] * 0.114;
+    luminance[i] = l;
+    alpha[i] = a;
+    if (a > 20) {
+      sum += l;
+      visible += 1;
+    }
+  }
+  if (visible < 12) {
+    throw new Error('image_has_no_visible_contour');
+  }
+  const avg = sum / visible;
+  const edgePixels: Array<{ x: number; y: number }> = [];
+  const isForeground = (index: number): boolean => alpha[index] > 20 && luminance[index] < avg + 12;
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const idx = y * width + x;
+      if (alpha[idx] <= 20) continue;
+      const contrast = Math.max(
+        Math.abs(luminance[idx] - luminance[idx - 1]),
+        Math.abs(luminance[idx] - luminance[idx + 1]),
+        Math.abs(luminance[idx] - luminance[idx - width]),
+        Math.abs(luminance[idx] - luminance[idx + width])
+      );
+      const boundary =
+        isForeground(idx) &&
+        (!isForeground(idx - 1) || !isForeground(idx + 1) || !isForeground(idx - width) || !isForeground(idx + width));
+      if (contrast > 24 || boundary) {
+        edgePixels.push({ x, y });
+      }
+    }
+  }
+  if (edgePixels.length < 16) {
+    throw new Error('image_contour_too_weak');
+  }
+
+  const centroid = edgePixels.reduce(
+    (acc, point) => ({ x: acc.x + point.x / edgePixels.length, y: acc.y + point.y / edgePixels.length }),
+    { x: 0, y: 0 }
+  );
+  const bins = 144;
+  const sampled = Array.from({ length: bins }, () => ({ x: 0, y: 0, radius: -1 }));
+  edgePixels.forEach((point) => {
+    const nx = (point.x - centroid.x) / Math.max(1, width);
+    const ny = (point.y - centroid.y) / Math.max(1, height);
+    const angle = Math.atan2(ny, nx);
+    const bin = Math.max(0, Math.min(bins - 1, Math.floor(((angle + Math.PI) / (Math.PI * 2)) * bins)));
+    const radius = Math.hypot(nx, ny);
+    if (radius > sampled[bin].radius) {
+      sampled[bin] = { x: nx, y: ny, radius };
+    }
+  });
+  const contour = sampled
+    .filter((point) => point.radius > 0)
+    .map((point) => ({ x: point.x, y: point.y }));
+  if (contour.length < 12) {
+    throw new Error('image_contour_too_sparse');
+  }
+  contour.push(contour[0]);
+  return contour;
+}
+
+async function generateImageContourPoints(buffer: Buffer, center: GeoPoint, targetKm: number | null | undefined): Promise<GeoPoint[]> {
+  const unit = await extractImageContourUnitPoints(buffer);
+  const perimeterUnit = unit.reduce((sum, point, index) => {
+    if (index === 0) return 0;
+    const prev = unit[index - 1];
+    return sum + Math.hypot(point.x - prev.x, point.y - prev.y);
+  }, 0);
+  const targetMeters = Math.max(1000, (Number.isFinite(Number(targetKm)) && Number(targetKm) > 0 ? Number(targetKm) : 5) * 1000);
+  const scaleM = targetMeters / Math.max(0.001, perimeterUnit);
+  const raw = unit.map((point, index) => ({
+    ...metersToPoint(center, point.x * scaleM, point.y * scaleM),
+    ts: Date.now() + index * 1000,
+  }));
+  return resampleByDistance(angleSmooth(raw), 60);
 }
 
 /** 根据文件名生成确定性随机种子 */
@@ -209,6 +318,15 @@ function normalizeRouteForProvider(route: Route, provider: string): Route {
       return { ...point, lat: converted.lat, lng: converted.lng };
     }),
   };
+}
+
+function normalizeLocationForRoute(point: GeoPoint, route: Route): GeoPoint {
+  const crs = route.crsHint as CrsType;
+  if (crs === 'gcj02' || crs === 'bd09') {
+    const converted = convertPoint(point, 'wgs84', crs);
+    return converted ? { ...point, lat: converted.lat, lng: converted.lng } : point;
+  }
+  return point;
 }
 
 /**
@@ -586,10 +704,7 @@ export interface CreateTemplateRouteParams {
   currentAccuracy?: number | null;
 }
 
-/**
- * 核心接口：从上传图片生成路线
- * 当前为 V1 原型，使用种子生成 Demo 路线，未来替换为 AI 图像识别
- */
+/** 核心接口：从上传图片提取轮廓并生成路线 */
 export async function createRouteFromImage(params: CreateRouteParams): Promise<Route> {
   const { userId, filename, buffer, provider, locale, targetKm, startPoint, endPoint, currentAccuracy } = params;
   await initStorage();
@@ -597,8 +712,10 @@ export async function createRouteFromImage(params: CreateRouteParams): Promise<R
   const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
   const routeId = id('route');
   const normalizedLocale = normalizeLocale(locale);
-  const rawPoints = generateDemoPoints(seed, 200, baseStart);
-  const points = resampleByDistance(rawPoints, 60);
+  if (!buffer || buffer.length === 0) {
+    throw new Error('image_buffer_empty');
+  }
+  const points = alignFirstPointToStart(await generateImageContourPoints(buffer, baseStart!, targetKm), baseStart);
   const meta = routeMeta(points);
   const created: Route = {
     id: routeId,
@@ -606,7 +723,7 @@ export async function createRouteFromImage(params: CreateRouteParams): Promise<R
     locale: normalizedLocale,
     source: {
       filename,
-      createdBy: 'v1-prototype',
+      createdBy: 'image-contour',
       seed,
     },
     createdBy: 'backend-route-service',
@@ -654,7 +771,7 @@ export async function createRouteFromTemplate(params: CreateTemplateRouteParams)
   const routeId = id('route');
   const normalizedLocale = normalizeLocale(locale);
   const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
-  const rawPoints = generateTemplatePoints(normalizedShape, baseStart!, target);
+  const rawPoints = alignFirstPointToStart(generateTemplatePoints(normalizedShape, baseStart!, target), baseStart);
   const meta = routeMeta(rawPoints);
   const created: Route = {
     id: routeId,
@@ -881,12 +998,20 @@ export async function appendLocation(
       session: null!,
     };
   }
-  const result: AppendLocationResult | null = await appendSessionLocationRecord(sessionId, point, userId);
+  const existingSession = await getSessionRecord(sessionId, userId);
+  if (!existingSession) {
+    return null;
+  }
+  const route = await getRouteRecord(existingSession.routeId, userId);
+  if (!route) {
+    return null;
+  }
+  const routePoint = normalizeLocationForRoute(point, route);
+  const result: AppendLocationResult | null = await appendSessionLocationRecord(sessionId, routePoint, userId);
   if (!result || !result.session) {
     return null;
   }
   const session = result.session;
-  const route = await getRouteRecord(session.routeId, userId);
   const state = route ? computeSessionState(session, route) : null;
   return {
     accepted: result.accepted,

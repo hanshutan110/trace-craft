@@ -10,7 +10,7 @@ TraceCraft 是一款**图片/形状转跑步路径并可实时导航的城市创
 TraceCraft/
 ├── backend/                  # Node.js API 服务（Express）
 │   ├── src/
-│   │   ├── index.js          # 路由与入口
+│   │   ├── index.ts          # 路由与入口
 │   │   ├── services/         # 路线生成、持久化（含 PostgreSQL 适配）
 │   │   └── utils/            # 坐标转换、地理工具
 │   └── .env.example          # 环境变量模板
@@ -26,7 +26,7 @@ TraceCraft/
 │   ├── public/               # 静态 HTML 页面（原型参考）
 │   ├── vite.config.ts
 │   └── tsconfig.json
-├── admin/                    # 后台管理 Demo（浏览器 Mock 模式）
+├── admin/                    # 后台管理面板（浏览器 API 模式，读写 PostgreSQL）
 ├── db/                       # 数据库设计文档（PostgreSQL schema、API 设计）
 ├── docs/                     # 项目文档、UI 设计稿
 ├── .eslintrc.cjs             # ESLint 配置（JS/TS/TSX）
@@ -85,7 +85,7 @@ npm run dev
 |---|---|
 | 前端 | React 19 + TypeScript + Vite 6 + TailwindCSS 4 + Motion |
 | 后端 | Node.js + Express |
-| 数据库 | PostgreSQL（schema 已设计，待接入）；当前 V1 文件态（state.json）|
+| 数据库 | PostgreSQL（核心链路已接入）；Memory 仅作本地兜底 |
 | 地图 | 高德（国内）/ Google Maps（国际），预留百度、腾讯 |
 | 国际化 | 内置 i18n（中/英双语）|
 | 代码规范 | ESLint（`.eslintrc.cjs`），支持 JS/TS/TSX |
@@ -95,15 +95,47 @@ npm run dev
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/maps/config` | 获取地图 provider 配置 |
+| `POST` | `/api/auth/quick-login` | 微信/支付宝快捷注册登录（MVP 开发直通） |
+| `POST` | `/api/auth/phone-login` | 手机号快捷登录（测试验证码 `8888`） |
+| `GET` | `/api/me` | 获取当前用户资料、绑定来源、统计和设置 |
+| `PUT` | `/api/me/settings` | 保存当前用户设置到 `users.metadata.settings` |
 | `POST` | `/api/routes/from-template` | 基础模板生成路线点并返回风险信息 |
 | `POST` | `/api/routes` | 上传图片生成路线点并返回风险信息 |
+| `GET` | `/api/routes/{routeId}` | 获取单条路线详情 |
 | `PUT` | `/api/routes/{routeId}/adjust` | 按目标里程缩放路线 |
 | `PUT` | `/api/routes/{routeId}/rebase` | 重设起点/终点 |
 | `POST` | `/api/routes/{routeId}/start` | 开始导航会话；中风险需 `riskConfirmed=true`，高风险阻断 |
 | `POST` | `/api/sessions/{sessionId}/location` | 上报实时位置 |
 | `GET` | `/api/sessions/{sessionId}` | 查询导航状态 |
 | `POST` | `/api/sessions/{sessionId}/finish` | 结束跑步 |
-| `GET` | `/api/runs` | 获取用户跑步历史 |
+| `GET` | `/api/runs` | 获取当前用户路线/轨迹列表 |
+| `GET` | `/api/run-history` | 获取当前用户跑步历史 |
+| `GET` | `/api/templates` | 获取模板库列表 |
+| `GET` | `/api/templates/{templateId}` | 获取模板详情 |
+| `GET` | `/api/favorites` | 获取当前用户收藏 |
+| `POST` | `/api/favorites` | 收藏模板/路线等目标 |
+| `DELETE` | `/api/favorites/{targetType}/{targetId}` | 取消收藏 |
+| `GET` | `/api/search/hints` | 获取搜索历史、热门词、分类 |
+| `GET` | `/api/search` | 搜索模板、我的轨迹、用户 |
+| `GET` | `/api/community/posts` | 获取社区广场列表 |
+| `POST` | `/api/community/posts` | 发布社区轨迹作品 |
+| `GET` | `/api/community/posts/{postId}` | 获取帖子详情和评论 |
+| `POST` | `/api/community/posts/{postId}/comments` | 发布评论 |
+| `POST` | `/api/community/posts/{postId}/like` | 点赞/取消点赞 |
+| `POST` | `/api/community/follows/{userId}` | 关注/取消关注 |
+| `GET` | `/api/notifications` | 获取消息通知 |
+| `POST` | `/api/notifications/read` | 标记消息已读 |
+| `GET/POST/PUT/DELETE` | `/api/admin/{module}` | 后台用户、内容、模板管理 |
+
+## 数据库现状
+
+- 已接入 VM PostgreSQL：`192.168.252.128:5432/tracecraft`
+- 当前核心表：`users`、`auth_identities`、`routes`、`route_versions`、`run_sessions`、`run_location_events`、`run_audit_logs`
+- 已落库功能：快捷注册登录、路线生成/查询、导航会话、位置上报、完成记录、我的轨迹、跑步历史、个人中心统计、用户设置、模板库、收藏、搜索、社区发布/广场/评论/点赞/关注/通知、后台管理 CRUD
+- 已执行并维护为完整 schema 的 SQL：`db/feature-precreate-schema.sql`
+- Schema 覆盖：核心用户/路线/会话、快捷登录身份、后台管理、模板库、收藏、搜索、社区、评论、点赞、关注、通知、分享记录、用户素材、反馈
+
+> `db/feature-precreate-schema.sql` 已在 VM PostgreSQL 执行；后续如调整表结构仍需先确认目标环境和影响范围。
 
 ## 安全与边界说明
 
@@ -114,7 +146,7 @@ npm run dev
 
 ## 后台管理（admin/）
 
-`admin/` 目录包含一个浏览器端的管理后台 Demo，当前使用 localStorage mock 数据：
+`admin/` 目录包含一个浏览器端的管理后台面板，当前通过后端 API 读写 PostgreSQL：
 
 - **用户管理**：管理员列表、角色绑定、状态切换
 - **内容管理**：内容发布与审核
@@ -128,21 +160,22 @@ python -m http.server 8080
 # 访问 http://localhost:8080
 ```
 
-后续计划：将 mock `service` 层替换为后端 `fetch` 调用，保持方法签名不变。
+说明：后台暂未接管理员登录态，MVP 阶段用于本地管理数据验证；正式上线前需要补管理员鉴权。
 
 ## 数据库设计（db/）
 
 `db/` 目录包含数据库相关文档：
 
 - `admin-schema.sql` — 最小可行后台 PostgreSQL 建表（含角色、用户、内容、模板、社区审核）
+- `feature-precreate-schema.sql` — MVP 完整 PostgreSQL schema（核心链路 + 后续页面表 + 种子数据）
 - `admin-api-design.md` — 管理 API 清单（登录鉴权、CRUD、社区管理）
 - `maintenance_checklist.md` — 上线前检查、修复 SQL、回滚建议
 
 ## 下一步计划
 
-1. 补齐模板/自定义图片的统一路线生成契约
-2. 落地路线预览、风险提示弹窗和用户确认状态
-3. 后台管理 API 落地：将 admin mock 迁移到后端真实接口
-4. 完成高德 / Google Provider 的运行时渲染适配
+1. 接入真实微信/支付宝授权 SDK，替换 MVP 开发直通授权码
+2. 头像、分享图、路线封面接本地文件服务或 OSS
+3. 后台管理补管理员登录鉴权和操作审计
+4. 社区审核流接后台管理界面
 5. AI 边缘识别升级（图片去噪 → 向量化曲线提取）
 6. 添加上架前权限文案与隐私政策

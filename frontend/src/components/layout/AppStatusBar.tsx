@@ -1,7 +1,7 @@
 ﻿/**
  * 应用状态栏组件
  *
- * 模拟手机顶部状态栏：时间、网络信号、WiFi、电量
+ * 手机顶部状态栏：时间、网络信号、WiFi、电量
  * 支持深色/浅色主题切换（编辑器页面为深色）
  *
  * @deprecated 此组件已定义但未被任何地方引用，属于死代码。
@@ -45,4 +45,3 @@ export const AppStatusBar: React.FC<AppStatusBarProps> = ({ liveTime, isEditorSc
     </div>
   );
 };
-

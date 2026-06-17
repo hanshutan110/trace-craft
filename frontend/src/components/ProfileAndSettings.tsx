@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Heart,
   Activity,
@@ -23,6 +23,14 @@ import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
 import { useToast } from './common/Toast';
 import { BottomNavBar } from './common/BottomNavBar';
+import { getCurrentUserProfile, updateUserSettings, type UserProfile, type UserSettings } from '../api/user';
+
+function providerLabel(provider: string, text: (cn: string, en: string) => string): string {
+  if (provider === 'wechat') return text('已绑定微信', 'WeChat linked');
+  if (provider === 'alipay') return text('已绑定支付宝', 'Alipay linked');
+  if (provider === 'phone') return text('已绑定手机号', 'Phone linked');
+  return text('游客账号', 'Guest account');
+}
 
 /* ==========================================
    Screen 12: Profile Center Screen (个人中心页)
@@ -41,6 +49,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { t, text } = useI18n();
   const { showToast } = useToast();
   const [showQRModal, setShowQRModal] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    getCurrentUserProfile()
+      .then(setProfile)
+      .catch(() => showToast(text('个人数据加载失败', 'Failed to load profile')));
+  }, [showToast, text]);
+
+  const stats = profile?.stats || {
+    totalDistanceKm: 0,
+    totalDurationHours: 0,
+    totalRoutes: 0,
+    completedRuns: 0,
+    favoriteCount: 0,
+  };
 
   return (
     <div className="flex flex-col min-h-full bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_24%,#eef7ff_100%)] text-slate-800 select-none relative pb-[calc(96px+env(safe-area-inset-bottom))]">
@@ -66,7 +89,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 onClick={() => showToast(text('上传个人照片头像功能正在建设中', 'Profile photo upload is under construction'))}
                 className="w-16 h-16 rounded-full bg-slate-100 border-2 border-slate-200/60 relative cursor-pointer group-hover:border-[#00F2FE]/50 transition-colors flex items-center justify-center shrink-0 overflow-hidden"
               >
-                {/* Visual Placeholder (running blue silhouette) */}
+                {/* Running avatar graphic */}
                 <span className="text-2xl">🏃‍♂️</span>
                 
                 {/* Mini Edit Camera overlay */}
@@ -78,10 +101,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               {/* Text Info */}
               <div>
                 <h3 className="text-[18px] font-black text-slate-800 flex items-center gap-1">
-                <span>{t('profile.nickname', '跑者小明')}</span>
-                  <span className="text-[9px] font-bold bg-[#4FACFE]/10 text-[#4FACFE] px-1.5 py-0.5 rounded-full">{t('profile.badge', '中级达人')}</span>
+                <span>{profile?.displayName || t('profile.nickname', '跑者小明')}</span>
+                  <span className="text-[9px] font-bold bg-[#4FACFE]/10 text-[#4FACFE] px-1.5 py-0.5 rounded-full">{profile?.badge || t('profile.badge', '中级达人')}</span>
                 </h3>
-                <p className="text-[12px] text-slate-400 mt-1 font-mono">ID: 12345678</p>
+                <p className="text-[12px] text-slate-400 mt-1 font-mono">ID: {profile?.userId || '...'}</p>
               </div>
             </div>
 
@@ -98,7 +121,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           {/* Slogan Quote Bottom line inside card */}
           <div className="pt-2 px-1 flex items-center justify-between text-[11px] text-slate-400 font-medium">
-            <span>{t('profile.signature', '个性签名: 用汗水在水泥地上书写画作')}</span>
+            <span>{profile?.signature || t('profile.signature', '个性签名: 用汗水在水泥地上书写画作')}</span>
             <span className="text-[#00F2FE]/90 font-bold hover:underline cursor-pointer" onClick={() => showToast(t('profile.signature_edit_toast', '个性签名修改'))}>{t('profile.edit', '修改')}</span>
           </div>
         </div>
@@ -107,28 +130,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <div className="px-4 grid grid-cols-3 gap-3 mb-6">
           {/* Box 1 */}
           <div 
-            onClick={() => showToast(text('本周累计跑步328公里，超越了95%的跑者', 'You ran 328 km this week and beat 95% of runners'))}
+            onClick={() => showToast(text(`累计跑步 ${stats.totalDistanceKm} 公里`, `Total distance ${stats.totalDistanceKm} km`))}
             className="bg-white rounded-[16px] p-3.5 border border-gray-100 shadow-[0_4px_12px_rgba(0,0,0,0.02)] text-center flex flex-col justify-center active:scale-98 transition-all hover:border-[#4FACFE]/10 cursor-pointer"
           >
-            <span className="text-[20px] font-extrabold text-slate-800 leading-tight">328</span>
+            <span className="text-[20px] font-extrabold text-slate-800 leading-tight">{stats.totalDistanceKm}</span>
             <span className="text-[11px] text-slate-400 mt-1">{t('profile.stats_distance', '总距离 (km)')}</span>
           </div>
 
           {/* Box 2 */}
           <div 
-            onClick={() => showToast(text('专注运动42小时，继续加油！', '42 hours of training. Keep going!'))}
+            onClick={() => showToast(text(`累计运动 ${stats.totalDurationHours} 小时`, `Total duration ${stats.totalDurationHours} hours`))}
             className="bg-white rounded-[16px] p-3.5 border border-gray-100 shadow-[0_4px_12px_rgba(0,0,0,0.02)] text-center flex flex-col justify-center active:scale-98 transition-all hover:border-[#4FACFE]/10 cursor-pointer"
           >
-            <span className="text-[20px] font-extrabold text-slate-800 leading-tight">42</span>
+            <span className="text-[20px] font-extrabold text-slate-800 leading-tight">{stats.totalDurationHours}</span>
             <span className="text-[11px] text-slate-400 mt-1">{t('profile.stats_time', '总时长 (时)')}</span>
           </div>
 
           {/* Box 3 */}
           <div 
-            onClick={() => showToast(text('已成功在画板及真实街道上拓画28个足迹', '28 routes have been mapped on the canvas and real streets'))}
+            onClick={() => showToast(text(`已创建 ${stats.totalRoutes} 条轨迹`, `${stats.totalRoutes} routes created`))}
             className="bg-white rounded-[16px] p-3.5 border border-gray-100 shadow-[0_4px_12px_rgba(0,0,0,0.02)] text-center flex flex-col justify-center active:scale-98 transition-all hover:border-[#4FACFE]/10 cursor-pointer"
           >
-            <span className="text-[20px] font-extrabold text-slate-800 leading-tight">28</span>
+            <span className="text-[20px] font-extrabold text-slate-800 leading-tight">{stats.totalRoutes}</span>
             <span className="text-[11px] text-slate-400 mt-1">{t('profile.stats_traces', '完成轨迹 (个)')}</span>
           </div>
         </div>
@@ -147,7 +170,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <span className="text-[16px] font-medium">{t('profile.item.traces', '我的轨迹作品')}</span>
               </div>
               <div className="flex items-center space-x-1 text-slate-400">
-                <span className="text-[12px] font-semibold bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">28</span>
+                <span className="text-[12px] font-semibold bg-slate-100 px-2 py-0.5 rounded-full text-slate-500">{stats.totalRoutes}</span>
                 <ChevronRight size={16} />
               </div>
             </div>
@@ -174,7 +197,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <span className="text-[16px] font-medium">{t('profile.item.favorites', '收藏模板')}</span>
               </div>
               <div className="flex items-center space-x-1 text-slate-400">
-                <span className="text-[12px] font-semibold bg-pink-50 text-pink-500 px-2 py-0.5 rounded-full">12</span>
+                <span className="text-[12px] font-semibold bg-pink-50 text-pink-500 px-2 py-0.5 rounded-full">{stats.favoriteCount}</span>
                 <ChevronRight size={16} />
               </div>
             </div>
@@ -275,12 +298,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   明
                 </div>
                 <div>
-              <h4 className="text-[13px] font-bold text-slate-800">{t('profile.nickname', '跑者小明')}</h4>
-              <p className="text-[9px] text-slate-400 mt-0.5 leading-none">{t('profile.qr_subtitle', '累计跑量 328km | 中级达人')}</p>
+              <h4 className="text-[13px] font-bold text-slate-800">{profile?.displayName || t('profile.nickname', '跑者小明')}</h4>
+              <p className="text-[9px] text-slate-400 mt-0.5 leading-none">{text(`累计跑量 ${stats.totalDistanceKm}km | ${profile?.badge || '新手跑者'}`, `Total ${stats.totalDistanceKm}km | ${profile?.badge || 'New Runner'}`)}</p>
                 </div>
               </div>
 
-              {/* Real QR Mock Graphic inside */}
+              {/* Real QR graphic preview */}
               <div className="w-40 h-40 bg-white p-3 rounded-xl flex items-center justify-center shadow-inner relative overflow-hidden">
                 <svg viewBox="0 0 100 100" className="w-full h-full text-slate-800">
                   {/* Visual matrix squares */}
@@ -301,7 +324,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <path d="M35,45 h10 v15 h-10 z M55,40 h15 v5 h-15 z M75,45 h10 v5 h-10 z M90,55 h10 v10 h-10 z M5,55 h10 v10 h-10 z M20,60 h10 v15 h-10 z M50,60 h10 v10 h-10 z M70,60 h20 v5 h-20 z" fill="currentColor" />
                   <path d="M35,80 h15 v15 h-15 z M60,80 h15 v5 h-15 z M80,80 h15 v15 h-15 z M90,70 h10 v10 h-10 z M55,90 h10 v10-10 z M75,90 h15 v10 h-15 z M5,30 h10 v10 h-10 z" fill="currentColor" />
 
-                  {/* Central App icon logo placeholder inside QR */}
+                  {/* Central App icon logo inside QR */}
                   <rect x="38" y="38" width="24" height="24" fill="white" rx="4" />
                   <rect x="40" y="40" width="20" height="20" fill="url(#qrGradient)" rx="3" />
                   <defs>
@@ -348,10 +371,30 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
   const [mapStyleStyle, setMapStyleStyle] = useState<'light' | 'satellite'>('light');
   const [lineWeightThickness, setLineWeightThickness] = useState<'mid' | 'thick' | 'thin'>('mid');
   const [cacheMemoryMB, setCacheMemoryMB] = useState(128);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const [showLanguageSheet, setShowLanguageSheet] = useState(false);
   const [showMapSheet, setShowMapSheet] = useState(false);
   const [showThicknessSheet, setShowThicknessSheet] = useState(false);
+
+  useEffect(() => {
+    getCurrentUserProfile()
+      .then((nextProfile) => {
+        setProfile(nextProfile);
+        setDistanceUnit(nextProfile.settings.distanceUnit);
+        setVoiceBroadcast(nextProfile.settings.voiceBroadcast);
+        setVibeDeviation(nextProfile.settings.vibeDeviation);
+        setMapStyleStyle(nextProfile.settings.mapStyle);
+        setLineWeightThickness(nextProfile.settings.lineWeight);
+      })
+      .catch(() => showToast(text('设置数据加载失败', 'Failed to load settings')));
+  }, [showToast, text]);
+
+  const persistSettings = (patch: Partial<UserSettings>) => {
+    updateUserSettings(patch)
+      .then((nextProfile) => setProfile(nextProfile))
+      .catch(() => showToast(text('设置保存失败，请稍后重试', 'Failed to save settings')));
+  };
 
   const clearCacheAction = () => {
     if (cacheMemoryMB === 0) {
@@ -392,14 +435,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
               🏃‍♂️
             </div>
             <div>
-              <h4 className="text-[14px] font-bold text-slate-800">{t('profile.nickname', '跑者小明')}</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">UID: 12345678</p>
+              <h4 className="text-[14px] font-bold text-slate-800">{profile?.displayName || t('profile.nickname', '跑者小明')}</h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">UID: {profile?.userId || '...'}</p>
             </div>
           </div>
           {/* Active status */}
           <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full text-[11px] text-emerald-600">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-            <span className="font-bold">{t('settings.bound_wechat', '已绑定微信')}</span>
+            <span className="font-bold">{providerLabel(profile?.authProvider || '', text)}</span>
           </div>
         </div>
 
@@ -435,6 +478,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
               onClick={() => {
                 const nextUnit = distanceUnit === 'km' ? 'mile' : 'km';
                 setDistanceUnit(nextUnit);
+                persistSettings({ distanceUnit: nextUnit });
                 showToast(nextUnit === 'km'
                   ? text('单位已切回: 公里 (Km)', 'Units switched to: kilometers (km)')
                   : text('单位已切回: 英里 (Mile)', 'Units switched to: miles'));
@@ -465,6 +509,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
                 id="toggle_voice"
                 onClick={() => {
                   setVoiceBroadcast(!voiceBroadcast);
+                  persistSettings({ voiceBroadcast: !voiceBroadcast });
                   showToast(!voiceBroadcast ? t('settings.voice_on', '语音已开启') : t('settings.voice_off', '语音已关闭'));
                 }}
                 className={`w-11.5 h-6 rounded-full p-0.5 transition-colors duration-200 outline-none ease-in ${
@@ -489,6 +534,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
                 id="toggle_vibration"
                 onClick={() => {
                   setVibeDeviation(!vibeDeviation);
+                  persistSettings({ vibeDeviation: !vibeDeviation });
                   showToast(!vibeDeviation ? t('settings.vibrate_on', '震动已开启') : t('settings.vibrate_off', '震动已关闭'));
                 }}
                 className={`w-11.5 h-6 rounded-full p-0.5 transition-colors duration-200 outline-none ease-in ${
@@ -669,14 +715,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
           <div className="w-full bg-white rounded-t-[28px] p-5 shadow-2xl flex flex-col space-y-3.5 max-h-[50%] animate-slide-up">
             <h3 className="text-sm font-black text-slate-800 text-center pb-2 border-b">{t('settings.map_sheet_title', '切换底层地图网样式')}</h3>
             <button 
-              onClick={() => { setMapStyleStyle('light'); setShowMapSheet(false); showToast(text('地图样式已设置为: 浅色模式', 'Map style set to: Light')); }}
+              onClick={() => { setMapStyleStyle('light'); persistSettings({ mapStyle: 'light' }); setShowMapSheet(false); showToast(text('地图样式已设置为: 浅色模式', 'Map style set to: Light')); }}
               className={`py-3 rounded-xl font-bold text-xs flex justify-between px-4 ${mapStyleStyle === 'light' ? 'bg-[#4FACFE]/10 text-[#4FACFE]' : 'bg-slate-50 text-slate-700'}`}
             >
               <span>{t('settings.map_light_option', '浅色模式地图 (矢量网格)')}</span>
               {mapStyleStyle === 'light' && <span>✓</span>}
             </button>
             <button 
-              onClick={() => { setMapStyleStyle('satellite'); setShowMapSheet(false); showToast(text('地图样式已设置为: 遥感卫星高清', 'Map style set to: Satellite')); }}
+              onClick={() => { setMapStyleStyle('satellite'); persistSettings({ mapStyle: 'satellite' }); setShowMapSheet(false); showToast(text('地图样式已设置为: 遥感卫星高清', 'Map style set to: Satellite')); }}
               className={`py-3 rounded-xl font-bold text-xs flex justify-between px-4 ${mapStyleStyle === 'satellite' ? 'bg-[#4FACFE]/10 text-[#4FACFE]' : 'bg-slate-50 text-slate-700'}`}
             >
               <span>{t('settings.map_satellite_option', '遥感卫星高清图 (街道重叠)')}</span>
@@ -698,21 +744,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
           <div className="w-full bg-white rounded-t-[28px] p-5 shadow-2xl flex flex-col space-y-3.5 max-h-[50%] animate-slide-up">
             <h3 className="text-sm font-black text-slate-800 text-center pb-2 border-b">{t('settings.thickness_sheet_title', '修改地图发光轨迹线粗细')}</h3>
             <button 
-              onClick={() => { setLineWeightThickness('thin'); setShowThicknessSheet(false); showToast(text('轨迹线：精致极细', 'Route line: Thin')); }}
+              onClick={() => { setLineWeightThickness('thin'); persistSettings({ lineWeight: 'thin' }); setShowThicknessSheet(false); showToast(text('轨迹线：精致极细', 'Route line: Thin')); }}
               className={`py-3 rounded-xl font-bold text-xs flex justify-between px-4 ${lineWeightThickness === 'thin' ? 'bg-[#4FACFE]/10 text-[#4FACFE]' : 'bg-slate-50 text-slate-700'}`}
             >
               <span>{t('settings.thickness_thin_option', '精致极细 (1.5px)')}</span>
               {lineWeightThickness === 'thin' && <span>✓</span>}
             </button>
             <button 
-              onClick={() => { setLineWeightThickness('mid'); setShowThicknessSheet(false); showToast(text('轨迹线：中等大小', 'Route line: Medium')); }}
+              onClick={() => { setLineWeightThickness('mid'); persistSettings({ lineWeight: 'mid' }); setShowThicknessSheet(false); showToast(text('轨迹线：中等大小', 'Route line: Medium')); }}
               className={`py-3 rounded-xl font-bold text-xs flex justify-between px-4 ${lineWeightThickness === 'mid' ? 'bg-[#4FACFE]/10 text-[#4FACFE]' : 'bg-slate-50 text-slate-700'}`}
             >
               <span>{t('settings.thickness_mid_option', '中等粗细 (3.5px)')}</span>
               {lineWeightThickness === 'mid' && <span>✓</span>}
             </button>
             <button 
-              onClick={() => { setLineWeightThickness('thick'); setShowThicknessSheet(false); showToast(text('轨迹线：醒目极粗', 'Route line: Bold')); }}
+              onClick={() => { setLineWeightThickness('thick'); persistSettings({ lineWeight: 'thick' }); setShowThicknessSheet(false); showToast(text('轨迹线：醒目极粗', 'Route line: Bold')); }}
               className={`py-3 rounded-xl font-bold text-xs flex justify-between px-4 ${lineWeightThickness === 'thick' ? 'bg-[#4FACFE]/10 text-[#4FACFE]' : 'bg-slate-50 text-[#4FACFE]'}`}
             >
               <span>{t('settings.thickness_thick_option', '醒目超粗 (6.0px)')}</span>
