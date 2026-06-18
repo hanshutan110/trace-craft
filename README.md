@@ -2,7 +2,7 @@
 
 TraceCraft 是一款**图片/形状转跑步路径并可实时导航的城市创意运动 App**：用户上传任意图片（涂鸦、Logo、表情包等）或选择基础图形模板，系统生成可预览、可调整、可确认风险的跑步路线，并在 App 内直接导航，不出现 GPX 文件概念。
 
-当前仓库包含后端 API（Node.js/Express）与前端应用（Vite + React + TypeScript + TailwindCSS）。
+当前仓库包含后端 API（Node.js/Express）、移动端 Web 应用（Vite + React + TypeScript + TailwindCSS）与独立管理后台（Vite + React + TypeScript + Ant Design）。
 
 ## 项目结构
 
@@ -26,7 +26,7 @@ TraceCraft/
 │   ├── public/               # 静态 HTML 页面（原型参考）
 │   ├── vite.config.ts
 │   └── tsconfig.json
-├── admin/                    # 后台管理面板（浏览器 API 模式，读写 PostgreSQL）
+├── admin/                    # 独立管理后台（Vite + React + TS + Ant Design，读写 PostgreSQL）
 ├── db/                       # 数据库设计文档（PostgreSQL schema、API 设计）
 ├── docs/                     # 项目文档、UI 设计稿
 ├── .eslintrc.cjs             # ESLint 配置（JS/TS/TSX）
@@ -61,6 +61,25 @@ npm run dev
 
 > 后端和前端需**同时启动**，前端通过 API 与后端通信。
 
+### 3. 启动管理后台
+
+```bash
+cd admin
+npm install
+npm run dev
+```
+
+后台地址：`http://localhost:3002`
+
+默认 API：`http://localhost:3001/api`
+
+本地 MVP 登录：
+
+- 用户名：`admin`
+- 密码：`backend/.env` 中的 `TRACECRAFT_ADMIN_PASSWORD`，未配置时默认 `admin123`
+
+> 管理后台依赖后端和 PostgreSQL；数据库需已有 `admin-root/admin` 种子用户。
+
 ## 核心使用流程
 
 1. 打开应用 → 引导页 / 登录
@@ -84,6 +103,7 @@ npm run dev
 | 层 | 选型 |
 |---|---|
 | 前端 | React 19 + TypeScript + Vite 6 + TailwindCSS 4 + Motion |
+| 管理后台 | React 19 + TypeScript + Vite 6 + Ant Design 5 |
 | 后端 | Node.js + Express |
 | 数据库 | PostgreSQL（核心链路已接入）；Memory 仅作本地兜底 |
 | 地图 | 高德（国内）/ Google Maps（国际），预留百度、腾讯 |
@@ -125,7 +145,10 @@ npm run dev
 | `POST` | `/api/community/follows/{userId}` | 关注/取消关注 |
 | `GET` | `/api/notifications` | 获取消息通知 |
 | `POST` | `/api/notifications/read` | 标记消息已读 |
-| `GET/POST/PUT/DELETE` | `/api/admin/{module}` | 后台用户、内容、模板管理 |
+| `POST` | `/api/admin/auth/login` | 管理后台 MVP 登录 |
+| `GET` | `/api/admin/auth/me` | 获取当前管理员信息 |
+| `GET` | `/api/admin/{module}` | 后台用户、内容、模板列表，支持分页/筛选 |
+| `POST/PUT/DELETE` | `/api/admin/{module}` | 后台用户、内容、模板写操作 |
 
 ## 数据库现状
 
@@ -146,21 +169,22 @@ npm run dev
 
 ## 后台管理（admin/）
 
-`admin/` 目录包含一个浏览器端的管理后台面板，当前通过后端 API 读写 PostgreSQL：
+`admin/` 目录包含独立 Vite React 管理后台，使用 Ant Design 构建运营工作台，当前通过后端 API 读写 PostgreSQL：
 
 - **用户管理**：管理员列表、角色绑定、状态切换
 - **内容管理**：内容发布与审核
 - **模板管理**：模板分类、版本历史
 
-打开方式：直接浏览器打开 `admin/index.html`，或使用本地静态服务器：
+打开方式：
 
 ```bash
 cd admin
-python -m http.server 8080
-# 访问 http://localhost:8080
+npm install
+npm run dev
+# 访问 http://localhost:3002
 ```
 
-说明：后台暂未接管理员登录态，MVP 阶段用于本地管理数据验证；正式上线前需要补管理员鉴权。
+说明：后台已接 MVP 登录态，管理接口需要 `Authorization: Bearer <admin_token>`；删除操作采用软处理（用户禁用、内容归档、模板停用）。正式上线前仍需替换为真实密码哈希、会话刷新和权限矩阵。
 
 ## 数据库设计（db/）
 
@@ -175,7 +199,7 @@ python -m http.server 8080
 
 1. 接入真实微信/支付宝授权 SDK，替换 MVP 开发直通授权码
 2. 头像、分享图、路线封面接本地文件服务或 OSS
-3. 后台管理补管理员登录鉴权和操作审计
+3. 后台管理补真实密码哈希、会话刷新和权限矩阵
 4. 社区审核流接后台管理界面
 5. AI 边缘识别升级（图片去噪 → 向量化曲线提取）
 6. 添加上架前权限文案与隐私政策

@@ -1,106 +1,261 @@
+import crypto from 'crypto';
+import type { AdminListParams, AdminListResult, AdminModuleKey, AdminProfile } from '../../../shared/admin';
 import { pgPool } from './postgres-storage';
+import { toIso } from '../utils/date';
+import { newId } from '../utils/id';
+import { safeJsonObject } from '../utils/json';
 
-function newId(prefix: string): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const crypto = require('crypto');
-  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
-}
+export type AdminActor = AdminProfile;
 
 function requireDb(): void {
   if (!pgPool) throw new Error('postgres_not_configured');
 }
 
-function toIso(value: unknown): string {
-  return value ? new Date(value as string | Date).toISOString() : new Date().toISOString();
+function normalizePage(query: Partial<AdminListParams>): { page: number; limit: number; offset: number } {
+  const page = Math.max(1, Number(query.page || 1));
+  const limit = Math.max(1, Math.min(100, Number(query.limit || 20)));
+  return { page, limit, offset: (page - 1) * limit };
 }
 
-function safeJson(value: unknown): Record<string, unknown> {
-  if (!value) return {};
-  if (typeof value === 'object') return value as Record<string, unknown>;
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value) as Record<string, unknown>;
-    } catch {
-      return {};
-    }
+function signToken(actor: AdminActor): string {
+  const payload = Buffer.from(JSON.stringify({
+    id: actor.id,
+    username: actor.username,
+    displayName: actor.displayName,
+    roles: actor.roles,
+    ts: Date.now(),
+  })).toString('base64url');
+  const secret = process.env.TRACECRAFT_ADMIN_TOKEN_SECRET || 'tracecraft-admin-dev-secret';
+  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+export function verifyAdminToken(token: string): AdminActor | null {
+  const [payload, sig] = token.split('.');
+  if (!payload || !sig) return null;
+  const secret = process.env.TRACECRAFT_ADMIN_TOKEN_SECRET || 'tracecraft-admin-dev-secret';
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  if (Buffer.byteLength(sig) !== Buffer.byteLength(expected)) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as AdminActor & { ts?: number };
+    const ttlHours = Math.max(1, Number(process.env.TRACECRAFT_ADMIN_TOKEN_TTL_HOURS || 12));
+    if (parsed.ts && Date.now() - parsed.ts > ttlHours * 60 * 60 * 1000) return null;
+    return {
+      id: parsed.id,
+      username: parsed.username,
+      displayName: parsed.displayName,
+      roles: Array.isArray(parsed.roles) ? parsed.roles : [],
+    };
+  } catch {
+    return null;
   }
-  return {};
 }
 
-export async function listAdminModule(moduleKey: string): Promise<Record<string, unknown>[]> {
+function mapAdminUser(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: row.id,
+    username: row.username,
+    name: row.display_name,
+    phone: row.phone || '',
+    email: row.email || '',
+    roles: row.roles || [],
+    status: row.status,
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+function mapContent(row: Record<string, unknown>): Record<string, unknown> {
+  const body = safeJsonObject(row.body_json);
+  return {
+    id: row.id,
+    key: row.content_key,
+    type: row.content_type,
+    title: row.title || '',
+    summary: row.summary || '',
+    body: typeof body.body === 'string' ? body.body : JSON.stringify(body),
+    status: row.status,
+    sortOrder: row.sort_order,
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+function mapTemplate(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: row.id,
+    code: row.template_code,
+    name: row.template_name,
+    category: row.category,
+    providerHint: row.provider_hint || '',
+    payload: JSON.stringify(safeJsonObject(row.template_payload), null, 2),
+    isDefault: Boolean(row.is_default),
+    isActive: Boolean(row.is_active),
+    version: row.version,
+    sortOrder: row.sort_order,
+    updatedAt: toIso(row.updated_at),
+    description: row.description || '',
+  };
+}
+
+async function queryActorByUsername(username: string): Promise<AdminActor | null> {
+  const rows = await pgPool!.query(
+    `SELECT u.id, u.username, u.display_name, COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles
+     FROM admin_users u
+     LEFT JOIN admin_user_roles ur ON ur.admin_user_id = u.id
+     LEFT JOIN admin_roles r ON r.id = ur.admin_role_id
+     WHERE u.username = $1 AND u.status = 'active'
+     GROUP BY u.id
+     LIMIT 1`,
+    [username]
+  );
+  const row = rows.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    roles: row.roles || [],
+  };
+}
+
+export async function authenticateAdmin(username: string, password: string): Promise<{ token: string; admin: AdminActor } | null> {
   requireDb();
+  if (!username || !password) return null;
+  const admin = await queryActorByUsername(username);
+  if (!admin) return null;
+  const passwordRows = await pgPool!.query(`SELECT password_hash FROM admin_users WHERE id = $1 LIMIT 1`, [admin.id]);
+  const passwordHash = String(passwordRows.rows[0]?.password_hash || '');
+  if (!verifyAdminPassword(password, passwordHash)) return null;
+  await pgPool!.query(`UPDATE admin_users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`, [admin.id]);
+  return { token: signToken(admin), admin };
+}
+
+function verifyAdminPassword(password: string, passwordHash: string): boolean {
+  if (passwordHash.startsWith('sha256:')) {
+    const [, salt, expected] = passwordHash.split(':');
+    const actual = crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
+    if (!expected || Buffer.byteLength(actual) !== Buffer.byteLength(expected)) return false;
+    return Boolean(expected) && crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+  }
+  // MVP 兼容：现有种子账号仍是占位 hash 时，使用环境变量口令。
+  if (passwordHash === 'password_login_disabled_until_admin_auth_ready') {
+    return password === (process.env.TRACECRAFT_ADMIN_PASSWORD || 'admin123');
+  }
+  return false;
+}
+
+export async function listAdminModule(
+  moduleKey: AdminModuleKey,
+  query: Partial<AdminListParams> = {}
+): Promise<AdminListResult<Record<string, unknown>>> {
+  requireDb();
+  const { page, limit, offset } = normalizePage(query);
+  const keyword = query.keyword ? `%${String(query.keyword).toLowerCase()}%` : null;
+
   if (moduleKey === 'roleLibrary') {
     const rows = await pgPool!.query(`SELECT * FROM admin_roles WHERE is_active = TRUE ORDER BY code ASC`);
-    return rows.rows.map((row) => ({
-      code: row.code,
-      name: row.name,
-      desc: row.description || '',
-    }));
+    return {
+      rows: rows.rows.map((row) => ({ code: row.code, name: row.name, desc: row.description || '' })),
+      total: rows.rowCount || 0,
+      page: 1,
+      limit: rows.rowCount || 0,
+    };
   }
+
+  if (moduleKey === 'users') {
+    const status = query.status || null;
+    const roleCode = query.roleCode || null;
+    const params = [status, keyword, roleCode, limit, offset];
+    const where = `
+      WHERE ($1::text IS NULL OR u.status = $1)
+        AND ($2::text IS NULL OR LOWER(u.username) LIKE $2 OR LOWER(u.display_name) LIKE $2 OR LOWER(COALESCE(u.phone, '')) LIKE $2 OR LOWER(COALESCE(u.email, '')) LIKE $2)
+        AND ($3::text IS NULL OR EXISTS (
+          SELECT 1 FROM admin_user_roles xur
+          JOIN admin_roles xr ON xr.id = xur.admin_role_id
+          WHERE xur.admin_user_id = u.id AND xr.code = $3
+        ))`;
+    const count = await pgPool!.query(`SELECT COUNT(*)::int AS total FROM admin_users u ${where}`, params.slice(0, 3));
+    const rows = await pgPool!.query(
+      `SELECT u.*, COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles
+       FROM admin_users u
+       LEFT JOIN admin_user_roles ur ON ur.admin_user_id = u.id
+       LEFT JOIN admin_roles r ON r.id = ur.admin_role_id
+       ${where}
+       GROUP BY u.id
+       ORDER BY u.updated_at DESC
+       LIMIT $4 OFFSET $5`,
+      params
+    );
+    return { rows: rows.rows.map(mapAdminUser), total: Number(count.rows[0]?.total || 0), page, limit };
+  }
+
+  if (moduleKey === 'contents') {
+    const status = query.status || null;
+    const type = query.type || null;
+    const params = [status, type, keyword, limit, offset];
+    const where = `
+      WHERE ($1::text IS NULL OR status = $1)
+        AND ($2::text IS NULL OR content_type = $2)
+        AND ($3::text IS NULL OR LOWER(content_key) LIKE $3 OR LOWER(COALESCE(title, '')) LIKE $3 OR LOWER(COALESCE(summary, '')) LIKE $3)`;
+    const count = await pgPool!.query(`SELECT COUNT(*)::int AS total FROM admin_contents ${where}`, params.slice(0, 3));
+    const rows = await pgPool!.query(
+      `SELECT * FROM admin_contents ${where} ORDER BY sort_order ASC, updated_at DESC LIMIT $4 OFFSET $5`,
+      params
+    );
+    return { rows: rows.rows.map(mapContent), total: Number(count.rows[0]?.total || 0), page, limit };
+  }
+
+  if (moduleKey === 'templates') {
+    const category = query.category || null;
+    const active = query.status === 'active' ? true : query.status === 'disabled' ? false : null;
+    const params = [category, active, keyword, limit, offset];
+    const where = `
+      WHERE ($1::text IS NULL OR category = $1)
+        AND ($2::boolean IS NULL OR is_active = $2)
+        AND ($3::text IS NULL OR LOWER(template_code) LIKE $3 OR LOWER(template_name) LIKE $3 OR LOWER(COALESCE(description, '')) LIKE $3)`;
+    const count = await pgPool!.query(`SELECT COUNT(*)::int AS total FROM admin_templates ${where}`, params.slice(0, 3));
+    const rows = await pgPool!.query(
+      `SELECT * FROM admin_templates ${where} ORDER BY sort_order ASC, updated_at DESC LIMIT $4 OFFSET $5`,
+      params
+    );
+    return { rows: rows.rows.map(mapTemplate), total: Number(count.rows[0]?.total || 0), page, limit };
+  }
+
+  throw new Error('invalid_admin_module');
+}
+
+async function getAdminRecordById(moduleKey: AdminModuleKey, id: string): Promise<Record<string, unknown> | null> {
   if (moduleKey === 'users') {
     const rows = await pgPool!.query(
       `SELECT u.*, COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles
        FROM admin_users u
        LEFT JOIN admin_user_roles ur ON ur.admin_user_id = u.id
        LEFT JOIN admin_roles r ON r.id = ur.admin_role_id
+       WHERE u.id = $1
        GROUP BY u.id
-       ORDER BY u.updated_at DESC`
+       LIMIT 1`,
+      [id]
     );
-    return rows.rows.map((row) => ({
-      id: row.id,
-      username: row.username,
-      name: row.display_name,
-      phone: row.phone || '',
-      email: row.email || '',
-      roles: row.roles || [],
-      status: row.status,
-      updatedAt: toIso(row.updated_at),
-    }));
+    return rows.rows[0] ? mapAdminUser(rows.rows[0]) : null;
   }
   if (moduleKey === 'contents') {
-    const rows = await pgPool!.query(`SELECT * FROM admin_contents ORDER BY sort_order ASC, updated_at DESC`);
-    return rows.rows.map((row) => {
-      const body = safeJson(row.body_json);
-      return {
-        id: row.id,
-        key: row.content_key,
-        type: row.content_type,
-        title: row.title || '',
-        summary: row.summary || '',
-        body: typeof body.body === 'string' ? body.body : JSON.stringify(body),
-        status: row.status,
-        sortOrder: row.sort_order,
-        updatedAt: toIso(row.updated_at),
-      };
-    });
+    const rows = await pgPool!.query(`SELECT * FROM admin_contents WHERE id = $1 LIMIT 1`, [id]);
+    return rows.rows[0] ? mapContent(rows.rows[0]) : null;
   }
   if (moduleKey === 'templates') {
-    const rows = await pgPool!.query(`SELECT * FROM admin_templates ORDER BY sort_order ASC, updated_at DESC`);
-    return rows.rows.map((row) => ({
-      id: row.id,
-      code: row.template_code,
-      name: row.template_name,
-      category: row.category,
-      providerHint: row.provider_hint || '',
-      payload: JSON.stringify(safeJson(row.template_payload), null, 2),
-      isDefault: Boolean(row.is_default),
-      isActive: Boolean(row.is_active),
-      version: row.version,
-      sortOrder: row.sort_order,
-      updatedAt: toIso(row.updated_at),
-      description: row.description || '',
-    }));
+    const rows = await pgPool!.query(`SELECT * FROM admin_templates WHERE id = $1 LIMIT 1`, [id]);
+    return rows.rows[0] ? mapTemplate(rows.rows[0]) : null;
   }
-  throw new Error('invalid_admin_module');
+  return null;
 }
 
-export async function createAdminRecord(moduleKey: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function createAdminRecord(moduleKey: AdminModuleKey, payload: Record<string, unknown>, actorId: string | null = null): Promise<Record<string, unknown>> {
   requireDb();
   if (moduleKey === 'users') {
     const id = newId('admin-user');
     await pgPool!.query(
-      `INSERT INTO admin_users (id, username, password_hash, display_name, phone, email, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO admin_users (id, username, password_hash, display_name, phone, email, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         id,
         String(payload.username || ''),
@@ -109,16 +264,18 @@ export async function createAdminRecord(moduleKey: string, payload: Record<strin
         payload.phone ? String(payload.phone) : null,
         payload.email ? String(payload.email) : null,
         String(payload.status || 'active'),
+        actorId,
       ]
     );
-    await setAdminUserRoles(id, Array.isArray(payload.roles) ? payload.roles.map(String) : []);
-    return (await listAdminModule('users')).find((item) => item.id === id) || {};
+    await setAdminUserRoles(id, Array.isArray(payload.roles) ? payload.roles.map(String) : [], actorId);
+    await writeAdminAudit(actorId, 'create', moduleKey, id, payload);
+    return (await getAdminRecordById(moduleKey, id)) || {};
   }
   if (moduleKey === 'contents') {
     const id = newId('content');
     await pgPool!.query(
-      `INSERT INTO admin_contents (id, content_key, content_type, title, summary, body_json, status, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)`,
+      `INSERT INTO admin_contents (id, content_key, content_type, title, summary, body_json, status, sort_order, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)`,
       [
         id,
         String(payload.key || ''),
@@ -128,16 +285,18 @@ export async function createAdminRecord(moduleKey: string, payload: Record<strin
         JSON.stringify({ body: String(payload.body || '') }),
         String(payload.status || 'draft'),
         Number(payload.sortOrder || 0),
+        actorId,
       ]
     );
-    return (await listAdminModule('contents')).find((item) => item.id === id) || {};
+    await writeAdminAudit(actorId, 'create', moduleKey, id, payload);
+    return (await getAdminRecordById(moduleKey, id)) || {};
   }
   if (moduleKey === 'templates') {
     const id = newId('admin-template');
     await pgPool!.query(
       `INSERT INTO admin_templates
-       (id, template_code, template_name, category, provider_hint, template_payload, version, is_default, is_active, sort_order, description)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11)`,
+       (id, template_code, template_name, category, provider_hint, template_payload, version, is_default, is_active, sort_order, description, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12)`,
       [
         id,
         String(payload.code || ''),
@@ -150,14 +309,16 @@ export async function createAdminRecord(moduleKey: string, payload: Record<strin
         payload.isActive !== false,
         Number(payload.sortOrder || 0),
         String(payload.description || ''),
+        actorId,
       ]
     );
-    return (await listAdminModule('templates')).find((item) => item.id === id) || {};
+    await writeAdminAudit(actorId, 'create', moduleKey, id, payload);
+    return (await getAdminRecordById(moduleKey, id)) || {};
   }
   throw new Error('invalid_admin_module');
 }
 
-export async function updateAdminRecord(moduleKey: string, id: string, payload: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+export async function updateAdminRecord(moduleKey: AdminModuleKey, id: string, payload: Record<string, unknown>, actorId: string | null = null): Promise<Record<string, unknown> | null> {
   requireDb();
   if (moduleKey === 'users') {
     await pgPool!.query(
@@ -178,8 +339,9 @@ export async function updateAdminRecord(moduleKey: string, id: string, payload: 
         payload.status ? String(payload.status) : null,
       ]
     );
-    if (Array.isArray(payload.roles)) await setAdminUserRoles(id, payload.roles.map(String));
-    return (await listAdminModule('users')).find((item) => item.id === id) || null;
+    if (Array.isArray(payload.roles)) await setAdminUserRoles(id, payload.roles.map(String), actorId);
+    await writeAdminAudit(actorId, 'update', moduleKey, id, payload);
+    return getAdminRecordById(moduleKey, id);
   }
   if (moduleKey === 'contents') {
     await pgPool!.query(
@@ -204,7 +366,8 @@ export async function updateAdminRecord(moduleKey: string, id: string, payload: 
         Number(payload.sortOrder || 0),
       ]
     );
-    return (await listAdminModule('contents')).find((item) => item.id === id) || null;
+    await writeAdminAudit(actorId, 'update', moduleKey, id, payload);
+    return getAdminRecordById(moduleKey, id);
   }
   if (moduleKey === 'templates') {
     await pgPool!.query(
@@ -235,28 +398,65 @@ export async function updateAdminRecord(moduleKey: string, id: string, payload: 
         String(payload.description || ''),
       ]
     );
-    return (await listAdminModule('templates')).find((item) => item.id === id) || null;
+    await writeAdminAudit(actorId, 'update', moduleKey, id, payload);
+    return getAdminRecordById(moduleKey, id);
   }
   throw new Error('invalid_admin_module');
 }
 
-export async function removeAdminRecord(moduleKey: string, id: string): Promise<boolean> {
+export async function removeAdminRecord(moduleKey: AdminModuleKey, id: string, actorId: string | null = null): Promise<boolean> {
   requireDb();
-  const table = moduleKey === 'users' ? 'admin_users' : moduleKey === 'contents' ? 'admin_contents' : moduleKey === 'templates' ? 'admin_templates' : '';
-  if (!table) throw new Error('invalid_admin_module');
-  const result = await pgPool!.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
-  return Number(result.rowCount || 0) > 0;
+  let result: { rowCount: number | null };
+  if (moduleKey === 'users') {
+    result = await pgPool!.query(
+      `UPDATE admin_users SET status = 'disabled', deactivated_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+  } else if (moduleKey === 'contents') {
+    result = await pgPool!.query(
+      `UPDATE admin_contents SET status = 'archived', updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+  } else if (moduleKey === 'templates') {
+    result = await pgPool!.query(
+      `UPDATE admin_templates SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+  } else {
+    throw new Error('invalid_admin_module');
+  }
+  const removed = Number(result.rowCount || 0) > 0;
+  if (removed) await writeAdminAudit(actorId, 'soft_delete', moduleKey, id, {});
+  return removed;
 }
 
-async function setAdminUserRoles(adminUserId: string, roles: string[]): Promise<void> {
+async function setAdminUserRoles(adminUserId: string, roles: string[], actorId: string | null): Promise<void> {
   await pgPool!.query(`DELETE FROM admin_user_roles WHERE admin_user_id = $1`, [adminUserId]);
   for (const code of roles) {
     const role = await pgPool!.query(`SELECT id FROM admin_roles WHERE code = $1 LIMIT 1`, [code]);
     if (role.rows[0]) {
       await pgPool!.query(
-        `INSERT INTO admin_user_roles (id, admin_user_id, admin_role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-        [newId('admin-role'), adminUserId, role.rows[0].id]
+        `INSERT INTO admin_user_roles (id, admin_user_id, admin_role_id, assigned_by) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+        [newId('admin-role'), adminUserId, role.rows[0].id, actorId]
       );
     }
+  }
+}
+
+async function writeAdminAudit(
+  actorId: string | null,
+  action: string,
+  targetType: string,
+  targetId: string,
+  diff: Record<string, unknown>
+): Promise<void> {
+  try {
+    await pgPool!.query(
+      `INSERT INTO admin_audit_logs (id, actor_admin_id, action, target_type, target_id, request_path, request_method, diff)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+      [newId('audit'), actorId, action, targetType, targetId, `/api/admin/${targetType}`, action.toUpperCase(), JSON.stringify(diff)]
+    );
+  } catch (err) {
+    console.warn('[admin:audit_skipped]', (err as Error).message);
   }
 }

@@ -1,114 +1,145 @@
-# 最小可行后台 API 设计清单（v0）
+# 后台 API 设计清单（v0）
 
 目标：先做“人员管理 / 内容管理 / 模板管理”三条主线，接口先满足后台最小闭环。  
-接口建议按 `v1/admin` 命名，与现有公开 API 分离（例如 `v1/maps/config` 仍保留不变）。
+当前实现沿用项目统一前缀 `/api/admin`；后续如引入公开版本化 API，可再迁移到 `/api/v1/admin` 或 `/v1/admin`。
 
 ## 约定
 
 - 统一返回：  
-  - 成功：`{ ok: true, data: ..., traceId }`
+  - 当前实现成功：`{ ok: true, ...payload }`
   - 失败：`{ ok: false, code, error, status }`
-- 鉴权：管理端使用 `Authorization: Bearer <admin_token>`，与用户端分离。
+- 鉴权：管理端使用 `Authorization: Bearer <admin_token>`，与用户端 token 分离。
+- 当前登录：MVP 使用 `TRACECRAFT_ADMIN_PASSWORD` 校验口令，并签发 HMAC token。
+- 上线前必须替换为完整 `admin_users.password_hash` 校验、会话刷新和权限矩阵。
 - 幂等与审计：
   - 写操作记录到 `admin_audit_logs`
-  - 涉及状态变更的接口返回 `version`（便于前端刷新提示）
-- 分页返回：`{ total, page, limit, list }`
+  - 涉及状态变更的接口后续建议返回 `version`（便于前端刷新提示）
+- 分页返回：`{ ok: true, rows, total, page, limit }`
+
+## 当前已实现接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/admin/auth/login` | 管理员 MVP 登录，返回 `token` 和 `admin` |
+| `GET` | `/api/admin/auth/me` | 校验 token，返回当前管理员 |
+| `GET` | `/api/admin/roleLibrary` | 角色库只读列表 |
+| `GET` | `/api/admin/users` | 管理员列表，支持 `page, limit, keyword, status, roleCode` |
+| `POST` | `/api/admin/users` | 新增管理员 |
+| `PUT` | `/api/admin/users/:id` | 更新管理员资料、角色、状态 |
+| `DELETE` | `/api/admin/users/:id` | 禁用管理员，保留记录和审计 |
+| `GET` | `/api/admin/contents` | 内容列表，支持 `page, limit, keyword, status, type` |
+| `POST` | `/api/admin/contents` | 新增内容 |
+| `PUT` | `/api/admin/contents/:id` | 更新内容 |
+| `DELETE` | `/api/admin/contents/:id` | 归档内容，保留记录和审计 |
+| `GET` | `/api/admin/templates` | 模板列表，支持 `page, limit, keyword, status, category` |
+| `POST` | `/api/admin/templates` | 新增模板 |
+| `PUT` | `/api/admin/templates/:id` | 更新模板 |
+| `DELETE` | `/api/admin/templates/:id` | 停用模板，保留记录和审计 |
+
+## 当前管理端工程
+
+- 目录：`admin/`
+- 技术栈：Vite + React + TypeScript + Ant Design
+- 启动：`cd admin && npm install && npm run dev`
+- 默认地址：`http://localhost:3002`
+- API Base：`VITE_ADMIN_API_BASE_URL`，默认 `http://localhost:3001/api`
 
 ## 一、人员管理 API
 
 ### 1. 登录 / 退出 / 鉴权
 
-- `POST /v1/admin/auth/login`
+- `POST /api/admin/auth/login`
   - 入参：`{ username, password }`
-  - 出参：`{ token, refreshToken, admin: { id, username, displayName, roles } }`
-- `POST /v1/admin/auth/refresh`
+  - 当前出参：`{ ok: true, token, admin: { id, username, displayName, roles } }`
+  - 后续正式版出参建议：`{ token, refreshToken, admin: { id, username, displayName, roles, permissions } }`
+- `POST /api/admin/auth/refresh`
   - 入参：`{ refreshToken }`
   - 出参：`{ token }`
-- `POST /v1/admin/auth/logout`
+- `POST /api/admin/auth/logout`
   - 入参：`{ refreshToken }`
-- `GET /v1/admin/auth/me`
+- `GET /api/admin/auth/me`
   - 返回当前登录人信息、角色、权限矩阵
 
 ### 2. 管理员用户
 
-- `GET /v1/admin/users`
+- `GET /api/admin/users`
   - 查询参数：`page, limit, keyword, status, roleCode`
   - 说明：支持用户列表、关键字（用户名/手机号）筛选
-- `GET /v1/admin/users/:id`
-- `POST /v1/admin/users`
+- `GET /api/admin/users/:id`
+- `POST /api/admin/users`
   - 入参：`{ username, displayName, phone, email, roleIds, password, status }`
-- `PUT /v1/admin/users/:id`
+- `PUT /api/admin/users/:id`
   - 入参：`{ displayName, phone, email, roleIds, status }`
-- `PATCH /v1/admin/users/:id/password`
+- `PATCH /api/admin/users/:id/password`
   - 入参：`{ password }`（仅超级管理员可操作）
-- `PATCH /v1/admin/users/:id/status`
+- `PATCH /api/admin/users/:id/status`
   - 入参：`{ status: active|disabled|locked }`
-- `DELETE /v1/admin/users/:id`
+- `DELETE /api/admin/users/:id`
   - 说明：软删除更稳妥（`status=deleted`），若做物理删需二次确认
 
 ### 3. 角色 / 权限
 
-- `GET /v1/admin/roles`
-- `POST /v1/admin/roles`
+- `GET /api/admin/roles`
+- `POST /api/admin/roles`
   - 入参：`{ code, name, description, permissionMatrix }`
-- `PUT /v1/admin/roles/:id`
-- `PATCH /v1/admin/roles/:id/active`
+- `PUT /api/admin/roles/:id`
+- `PATCH /api/admin/roles/:id/active`
   - 入参：`{ isActive }`
 
 ## 二、信息管理（内容管理）API
 
 ### 4. 内容项（公告、帮助页、FAQ、说明文案）
 
-- `GET /v1/admin/contents`
+- `GET /api/admin/contents`
   - 查询参数：`type, status, keyword, page, limit`
   - type 例如：`announcement|help|faq|policy|notice`
-- `GET /v1/admin/contents/:id`
-- `POST /v1/admin/contents`
+- `GET /api/admin/contents/:id`
+- `POST /api/admin/contents`
   - 入参：`{ key, type, title, summary, body, status, sortOrder }`
-- `PUT /v1/admin/contents/:id`
-- `PATCH /v1/admin/contents/:id/publish`
+- `PUT /api/admin/contents/:id`
+- `PATCH /api/admin/contents/:id/publish`
   - 入参：`{ status: published|archived|draft }`
-- `DELETE /v1/admin/contents/:id`
+- `DELETE /api/admin/contents/:id`
 
 ### 5. 内容变更历史（建议）
 
-- `GET /v1/admin/contents/:id/audit`
+- `GET /api/admin/contents/:id/audit`
   - 返回内容更新历史（若后续补充版本表可对接）
 
 ## 三、地图模板管理 API
 
 ### 6. 模板管理
 
-- `GET /v1/admin/templates`
+- `GET /api/admin/templates`
   - 查询参数：`category, providerHint, isActive, keyword, page, limit`
   - category 例如：`map|route|ui`
-- `GET /v1/admin/templates/:id`
-- `POST /v1/admin/templates`
+- `GET /api/admin/templates/:id`
+- `POST /api/admin/templates`
   - 入参：`{ templateCode, templateName, category, providerHint, payload, isDefault, isActive, sortOrder }`
-- `PUT /v1/admin/templates/:id`
-- `PATCH /v1/admin/templates/:id/default`
+- `PUT /api/admin/templates/:id`
+- `PATCH /api/admin/templates/:id/default`
   - 入参：`{ isDefault }`（同 category 下唯一）
-- `PATCH /v1/admin/templates/:id/active`
+- `PATCH /api/admin/templates/:id/active`
   - 入参：`{ isActive }`
-- `DELETE /v1/admin/templates/:id`
+- `DELETE /api/admin/templates/:id`
 
 ## 四、社区管理（可选扩展，但建议同期开工）
 
 ### 7. 社区帖子审核
 
-- `GET /v1/admin/community/posts`
+- `GET /api/admin/community/posts`
   - 查询参数：`status, reviewStatus, keyword, page, limit`
-- `GET /v1/admin/community/posts/:id`
-- `PATCH /v1/admin/community/posts/:id/review`
+- `GET /api/admin/community/posts/:id`
+- `PATCH /api/admin/community/posts/:id/review`
   - 入参：`{ reviewStatus: approved|rejected, reason }`
-- `PATCH /v1/admin/community/posts/:id/visibility`
+- `PATCH /api/admin/community/posts/:id/visibility`
   - 入参：`{ status: hidden|published }`
 
 ### 8. 举报工单
 
-- `GET /v1/admin/community/reports`
+- `GET /api/admin/community/reports`
   - 查询参数：`status, page, limit`
-- `PATCH /v1/admin/community/reports/:id`
+- `PATCH /api/admin/community/reports/:id`
   - 入参：`{ status: closed, actionTaken, handledBy }`
 
 ## 五、推荐实现顺序（最小可行）

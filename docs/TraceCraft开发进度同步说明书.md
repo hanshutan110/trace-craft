@@ -1,6 +1,6 @@
 # TraceCraft 开发进度同步说明书
 
-**版本**：V1.7
+**版本**：V1.8
 **适用范围**：TraceCraft 单仓项目（backend + frontend + shared + docs）
 **更新时间**：2026-06-17
 
@@ -97,7 +97,7 @@
 ## 7. 敏感信息与风险控制
 
 - 禁止提交任何实际地图 Key、Token、服务端密码到仓库
-- `.env`、`node_modules`、运行态文件（如 `backend/data/state.json`）必须被 `.gitignore` 排除
+- `.env`、`node_modules`、数据库备份等运行态文件必须被 `.gitignore` 排除
 - 提交前必须自检 `git diff` 确认无误后再提交
 
 ## 8. 推进机制与签名
@@ -124,6 +124,48 @@
 4. 列出阻塞项及处理建议
 
 ## 11. 最新进度表（2026-06-17）
+
+### 本次同步目标（管理后台 React + Ant Design 改造）
+
+1. 将 `admin/` 从原生 HTML/JS 静态面板升级为独立 Vite React 管理端
+2. 使用 Ant Design 实现后台登录、模块导航、指标卡、分页表格和抽屉表单
+3. 维护后端管理 API：登录态、分页筛选、写操作审计
+4. 同步 README、后台 README 和后台 API 设计文档
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 后台工程 | `admin/` 独立 Vite React + TypeScript 工程 | 已完成 | 新增 `admin/package.json`、`vite.config.ts`、`tsconfig.json` |
+| UI 框架 | 引入 Ant Design | 已完成 | 管理端使用表格、表单、抽屉、菜单、统计卡 |
+| 登录 | 后台 MVP 登录页 | 已完成 | `POST /api/admin/auth/login`，口令来自 `TRACECRAFT_ADMIN_PASSWORD` |
+| 登录态 | 当前管理员校验 | 已完成 | `GET /api/admin/auth/me`，前端保存 admin token |
+| 用户管理 | 管理员列表、角色、状态、编辑、新增、删除 | 已完成 | 支持分页、搜索、状态筛选 |
+| 内容管理 | 内容列表、编辑、新增、删除 | 已完成 | 支持分页、搜索、状态筛选 |
+| 模板管理 | 模板列表、JSON payload 编辑、新增、删除 | 已完成 | 支持分页、搜索、启停筛选 |
+| 后端 API | `/api/admin/{module}` 列表返回分页结构 | 已完成 | `{ rows, total, page, limit }` |
+| 审计 | 写操作记录 `admin_audit_logs` | 已完成 | 审计失败不阻断主流程 |
+| 文档 | README、admin README、admin API 设计更新 | 已完成 | 当前文档已同步 |
+
+### 已验证证据
+
+| 验证项 | 结果 |
+| --- | --- |
+| `backend npm run typecheck` | 通过 |
+| `admin npm run build` | 通过 |
+| `http://localhost:3002` | 返回 200 |
+| 乱码检查 | 未发现新增乱码标记 |
+
+### 当前风险/待处理
+
+| 模块 | 待办 | 目标日期 | 风险 |
+| --- | --- | --- | --- |
+| 后台安全 | MVP 口令兼容替换为完整 `password_hash` 校验和 refresh token | 上线前 | 高 |
+| 权限 | 权限矩阵从文档落到接口中间件和前端按钮级控制 | 上线前 | 高 |
+| 删除策略 | 后台 `DELETE` 从物理删除调整为软删除或二次确认策略 | 内测前 | 中 |
+| 社区审核 | 社区帖子审核、举报工单接入后台页面 | 内测前 | 中 |
+
+## 12. 历史进度表（2026-06-17）
 
 ### 本次同步目标（数据库接入 + 用户数据页真实化 + 后续表结构预建）
 
@@ -214,7 +256,7 @@
 - 技术决策：暂不接 OSS；图片上传仍以内存处理为主，文件长期保存等到头像/分享图/封面需求明确后再接。
 - 下一步建议：优先补真实第三方授权、文件存储、后台管理员鉴权和社区审核操作。
 
-## 12. 历史进度表（2026-06-16）
+## 13. 历史进度表（2026-06-16）
 
 ### 本次同步目标（路线预览地图真实化 + UX 增强）
 
@@ -255,7 +297,7 @@
 - 技术决策：选用 Leaflet（轻量、免费、无需 API Key）而非 AMap JS SDK，降低接入成本
 - 下次同步建议：数据库连通后执行 `admin-schema.sql` 建表，验证 PostgresStorage 全链路
 
-## 13. 历史进度表（2026-06-10）
+## 14. 历史进度表（2026-06-10）
 
 ### 本次同步目标（前端代码审查与优化）
 
@@ -313,7 +355,7 @@
 - 迁移范围：
   - `backend/src/utils/geo.js` → `geo.ts`：GeoPoint/ScaleOptions 接口定义，全部函数签名类型化
   - `backend/src/utils/coordAdapter.js` → `coordAdapter.ts`：CrsType 类型定义，CRS_CONVERT_MAP 用 Record 类型约束
-  - `backend/src/services/storage.js` → `storage.ts`：定义 IStorage 接口契约 + 11 个数据类型，MemoryStorage/PostgresStorage implements IStorage
+  - `backend/src/services/storage.js` → `storage.ts`：定义 IStorage 接口契约 + 11 个数据类型，当前由 PostgresStorage implements IStorage
   - `backend/src/services/routeService.js` → `routeService.ts`：CreateRouteParams/SessionState/FinishResult 接口，核心业务逻辑类型化
   - `backend/src/index.js` → `index.ts`：Express Request 类型扩展（traceId/userId/idempotencyKey），所有路由处理器类型化
 - 新增文件：
@@ -342,7 +384,7 @@
 
 - 当前状态：本节为历史快照，相关本地演示数据层已在后续版本迁移到 PostgreSQL API；当前状态以 2026-06-17 最新进度表为准。
 - 后台管理确认：
-  - 文件 `admin/admin.js` 已通过 `service.list/create/update/remove` 调用后端 API。
+  - 当时文件 `admin/admin.js` 已通过 `service.list/create/update/remove` 调用后端 API；当前版本已替换为 `admin/src/App.tsx` React 管理端。
   - 状态不再写入浏览器本地数据仓库。
   - 启动页与列表/编辑通过 `/api/admin/{module}` 返回数据。
 - App 页面确认：
