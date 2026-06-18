@@ -259,7 +259,7 @@ export interface AppendLocationResult {
 /** 存储层接口：所有存储实现必须满足的契约 */
 export interface IStorage {
   init(): Promise<void>;
-  createRoute(route: Route, ctx?: RouteContext): Promise<Route>;
+  createRoute(route: Route, ctx?: RouteContext): Promise<Route | null>;
   getRoute(routeId: string, userId: string | null): Promise<Route | null>;
   listUserRuns(query: ListRunsQuery): Promise<ListRunsResult>;
   createSession(session: Session): Promise<Session>;

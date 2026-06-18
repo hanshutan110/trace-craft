@@ -1,4 +1,7 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+/**
+ * TraceCraft 发现/搜索相关 API
+ */
+import { apiGet, apiPost, apiDelete } from './client';
 
 export interface RouteTemplateItem {
   id: string;
@@ -41,31 +44,9 @@ export interface SearchResultItem {
   isFavorited?: boolean;
 }
 
-interface ApiPayload<T> {
-  ok: boolean;
-  templates?: RouteTemplateItem[];
-  template?: RouteTemplateItem;
-  favorites?: FavoriteItem[];
-  hints?: SearchHints;
-  results?: SearchResultItem[];
-  error?: string;
-  code?: string;
-}
+// ===== localStorage 缓存：记录用户当前选中的模板 ID =====
 
-function authHeaders(extra: HeadersInit = {}): HeadersInit {
-  return {
-    ...extra,
-  };
-}
-
-async function parsePayload<T>(response: Response): Promise<ApiPayload<T>> {
-  const payload = (await response.json()) as ApiPayload<T>;
-  if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || payload.code || 'request_failed');
-  }
-  return payload;
-}
-
+/** 缓存当前选中的模板 ID，导航时自动读取 */
 export function selectTemplate(templateId: string): void {
   try {
     localStorage.setItem('tracecraft_selected_template_id', templateId);
@@ -74,6 +55,7 @@ export function selectTemplate(templateId: string): void {
   }
 }
 
+/** 读取缓存的模板 ID，无缓存返回 null */
 export function getSelectedTemplateId(): string | null {
   try {
     return localStorage.getItem('tracecraft_selected_template_id');
@@ -82,72 +64,54 @@ export function getSelectedTemplateId(): string | null {
   }
 }
 
+// ===== 模板查询 =====
+
+/** 查询模板列表，支持按分类/精选过滤 */
 export async function listTemplates(options: { category?: string; featured?: boolean; limit?: number } = {}): Promise<RouteTemplateItem[]> {
   const params = new URLSearchParams();
   if (options.category) params.set('category', options.category);
   if (options.featured) params.set('featured', 'true');
   if (options.limit) params.set('limit', String(options.limit));
-  const response = await fetch(`${API_BASE}/templates?${params.toString()}`, {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const payload = await parsePayload<RouteTemplateItem[]>(response);
-  return payload.templates || [];
+  const data = await apiGet<{ templates?: RouteTemplateItem[] }>(`/templates?${params.toString()}`);
+  return data.templates || [];
 }
 
+/** 根据 ID 获取单个模板详情 */
 export async function getTemplate(templateId: string): Promise<RouteTemplateItem> {
-  const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(templateId)}`, {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const payload = await parsePayload<RouteTemplateItem>(response);
-  if (!payload.template) throw new Error('template_missing');
-  return payload.template;
+  const data = await apiGet<{ template?: RouteTemplateItem }>(`/templates/${encodeURIComponent(templateId)}`);
+  if (!data.template) throw new Error('template_missing');
+  return data.template;
 }
 
+// ===== 收藏管理 =====
+
+/** 查询用户收藏列表 */
 export async function listFavorites(): Promise<FavoriteItem[]> {
-  const response = await fetch(`${API_BASE}/favorites`, {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const payload = await parsePayload<FavoriteItem[]>(response);
-  return payload.favorites || [];
+  const data = await apiGet<{ favorites?: FavoriteItem[] }>('/favorites');
+  return data.favorites || [];
 }
 
+/** 添加收藏 */
 export async function addFavorite(targetType: string, targetId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/favorites`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ targetType, targetId }),
-  });
-  await parsePayload(response);
+  await apiPost('/favorites', { targetType, targetId });
 }
 
+/** 移除收藏 */
 export async function removeFavorite(targetType: string, targetId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/favorites/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`, {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  await parsePayload(response);
+  await apiDelete(`/favorites/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`);
 }
 
+// ===== 搜索功能 =====
+
+/** 获取搜索建议：历史记录 + 热门关键词 + 分类列表 */
 export async function getSearchHints(): Promise<SearchHints> {
-  const response = await fetch(`${API_BASE}/search/hints`, {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const payload = await parsePayload<SearchHints>(response);
-  return payload.hints || { history: [], hot: [], categories: [] };
+  const data = await apiGet<{ hints?: SearchHints }>('/search/hints');
+  return data.hints || { history: [], hot: [], categories: [] };
 }
 
+/** 全局搜索：支持路线/模板/用户多维度搜索 */
 export async function searchTraceCraft(query: string, scope: string = 'all', limit: number = 30): Promise<SearchResultItem[]> {
   const params = new URLSearchParams({ q: query, scope, limit: String(limit) });
-  const response = await fetch(`${API_BASE}/search?${params.toString()}`, {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const payload = await parsePayload<SearchResultItem[]>(response);
-  return payload.results || [];
+  const data = await apiGet<{ results?: SearchResultItem[] }>(`/search?${params.toString()}`);
+  return data.results || [];
 }

@@ -1,8 +1,15 @@
+/**
+ * TraceCraft 管理后台配置
+ *
+ * 定义各模块的元数据和状态标签映射
+ */
+
 import type {ReactElement, ReactNode} from 'react';
 import {AuditOutlined, FileTextOutlined, TeamOutlined} from '@ant-design/icons';
 import {Tag} from 'antd';
 import type {AdminModule} from '../../shared/admin';
 
+/** 模块元数据配置：标题、副标题、新建按钮文本、图标 */
 export const moduleMeta: Record<AdminModule, {title: string; subtitle: string; createText: string; icon: ReactNode}> = {
   users: {
     title: '管理员用户',
@@ -24,6 +31,7 @@ export const moduleMeta: Record<AdminModule, {title: string; subtitle: string; c
   },
 };
 
+/** 状态值 → Ant Design Tag 映射，支持布尔值和字符串值 */
 export function statusTag(value: string | boolean): ReactElement {
   if (value === true) return <Tag color="success">启用</Tag>;
   if (value === false) return <Tag>停用</Tag>;

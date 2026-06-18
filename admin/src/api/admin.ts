@@ -1,3 +1,9 @@
+/**
+ * TraceCraft 管理后台 API 客户端
+ *
+ * 提供登录、鉴权、CRUD 等操作，认证通过 HttpOnly Cookie 管理
+ */
+
 export type {
   AdminListParams as ListParams,
   AdminModule,
@@ -17,41 +23,54 @@ import type {
   RoleItem,
 } from '../../../shared/admin';
 
+/** API 基址，从环境变量读取或默认本地开发服务 */
 const API_BASE = (import.meta.env.VITE_ADMIN_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
+/** localStorage 中的登录状态标记键 */
 const TOKEN_KEY = 'tracecraft_admin_session';
 
+/** API 响应载荷类型 */
 interface ApiPayload<T> {
   ok: boolean;
   rows?: T[];
-  row?: T;
   record?: T;
   removed?: boolean;
   total?: number;
   page?: number;
   limit?: number;
-  token?: string;
   admin?: AdminProfile;
   error?: string;
   code?: string;
 }
 
-export function getAdminToken(): string | null {
+/** 检查本地是否标记已登录（真实 token 由 HttpOnly Cookie 承载） */
+export function hasAdminSession(): boolean {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(TOKEN_KEY) === '1';
   } catch {
-    return null;
+    return false;
   }
 }
 
-export function saveAdminToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token ? '1' : '');
+/** 标记本地登录状态（Cookie 由后端 Set-Cookie 管理） */
+export function markAdminLoggedIn(): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, '1');
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
-export function clearAdminToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+/** 清除本地登录状态 */
+export function clearAdminSession(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
+/** 构建 URL 查询参数，自动过滤空值 */
 function buildQuery(params: Partial<ListParams>): string {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -63,6 +82,10 @@ function buildQuery(params: Partial<ListParams>): string {
   return query ? `?${query}` : '';
 }
 
+/**
+ * 统一请求封装
+ * 自动附加 credentials:'include'，统一解析响应和错误处理
+ */
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -79,6 +102,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
+/** 管理员登录，成功后标记本地登录状态 */
 export async function login(username: string, password: string): Promise<AdminProfile> {
   const payload = await request<ApiPayload<never>>('/admin/auth/login', {
     method: 'POST',
@@ -87,21 +111,24 @@ export async function login(username: string, password: string): Promise<AdminPr
   if (!payload.admin) {
     throw new Error('admin_login_failed');
   }
-  saveAdminToken('cookie');
+  markAdminLoggedIn();
   return payload.admin;
 }
 
+/** 获取当前登录管理员信息 */
 export async function getMe(): Promise<AdminProfile> {
   const payload = await request<ApiPayload<never>>('/admin/auth/me');
   if (!payload.admin) throw new Error('admin_me_failed');
   return payload.admin;
 }
 
+/** 获取所有可用角色列表 */
 export async function listRoles(): Promise<RoleItem[]> {
   const payload = await request<ApiPayload<RoleItem>>('/admin/roleLibrary');
   return payload.rows || [];
 }
 
+/** 分页查询指定模块的数据列表 */
 export async function listModule<T extends ModuleItem>(
   module: AdminModule,
   params: ListParams,
@@ -115,6 +142,7 @@ export async function listModule<T extends ModuleItem>(
   };
 }
 
+/** 新增记录，返回创建后的完整数据 */
 export async function createRecord<T extends ModuleItem>(module: AdminModule, data: Partial<T>): Promise<T> {
   const payload = await request<ApiPayload<T>>(`/admin/${module}`, {
     method: 'POST',
@@ -124,6 +152,7 @@ export async function createRecord<T extends ModuleItem>(module: AdminModule, da
   return payload.record;
 }
 
+/** 更新记录，返回更新后的完整数据 */
 export async function updateRecord<T extends ModuleItem>(
   module: AdminModule,
   id: string,
@@ -137,6 +166,7 @@ export async function updateRecord<T extends ModuleItem>(
   return payload.record;
 }
 
+/** 软删除记录（禁用/归档/停用） */
 export async function removeRecord(module: AdminModule, id: string): Promise<boolean> {
   const payload = await request<ApiPayload<never>>(`/admin/${module}/${encodeURIComponent(id)}`, {
     method: 'DELETE',

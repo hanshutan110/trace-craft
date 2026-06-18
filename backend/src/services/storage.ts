@@ -38,7 +38,7 @@ export type {
 } from '../../../shared/types';
 
 import { PostgresStorage, getConnectionString } from './postgres-storage';
-import { normalizePoint, normalizePoints } from './geo-utils';
+import { normalizePoint } from './geo-utils';
 
 // ===== 存储实例管理 =====
 
@@ -85,14 +85,12 @@ export function storageMode(): string {
 
 // ===== 对外暴露的存储操作函数 =====
 
-export const createRouteRecord = async (route: Route, ctx: RouteContext): Promise<Route> => {
-  const repo = await getStorage();
-  return repo.createRoute(route, ctx);
-};
-
+/** 创建或更新路线记录（内部按 ID 幂等判断） */
 export const upsertRouteRecord = async (route: Route, ctx: RouteContext): Promise<Route> => {
   const repo = await getStorage();
-  return repo.createRoute(route, ctx);
+  const result = await repo.createRoute(route, ctx);
+  if (!result) throw new Error('route_upsert_denied');
+  return result;
 };
 
 export const getRouteRecord = async (routeId: string, userId: string | null): Promise<Route | null> => {
@@ -100,7 +98,8 @@ export const getRouteRecord = async (routeId: string, userId: string | null): Pr
   return repo.getRoute(routeId, userId);
 };
 
-export const saveSessionRecord = async (session: Session): Promise<Session> => {
+/** 创建会话记录（幂等：重复插入时返回已有记录） */
+export const createSessionRecord = async (session: Session): Promise<Session> => {
   const repo = await getStorage();
   return repo.createSession(session);
 };
@@ -133,4 +132,4 @@ export const listUserRuns = async (query: ListRunsQuery): Promise<ListRunsResult
   return repo.listUserRuns(query);
 };
 
-export { normalizePoint, normalizePoints };
+export { normalizePoint };

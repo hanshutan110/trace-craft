@@ -3,9 +3,12 @@
  */
 
 /**
- * 轻量级 Toast 提示
- * 在屏幕底部显示一条短暂消息，2 秒后自动消失
- * 用于替代 alert()，提供更友好的用户反馈
+ * 全局轻量级 Toast 提示
+ *
+ * 在屏幕底部显示一条短暂消息，2 秒后自动消失。
+ *
+ * 定位：React 组件树外部（如 App.tsx 回调、异步任务）的全局后备方案。
+ * 组件树内部优先使用 ToastProvider/useToast() Hook（位于 components/common/Toast.tsx）。
  */
 export function miniToast(msg: string): void {
   const t = document.createElement('div');

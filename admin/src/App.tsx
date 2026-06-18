@@ -26,9 +26,9 @@ import {
 } from 'antd';
 import type {ColumnsType, TablePaginationConfig} from 'antd/es/table';
 import {
-  clearAdminToken,
+  clearAdminSession,
   createRecord,
-  getAdminToken,
+  hasAdminSession,
   getMe,
   listModule,
   listRoles,
@@ -46,12 +46,19 @@ import {ModuleForm} from './components/ModuleForm';
 
 const {Header, Sider, Content} = Layout;
 
+/** 空分页器默认值 */
 const emptyPager = {page: 1, limit: 10, total: 0};
 
+/**
+ * 管理后台主组件
+ *
+ * 包含：侧边栏导航、内容列表、搜索过滤、新增/编辑抽屉
+ * 支持用户/内容/模板三大模块的统一管理
+ */
 function App(): ReactElement | null {
   const {message} = AntApp.useApp();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
-  const [booting, setBooting] = useState(Boolean(getAdminToken()));
+  const [booting, setBooting] = useState(hasAdminSession());
   const [module, setModule] = useState<AdminModule>('users');
   const [rows, setRows] = useState<ModuleItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
@@ -65,6 +72,7 @@ function App(): ReactElement | null {
 
   const meta = moduleMeta[module];
 
+  /** 并发加载列表数据和角色列表 */
   async function load(next = {page: pager.page, limit: pager.limit}): Promise<void> {
     setLoading(true);
     try {
@@ -83,13 +91,13 @@ function App(): ReactElement | null {
   }
 
   useEffect(() => {
-    if (!getAdminToken()) {
+    if (!hasAdminSession()) {
       setBooting(false);
       return;
     }
     getMe()
       .then(setProfile)
-      .catch(() => clearAdminToken())
+      .catch(() => clearAdminSession())
       .finally(() => setBooting(false));
   }, []);
 
@@ -97,9 +105,9 @@ function App(): ReactElement | null {
     if (profile) {
       void load({page: 1, limit: pager.limit});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, module]);
 
+  /** 根据当前模块动态生成表格列定义 */
   const columns = useMemo<ColumnsType<ModuleItem>>(() => {
     const actionText = module === 'users' ? '禁用' : module === 'contents' ? '归档' : '停用';
     const actionColumn = {
@@ -170,9 +178,9 @@ function App(): ReactElement | null {
       {title: '版本', dataIndex: 'version', width: 90, render: (v: number) => `v${v || 1}`},
       actionColumn,
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module, roles]);
 
+  /** 打开新增表单抽屉，按模块设置默认值 */
   function openCreate(): void {
     setEditing(null);
     form.resetFields();
@@ -188,6 +196,7 @@ function App(): ReactElement | null {
     setDrawerOpen(true);
   }
 
+  /** 打开编辑表单抽屉，填充已有数据 */
   function openEdit(record: ModuleItem): void {
     setEditing(record);
     form.resetFields();
@@ -195,6 +204,7 @@ function App(): ReactElement | null {
     setDrawerOpen(true);
   }
 
+  /** 确认删除（禁用/归档/停用）并刷新列表 */
   function confirmRemove(record: ModuleItem): void {
     const actionText = module === 'users' ? '禁用' : module === 'contents' ? '归档' : '停用';
     Modal.confirm({
@@ -210,10 +220,16 @@ function App(): ReactElement | null {
     });
   }
 
+  /** 保存表单：包含 JSON 校验和密码强度检查 */
   async function saveForm(): Promise<void> {
     const values = await form.validateFields();
     if (module === 'templates') {
-      JSON.parse(values.payload || '{}');
+      try {
+        JSON.parse(values.payload || '{}');
+      } catch {
+        form.setFields([{ name: 'payload', errors: ['payload 必须是合法 JSON'] }]);
+        return;
+      }
     }
     if (module === 'users' && !editing && !values.password) {
       form.setFields([{name: 'password', errors: ['请输入至少 10 位初始密码']}]);
@@ -263,7 +279,7 @@ function App(): ReactElement | null {
             <Button
               icon={<LogoutOutlined />}
               onClick={() => {
-                clearAdminToken();
+                clearAdminSession();
                 setProfile(null);
               }}
             >

@@ -218,10 +218,10 @@ export function MyTracesScreen({
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    listUserRuns()
-      .then((routes) => {
+    listUserRuns({ limit: 100 })
+      .then(({ runs }) => {
         if (!mounted) return;
-        setItems(routes.map(toTraceListItem));
+        setItems(runs.map(toTraceListItem));
       })
       .catch(() => {
         if (!mounted) return;

@@ -1,6 +1,10 @@
+/**
+ * TraceCraft 用户相关 API
+ *
+ * 包含用户画像、设置更新、跑步历史等功能
+ */
 import type { GeneratedRoute, GeoPoint, SessionMetrics } from '../types';
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+import { apiGet, apiPut } from './client';
 
 export interface UserSettings {
   distanceUnit: 'km' | 'mile';
@@ -40,58 +44,22 @@ export interface RunHistoryEntry {
   route: GeneratedRoute | null;
 }
 
-interface ApiPayload<T> {
-  ok: boolean;
-  profile?: UserProfile;
-  settings?: UserSettings;
-  runs?: RunHistoryEntry[];
-  route?: GeneratedRoute;
-  error?: string;
-  code?: string;
-  [key: string]: unknown;
-}
-
-function authHeaders(extra: HeadersInit = {}): HeadersInit {
-  return {
-    ...extra,
-  };
-}
-
-async function parsePayload<T>(response: Response): Promise<ApiPayload<T>> {
-  const payload = (await response.json()) as ApiPayload<T>;
-  if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || payload.code || 'request_failed');
-  }
-  return payload;
-}
-
+/** 获取当前登录用户的完整画像（基本信息 + 统计数据 + 设置） */
 export async function getCurrentUserProfile(): Promise<UserProfile> {
-  const response = await fetch(`${API_BASE}/me`, {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const payload = await parsePayload<UserProfile>(response);
+  const payload = await apiGet<{ profile?: UserProfile }>('/me');
   if (!payload.profile) throw new Error('profile_missing');
   return payload.profile;
 }
 
+/** 更新用户设置（合并模式，仅更新传入的字段） */
 export async function updateUserSettings(settings: Partial<UserSettings>): Promise<UserProfile> {
-  const response = await fetch(`${API_BASE}/me/settings`, {
-    method: 'PUT',
-    credentials: 'include',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(settings),
-  });
-  const payload = await parsePayload<UserProfile>(response);
+  const payload = await apiPut<{ profile?: UserProfile }>('/me/settings', settings);
   if (!payload.profile) throw new Error('profile_missing');
   return payload.profile;
 }
 
+/** 获取跑步历史记录，默认返回最近 30 条 */
 export async function getRunHistory(limit: number = 30): Promise<RunHistoryEntry[]> {
-  const response = await fetch(`${API_BASE}/run-history?limit=${limit}`, {
-    credentials: 'include',
-    headers: authHeaders(),
-  });
-  const payload = await parsePayload<RunHistoryEntry[]>(response);
+  const payload = await apiGet<{ runs?: RunHistoryEntry[] }>(`/run-history?limit=${limit}`);
   return payload.runs || [];
 }

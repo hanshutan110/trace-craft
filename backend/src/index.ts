@@ -84,6 +84,17 @@ app.use((_req: Request, res: Response) => {
   res.status(404).json({ ok: false, code: 'not_found', error: 'route not found', status: 404 });
 });
 
+// 全局错误处理中间件：统一捕获未处理的异常，避免裸 500
+app.use((err: unknown, _req: Request, res: Response, _next: import('express').NextFunction) => {
+  const message = err instanceof Error ? err.message : 'internal_server_error';
+  console.error('[unhandled_error]', err);
+  if (message === 'cors_origin_denied') {
+    res.status(403).json({ ok: false, code: 'cors_origin_denied', error: 'origin not allowed', status: 403 });
+    return;
+  }
+  res.status(500).json({ ok: false, code: 'internal_error', error: message, status: 500 });
+});
+
 // ===== 服务启动 =====
 const port = process.env.PORT || 3001;
 (async () => {

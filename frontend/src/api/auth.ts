@@ -1,7 +1,12 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+/**
+ * TraceCraft 认证相关 API
+ *
+ * 登录状态完全依赖 HttpOnly Cookie（由后端 Set-Cookie 管理），
+ * 前端仅保留 localStorage 中的 userId/provider 作为 UI 状态标记。
+ */
+import { apiPost } from './client';
 
 const AUTH_STORAGE_KEYS = {
-  token: 'tracecraft_auth_token',
   userId: 'tracecraft_user_id',
   provider: 'tracecraft_auth_provider',
   deviceId: 'tracecraft_device_id',
@@ -9,18 +14,13 @@ const AUTH_STORAGE_KEYS = {
 
 export type QuickLoginProvider = 'wechat' | 'alipay';
 
-interface AuthPayload {
-  ok: boolean;
-  auth?: {
-    userId: string;
-    token?: string;
-    isNewUser: boolean;
-    provider: QuickLoginProvider | 'phone';
-  };
-  error?: string;
-  code?: string;
+interface AuthResult {
+  userId: string;
+  isNewUser: boolean;
+  provider: QuickLoginProvider | 'phone';
 }
 
+/** 生成唯一设备标识，用于快捷登录关联 */
 function createDeviceId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -28,13 +28,7 @@ function createDeviceId(): string {
   return `device-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function getAuthToken(): string | null {
-  try {
-    return localStorage.getItem(AUTH_STORAGE_KEYS.token);
-  } catch {
-    return null;
-  }
-}
+// ===== 会话状态管理（仅 UI 标记） =====
 
 export function hasAuthSession(): boolean {
   try {
@@ -56,19 +50,18 @@ export function getOrCreateDeviceId(): string {
   }
 }
 
-export function saveAuthSession(auth: NonNullable<AuthPayload['auth']>): void {
+/** 将登录结果持久化到 localStorage（仅保存 UI 状态标记） */
+function saveAuthMarker(auth: AuthResult): void {
   try {
-    localStorage.removeItem(AUTH_STORAGE_KEYS.token);
     localStorage.setItem(AUTH_STORAGE_KEYS.userId, auth.userId);
     localStorage.setItem(AUTH_STORAGE_KEYS.provider, auth.provider);
   } catch {
-    // Keep the in-memory login state handled by App even if storage is unavailable.
+    // Keep the in-memory login state even if storage is unavailable.
   }
 }
 
 export function clearAuthSession(): void {
   try {
-    localStorage.removeItem(AUTH_STORAGE_KEYS.token);
     localStorage.removeItem(AUTH_STORAGE_KEYS.userId);
     localStorage.removeItem(AUTH_STORAGE_KEYS.provider);
   } catch {
@@ -76,39 +69,30 @@ export function clearAuthSession(): void {
   }
 }
 
-async function parseAuthResponse(response: Response): Promise<NonNullable<AuthPayload['auth']>> {
-  const payload = (await response.json()) as AuthPayload;
-  if (!response.ok || !payload.ok || !payload.auth) {
-    throw new Error(payload.error || payload.code || 'auth_failed');
-  }
-  saveAuthSession(payload.auth);
+// ===== 登录接口 =====
+
+async function doLogin(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<AuthResult> {
+  const payload = await apiPost<{ auth?: AuthResult }>(path, body);
+  if (!payload.auth) throw new Error('auth_missing');
+  saveAuthMarker(payload.auth);
   return payload.auth;
 }
 
-export async function quickLogin(provider: QuickLoginProvider): Promise<NonNullable<AuthPayload['auth']>> {
-  const response = await fetch(`${API_BASE}/auth/quick-login`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      provider,
-      deviceId: getOrCreateDeviceId(),
-      authCode: import.meta.env.DEV ? `dev-${provider}` : '',
-    }),
+export async function quickLogin(provider: QuickLoginProvider): Promise<AuthResult> {
+  return doLogin('/auth/quick-login', {
+    provider,
+    deviceId: getOrCreateDeviceId(),
+    authCode: import.meta.env.DEV ? `dev-${provider}` : '',
   });
-  return parseAuthResponse(response);
 }
 
-export async function phoneLogin(phone: string, smsCode: string): Promise<NonNullable<AuthPayload['auth']>> {
-  const response = await fetch(`${API_BASE}/auth/phone-login`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      phone,
-      smsCode,
-      deviceId: getOrCreateDeviceId(),
-    }),
+export async function phoneLogin(phone: string, smsCode: string): Promise<AuthResult> {
+  return doLogin('/auth/phone-login', {
+    phone,
+    smsCode,
+    deviceId: getOrCreateDeviceId(),
   });
-  return parseAuthResponse(response);
 }

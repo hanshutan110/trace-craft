@@ -8,19 +8,10 @@
 // ===== 从 shared 重新导出前后端共享类型 =====
 export type {
   GeoPoint,
-  RouteRiskLevel,
-  RouteRiskSegment,
-  RouteStartPointStatus,
-  Route,
-  RouteBounds,
-  RouteMeta,
-  SessionStatus,
   SessionMetrics,
   SessionState,
   FinishResult,
-  MapProvider,
   CrsType,
-  ApiResponse,
 } from '../../shared/types';
 
 // ===== 前端独有类型 =====
@@ -57,28 +48,6 @@ export type ScreenId =
 
 /** 预设图形类型 */
 export type ShapeType = 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus' | 'cat';
-
-/** 预设图形模板（如五角星、心形等） */
-export interface PresetShape {
-  id: string;
-  name: string;
-  englishName: string;
-  gradient: string;
-  description: string;
-  distance: number;
-  iconType: ShapeType;
-  isHot?: boolean;
-}
-
-/** 跑步历史记录 */
-export interface HistoryRecord {
-  id: string;
-  name: string;
-  distance: string;
-  time: string;
-  date: string;
-  shapeType: ShapeType;
-}
 
 /** 前端使用的路线类型（Route 的别名，保持向后兼容） */
 export type GeneratedRoute = import('../../shared/types').Route;

@@ -5,6 +5,8 @@
  * 表结构：users、routes、route_versions、run_sessions、run_location_events、run_audit_logs
  */
 
+import pgModule from 'pg';
+import { newId } from '../utils/id';
 import type {
   GeoPoint,
   Route,
@@ -20,12 +22,6 @@ import type {
 import { normalizePoint } from './geo-utils';
 
 // ===== 内部工具函数 =====
-
-function newId(prefix: string): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const crypto = require('crypto');
-  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
-}
 
 function toJson(value: unknown, fallback: string): string {
   try {
@@ -82,15 +78,6 @@ interface SessionDbRow {
 /** PostgreSQL 连接池（全局单例） */
 export let pgPool: import('pg').Pool | null = null;
 
-/** 尝试加载 pg 模块，未安装时返回 null */
-function getPg(): typeof import('pg') | null {
-  try {
-    return require('pg');
-  } catch {
-    return null;
-  }
-}
-
 const connectionString =
   process.env.DATABASE_URL || process.env.PG_URL || process.env.PG_CONNECTION_STRING;
 
@@ -107,11 +94,10 @@ export function getConnectionString(): string | undefined {
 export class PostgresStorage implements IStorage {
   async init(): Promise<void> {
     if (pgPool) return;
-    const pg = getPg();
-    if (!pg || !connectionString) {
+    if (!connectionString) {
       throw new Error('postgres_not_configured');
     }
-    pgPool = new pg.Pool({
+    pgPool = new pgModule.Pool({
       connectionString,
       max: Number(process.env.PG_POOL_MAX || '8'),
       idleTimeoutMillis: Number(process.env.PG_POOL_IDLE_TIMEOUT_MS || '30000'),
@@ -251,7 +237,7 @@ export class PostgresStorage implements IStorage {
     };
   }
 
-  async createRoute(route: Route, ctx: RouteContext = {}): Promise<Route> {
+  async createRoute(route: Route, ctx: RouteContext = {}): Promise<Route | null> {
     const expectedVersion =
       Number.isFinite(Number(ctx.expectedVersion)) ? Number(ctx.expectedVersion) : null;
     const existing = await this.getRoute(route.id, null);
@@ -274,11 +260,11 @@ export class PostgresStorage implements IStorage {
       [route.id]
     );
     const current = rows[0] as { payload: Route; version: number; user_id: string } | undefined;
-    if (!current) return null!;
+    if (!current) return null;
     const currentVersion = Number(current.version || 0);
     const routeUser = current.user_id;
     if (routeUser && routeUser !== route.userId) {
-      return null!;
+      return null;
     }
     if (expectedVersion !== null && currentVersion !== expectedVersion) {
       throw new Error('route_version_conflict');
@@ -416,7 +402,7 @@ export class PostgresStorage implements IStorage {
   ): Promise<AppendLocationResult | null> {
     const normalized = normalizePoint(point);
     if (!normalized) {
-      return { session: null!, accepted: false, reason: 'invalid point', pointIndex: -1, lagHint: null };
+      return { session: null as unknown as Session, accepted: false, reason: 'invalid_point', pointIndex: -1, lagHint: null };
     }
     const accuracy = Number.isFinite((point as unknown as Record<string, unknown>).accuracy as number)
       ? ((point as unknown as Record<string, unknown>).accuracy as number)
@@ -458,16 +444,20 @@ export class PostgresStorage implements IStorage {
         [sessionId]
       );
       const seq = Number(seqResult.rows[0]?.seq || 1);
-      const locationSample: LocationEntry[] = Array.isArray(sessionRow.location_sample)
+      const rawSample: LocationEntry[] = Array.isArray(sessionRow.location_sample)
         ? [...(sessionRow.location_sample as LocationEntry[])]
         : [];
-      const actualPath: GeoPoint[] = Array.isArray(sessionRow.actual_path)
+      const rawPath: GeoPoint[] = Array.isArray(sessionRow.actual_path)
         ? [...(sessionRow.actual_path as GeoPoint[])]
         : [];
       const ts = Date.now();
       const sampleEntry: LocationEntry = { lat: normalized.lat, lng: normalized.lng, accuracy, ts };
-      locationSample.push(sampleEntry);
-      actualPath.push({ lat: normalized.lat, lng: normalized.lng, ts });
+      rawSample.push(sampleEntry);
+      rawPath.push({ lat: normalized.lat, lng: normalized.lng, ts });
+      // 只保留最近 200 条，防止数组无限增长；完整历史存于 run_location_events
+      const LOCATION_SAMPLE_MAX = 200;
+      const locationSample = rawSample.slice(-LOCATION_SAMPLE_MAX);
+      const actualPath = rawPath.slice(-LOCATION_SAMPLE_MAX);
 
       await client.query(
         `INSERT INTO run_location_events (id, session_id, seq, lat, lng, accuracy, ts)
@@ -482,7 +472,7 @@ export class PostgresStorage implements IStorage {
       );
       await client.query('COMMIT');
       const session = await this.getSession(sessionId, userId);
-      return { session: session!, accepted: true, reason: null, pointIndex: locationSample.length - 1, lagHint: null };
+      return { session: session ?? (null as unknown as Session), accepted: true, reason: null, pointIndex: locationSample.length - 1, lagHint: null };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -569,8 +559,8 @@ export class PostgresStorage implements IStorage {
     }
   }
 
-  /** PostgresStorage 未实现 saveSession，直接抛出不支持错误 */
-  async saveSession(_session: Session): Promise<Session> {
-    throw new Error('PostgresStorage.saveSession not implemented - use createSession instead');
+  /** saveSession 委托到 createSession（内部已处理存在性检查与更新） */
+  async saveSession(session: Session): Promise<Session> {
+    return this.createSession(session);
   }
 }

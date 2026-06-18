@@ -16,12 +16,12 @@ import { pointDistanceMeters, scalePathPreserveShape, latLngCentroid, resampleBy
 import type { GeoPoint } from '../utils/geo';
 import { convertPoint } from '../utils/coordAdapter';
 import type { CrsType } from '../utils/coordAdapter';
+import { newId } from '../utils/id';
 import {
   normalizePoint,
-  createRouteRecord,
   upsertRouteRecord,
   getRouteRecord,
-  saveSessionRecord,
+  createSessionRecord,
   getSessionRecord,
   appendSessionLocationRecord,
   updateSessionRecord,
@@ -43,20 +43,7 @@ import type {
 } from './storage';
 
 // 地图配置从独立模块导入
-import {
-  normalizeProvider,
-  normalizeLocale,
-  getMapConfig,
-  seedWgs84ToProvider,
-  getLocaleMeta,
-  splitList,
-} from './map-config';
-
-// 从 geo 模块重新导出 GeoPoint，供 index.ts 使用
-export type { GeoPoint } from '../utils/geo';
-
-// 重新导出地图配置函数，保持向后兼容
-export { normalizeProvider, normalizeLocale, getMapConfig, seedWgs84ToProvider, getLocaleMeta, splitList };
+import { normalizeProvider, normalizeLocale } from './map-config';
 
 // ===== 常量与配置 =====
 
@@ -101,10 +88,6 @@ const MAX_TARGET_KM = 50;
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function id(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
 function parsePoint(raw: unknown, fallback: GeoPoint | null = null): GeoPoint | null {
@@ -713,7 +696,7 @@ export async function createRouteFromImage(params: CreateRouteParams): Promise<R
   const baseStart = normalizePoint(startPoint);
   if (!baseStart) throw new Error('start_point_required');
   const target = normalizeTargetKm(targetKm, 5);
-  const routeId = id('route');
+  const routeId = newId('route');
   const normalizedLocale = normalizeLocale(locale);
   if (!buffer || buffer.length === 0) {
     throw new Error('image_buffer_empty');
@@ -769,7 +752,7 @@ export async function createRouteFromTemplate(params: CreateTemplateRouteParams)
   await initStorage();
   const normalizedShape = String(shapeType || 'star').trim() || 'star';
   const target = normalizeTargetKm(targetKm, TEMPLATE_TARGET_KM[normalizedShape] || 5);
-  const routeId = id('route');
+  const routeId = newId('route');
   const normalizedLocale = normalizeLocale(locale);
   const baseStart = normalizePoint(startPoint);
   if (!baseStart) throw new Error('start_point_required');
@@ -926,7 +909,7 @@ export async function startRunSession(
     throw new Error('route_risk_confirmation_required');
   }
   const firstPoint = route.points[0];
-  const sessionId = idempotencyKey ? `session-${idempotencyKey}` : id('session');
+  const sessionId = idempotencyKey ? `session-${idempotencyKey}` : newId('session');
   const existing = await getSessionRecord(sessionId, userId);
   if (existing && existing.userId === userId) {
     return {
@@ -960,7 +943,7 @@ export async function startRunSession(
     metrics: {},
     version: 1,
   };
-  const savedSession = await saveSessionRecord(session);
+  const savedSession = await createSessionRecord(session);
   return {
     session: savedSession,
     currentState: SESSION_STATUS.RUNNING,
