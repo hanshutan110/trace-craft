@@ -1,6 +1,6 @@
 # TraceCraft 开发进度同步说明书
 
-**版本**：V1.9
+**版本**：V2.0
 **适用范围**：TraceCraft 单仓项目（backend + frontend + admin + shared + docs）
 **更新时间**：2026-06-18
 
@@ -123,9 +123,126 @@
 3. 标注下周高优先级两项
 4. 列出阻塞项及处理建议
 
-## 11. 最新进度表（2026-06-18）
+## 11. 最新进度表（2026-06-18，P0 安全中间件 + P2 功能增强集成）
 
-### 本次同步目标（全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
+### 本次同步目标（第三方工具评估与集成）
+
+1. 评估并安装 P0 安全中间件：helmet、express-rate-limit、compression
+2. 评估并安装 P2 功能增强：ioredis（Redis）、BullMQ（任务队列）、Socket.IO（实时通信）
+3. 修改对应业务逻辑接入，确保全部模块优雅降级（Redis 不可用时不崩溃）
+4. TypeScript 编译零新增错误，服务启动验证通过
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 安全 | `helmet` 安全响应头（XSS、Clickjacking、MIME 喗探防护） | 已完成 | 开发环境放宽 CSP |
+| 安全 | `express-rate-limit` 全局限流（15分钟/200次/IP） | 已完成 | Redis 可用时使用 RedisStore 分布式存储 |
+| 安全 | `compression` 响应压缩（gzip/brotli） | 已完成 | 减少传输体积 |
+| Redis | `redisService.ts`：ioredis lazyConnect + 最多 3 次重试 + 优雅降级 | 已完成 | 连接失败不崩溃，自动回退同步模式 |
+| 缓存 | `cacheService.ts`：地图配置缓存(5min) / 搜索结果缓存(2min) / 通用 `getOrCompute` | 已完成 | Redis 不可用时跳过缓存 |
+| 队列 | `queueService.ts`：BullMQ 异步海报/二维码生成 + 定时清理过期数据 | 已完成 | 三队列 share-card/qr-card/cleanup |
+| 队列 | 定时清理：`location_events` 保留 90 天，`audit_logs` 保留 180 天 | 已完成 | cron `0 3 * * *` / `0 4 * * *` |
+| WebSocket | `wsService.ts`：Socket.IO token 认证 + 用户房间 + 实时通知推送 | 已完成 | path `/ws`，websocket + polling |
+| 业务 | `map-config.ts` 接入 `getMapConfigCached()` | 已完成 | Redis 优先，缓存未命中再查文件 |
+| 业务 | `discoveryService.ts` 搜索结果接入缓存 | 已完成 | TTL 2分钟 |
+| 业务 | `communityService.ts` 评论/点赞/关注接入 Socket.IO 实时推送 | 已完成 | `pushNotification()` |
+| 业务 | `userApi.ts` 分享海报/二维码接入 BullMQ 异步 + 任务状态查询端点 | 已完成 | 异步降级为同步 |
+| 集成 | `index.ts` 全集成：启动流程 + HTTP server + 优雅关闭 | 已完成 | Redis→Storage→Queues→WS→HTTP |
+| 集成 | 健康检查增强：返回 `redis` + `websocketConnections` 状态 | 已完成 | `/health` |
+| 配置 | `.env.example` Redis 配置注释更新 | 已完成 | |
+| 依赖 | `admin/package.json` 端口同步 + 依赖分类修正 | 已完成 | vite/@vitejs/plugin-react → devDependencies |
+
+### 新增文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `backend/src/services/redisService.ts` | Redis 连接管理（ioredis lazyConnect + 优雅降级） |
+| `backend/src/services/cacheService.ts` | 通用 JSON 缓存层 + 地图配置/搜索结果缓存 |
+| `backend/src/services/queueService.ts` | BullMQ 队列 + Worker + 异步图片生成 + 定时清理 |
+| `backend/src/services/wsService.ts` | Socket.IO 认证中间件 + 用户房间 + 实时推送函数 |
+
+### 新增依赖
+
+| 包 | 版本 | 用途 |
+| --- | --- | --- |
+| `helmet` | ^8 | 安全响应头 |
+| `express-rate-limit` | ^7 | IP 限流 |
+| `compression` | ^1 | 响应压缩 |
+| `@types/compression` | ^1 | 压缩类型定义 |
+| `ioredis` | ^5 | Redis 客户端 |
+| `bullmq` | ^5 | 异步任务队列 |
+| `socket.io` | ^4 | WebSocket 实时通信 |
+| `rate-limit-redis` | ^4 | 分布式限流存储 |
+
+### 已验证证据
+
+| 验证项 | 结果 |
+| --- | --- |
+| `backend npx tsc --noEmit` | 通过（零新增错误） |
+| `npm run dev` 启动日志 | `[redis] connection failed, Redis features disabled`（降级正常） |
+| `npm run dev` 启动日志 | `[queue] Redis not available, BullMQ queues disabled (sync fallback)`（降级正常） |
+| `npm run dev` 启动日志 | `[ws] Socket.IO initialized on path /ws`（初始化成功） |
+| `GET /health` | `{"ok":true,"redis":false,"websocketConnections":0}`（降级状态正确） |
+
+### 优雅降级设计
+
+Redis 不可用时的自动降级策略：
+
+| 组件 | 降级行为 |
+| --- | --- |
+| 限流（rate-limit） | RedisStore → 内存存储（单进程计数） |
+| 缓存（cache） | 跳过缓存，直接查数据库/文件 |
+| 队列（BullMQ） | `enqueue*` 返回 null → API 层同步执行 |
+| WebSocket（Socket.IO） | 仍正常工作（不依赖 Redis） |
+
+### 新增 API 端点
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/share/cards` | 分享海报（BullMQ 异步，降级同步） |
+| `POST` | `/api/me/qr-card` | 二维码名片（BullMQ 异步，降级同步） |
+| `GET` | `/api/jobs/:queueName/:jobId` | 查询异步任务状态（前端轮询） |
+
+### 当前风险/待处理
+
+| 模块 | 待办 | 目标日期 | 风险 |
+| --- | --- | --- | --- |
+| Redis | VM 部署 Redis 服务以启用完整缓存/队列功能 | 内测前 | 中 |
+| 日志 | winston + express-winston 结构化日志（P2 剩余项） | 内测前 | 低 |
+| 前端 | `ProfileAndSettings.tsx` 引用 6 个未实现的 API 函数 | 内测前 | 中 |
+| 前端 | `NavigationAndEditor.tsx` 引用 `pauseSession`/`resumeSession` 未实现 | 内测前 | 中 |
+
+## 12. 历史进度表（2026-06-18，开发服务端口重新分配）
+
+### 本次同步目标（开发服务端口重新分配）
+
+1. 将三个开发服务的端口号重新分配，避免与其他常用服务冲突
+2. 同步更新所有代码引用、环境变量、CORS 白名单和项目文档
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 后端 | 默认端口 3001 → 3017（`index.ts`、`.env`、`.env.example`） | 已完成 | |
+| 前端 | Vite dev server 端口 3000 → 3016（`vite.config.ts`） | 已完成 | |
+| 管理后台 | Vite dev server 端口 3002 → 3018（`vite.config.ts`） | 已完成 | |
+| 后端 | CORS 白名单 `localhost:3000,3002` → `localhost:3016,3018` | 已完成 | `index.ts` + `.env.example` |
+| 前端 | API 基址默认值 `localhost:3001` → `localhost:3017`（`client.ts`、`.env.example`） | 已完成 | |
+| 管理后台 | API 基址默认值 `localhost:3001` → `localhost:3017`（`admin.ts`） | 已完成 | |
+| 文档 | README.md 所有服务地址和 CORS 说明同步更新 | 已完成 | |
+
+### 新端口分配
+
+| 服务 | 旧端口 | 新端口 |
+| --- | --- | --- |
+| 前端 (Vite) | 3000 | 3016 |
+| 后端 (Express) | 3001 | 3017 |
+| 管理后台 (Vite) | 3002 | 3018 |
+
+## 13. 历史进度表（2026-06-18，全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
+
+### 本次同步目标
 
 1. 后端存储层、认证体系、工具函数全面优化
 2. 前端统一 API 客户端，消除重复代码，清理死代码
@@ -142,20 +259,20 @@
 | 后端 | `index.ts` 添加全局错误处理中间件（CORS + 500 兆底） | 已完成 | 未捕获异常不再崩溃 |
 | 后端 | 统一 `newId`：4处重复实现→`utils/id.ts` | 已完成 | routeService/authService/communityService/discoveryService |
 | 后端 | `.env.example` AMAP_KEY 替换为占位符 | 已完成 | 安全保护 |
-| 后端 | `routeService.ts` 删除未使用导入(`latLngCentroid`/`RouteContext`)、未使用函数(`toPositiveNumber`)、未使用导出(`SessionStatusType`) | 已完成 | 零新增错误 |
+| 后端 | `routeService.ts` 删除未使用导入/函数/导出 | 已完成 | 零新增错误 |
 | 后端 | `profileService.ts` 删除未使用常量 `DEFAULT_SETTINGS` | 已完成 | |
-| 后端 | `storage.ts` 删除未使用导出(`createRouteRecord`/`normalizePoints`) | 已完成 | |
-| 后端 | 关键文件中文注释增强(`routeService`/`postgres-storage`/`storage`/`profileService`/`shareService`) | 已完成 | 60+ 处函数/接口注释 |
-| 前端 | 创建统一 `api/client.ts`，消除 5 个 API 文件的 `API_BASE`/`authHeaders`/`parsePayload` 重复 | 已完成 | `apiGet/apiPost/apiPut/apiDelete` |
-| 前端 | `auth.ts` 清理 token 死代码（`getAuthToken`等） | 已完成 | 认证完全依赖 HttpOnly Cookie |
-| 前端 | `routes.ts` `listUserRuns` 支持分页参数 | 已完成 | 返回 `{runs,total,page,limit}` |
-| 前端 | 所有 5 个 api 文件迁移到统一 client | 已完成 | routes/auth/user/community/discovery |
-| 前端 | 删除 `routes.ts` 未使用 `API_BASE` 导入、`HomeExtraScreens.tsx` 未使用 `text`/`onUploadImageRoute` | 已完成 | |
-| 前端 | 关键文件中文注释增强（client/routes/auth/user/community/discovery） | 已完成 | 80+ 处函数/接口注释 |
-| 管理后台 | `admin.ts` `saveAdminToken`→`markAdminLoggedIn` 语义重命名 + JSON.parse try-catch | 已完成 | |
+| 后端 | `storage.ts` 删除未使用导出 | 已完成 | |
+| 后端 | 关键文件中文注释增强 | 已完成 | 60+ 处函数/接口注释 |
+| 前端 | 创建统一 `api/client.ts`，消除 5 个 API 文件的重复 | 已完成 | `apiGet/apiPost/apiPut/apiDelete` |
+| 前端 | `auth.ts` 清理 token 死代码 | 已完成 | 认证完全依赖 HttpOnly Cookie |
+| 前端 | `routes.ts` `listUserRuns` 支持分页参数 | 已完成 | |
+| 前端 | 所有 5 个 api 文件迁移到统一 client | 已完成 | |
+| 前端 | 删除未使用导入和变量 | 已完成 | |
+| 前端 | 关键文件中文注释增强 | 已完成 | 80+ 处函数/接口注释 |
+| 管理后台 | `admin.ts` 语义重命名 + JSON.parse try-catch | 已完成 | |
 | 管理后台 | `App.tsx` 清理 eslint-disable 死注释 | 已完成 | |
-| 管理后台 | 删除未使用 `ContentItem`/`TemplateItem` 类型重导出 | 已完成 | |
-| 管理后台 | 中文注释增强（API 客户端、CRUD 操作、登录态管理） | 已完成 | 20+ 处注释 |
+| 管理后台 | 删除未使用类型重导出 | 已完成 | |
+| 管理后台 | 中文注释增强 | 已完成 | 20+ 处注释 |
 | 跨模块 | 清理所有 ESLint disable 残留注释 | 已完成 | |
 
 ### 已验证证据
@@ -167,16 +284,7 @@
 | `admin npx tsc --noEmit` | 通过（2 个预存配置错误，非本次引入） |
 | 新增编译错误 | 0 |
 
-### 当前风险/待处理
-
-| 模块 | 待办 | 目标日期 | 风险 |
-| --- | --- | --- | --- |
-| 前端 | `ProfileAndSettings.tsx` 引用 6 个未实现的 API 函数(logout/clearUserCache等) | 内测前 | 中 |
-| 前端 | `NavigationAndEditor.tsx` 引用 `pauseSession`/`resumeSession` 未实现 | 内测前 | 中 |
-| 后端 | `communityApi`/`discoveryApi`/`userApi` 引用未实现的 Service 函数 | 内测前 | 中 |
-| 前端 | `App.tsx` 错误信息接入 i18n（需重构 Provider 层级） | 内测前 | 低 |
-
-## 12. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
+## 14. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
 
 ### 本次同步目标（管理后台 React + Ant Design 改造）
 
@@ -206,7 +314,7 @@
 | --- | --- |
 | `backend npm run typecheck` | 通过 |
 | `admin npm run build` | 通过 |
-| `http://localhost:3002` | 返回 200 |
+| `http://localhost:3018` | 返回 200 |
 | 乱码检查 | 未发现新增乱码标记 |
 
 ### 当前风险/待处理
@@ -218,7 +326,7 @@
 | 删除策略 | 后台 `DELETE` 从物理删除调整为软删除或二次确认策略 | 内测前 | 中 |
 | 社区审核 | 社区帖子审核、举报工单接入后台页面 | 内测前 | 中 |
 
-## 13. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
+## 15. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
 
 ### 本次同步目标（数据库接入 + 用户数据页真实化 + 后续表结构预建）
 
@@ -309,7 +417,7 @@
 - 技术决策：暂不接 OSS；图片上传仅在请求处理中临时读取，业务持久化统一进入 PostgreSQL，不再使用 `state.json` 文件态存储。
 - 下一步建议：优先补真实第三方授权、文件存储、后台管理员鉴权和社区审核操作。
 
-## 14. 历史进度表（2026-06-16，路线预览地图真实化）
+## 16. 历史进度表（2026-06-16，路线预览地图真实化）
 
 ### 本次同步目标（路线预览地图真实化 + UX 增强）
 
@@ -350,7 +458,7 @@
 - 技术决策：选用 Leaflet（轻量、免费、无需 API Key）而非 AMap JS SDK，降低接入成本
 - 下次同步建议：数据库连通后执行 `admin-schema.sql` 建表，验证 PostgresStorage 全链路
 
-## 15. 历史进度表（2026-06-10，前端代码审查与优化）
+## 17. 历史进度表（2026-06-10，前端代码审查与优化）
 
 ### 本次同步目标（前端代码审查与优化）
 

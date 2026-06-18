@@ -23,7 +23,7 @@ import type {
   RoleItem,
 } from '../../../shared/admin';
 
-const API_BASE = (import.meta.env.VITE_ADMIN_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_ADMIN_API_BASE_URL || 'http://localhost:3017/api').replace(/\/$/, '');
 
 const TOKEN_KEY = 'tracecraft_admin_session';
 

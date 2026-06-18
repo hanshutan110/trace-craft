@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "vite --host 0.0.0.0 --port 3000",
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "start": "vite --host 0.0.0.0 --port 3016",
+    "dev": "vite --port=3016 --host=0.0.0.0",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "check": "npm run typecheck",

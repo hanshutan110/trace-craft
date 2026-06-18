@@ -28,7 +28,7 @@ export function LoginScreen({onLogin}: {onLogin: (profile: AdminProfile) => void
         </div>
         <h1 className="admin-login-title">TraceCraft Admin</h1>
         <Typography.Paragraph type="secondary">
-          使用后端管理 API 登录。本地默认口令来自 `TRACECRAFT_ADMIN_PASSWORD`。
+          使用管理员账号登录后即可访问后台管理功能。
         </Typography.Paragraph>
         <Form layout="vertical" size="large" onFinish={handleFinish} initialValues={{username: 'admin'}}>
           <Form.Item name="username" label="用户名" rules={[{required: true, message: '请输入用户名'}]}>
@@ -44,7 +44,7 @@ export function LoginScreen({onLogin}: {onLogin: (profile: AdminProfile) => void
       </div>
       <div className="admin-login-art">
         <div className="admin-login-copy">运营数据、内容审核、模板配置集中处理。</div>
-        <div className="admin-login-note">MVP 管理端。上线前需接入真实密码哈希、会话过期和权限矩阵。</div>
+
       </div>
     </div>
   );

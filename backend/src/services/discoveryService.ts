@@ -1,5 +1,6 @@
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
+import { getCachedSearchResults, setCachedSearchResults } from './cacheService';
 
 function requireDb(): void {
   if (!pgPool) {
@@ -97,6 +98,44 @@ function mapTemplate(row: Record<string, unknown>): RouteTemplateItem {
     isFeatured: Boolean(row.is_featured),
     sortOrder: Number(row.sort_order || 0),
   };
+}
+
+/** 获取已发布的内容（模板详情 / 帖子详情，按类型 + key 查询） */
+export async function getPublishedContent(type: string, key: string): Promise<Record<string, unknown> | null> {
+  requireDb();
+  if (type === 'template') {
+    const tpl = await getTemplate(key);
+    return tpl ? { type: 'template', ...tpl } : null;
+  }
+  if (type === 'post') {
+    const result = await pgPool!.query(
+      `SELECT p.*, COALESCE(a.display_name, p.user_id) AS author
+       FROM community_posts p
+       LEFT JOIN auth_identities a ON a.user_id = p.user_id
+       WHERE p.id = $1 AND p.status = 'published' AND p.review_status = 'approved'
+       LIMIT 1`,
+      [key]
+    );
+    if (!result.rows[0]) return null;
+    const row = result.rows[0];
+    return {
+      type: 'post',
+      id: String(row.id),
+      userId: String(row.user_id),
+      author: String(row.author || row.user_id),
+      title: String(row.title || ''),
+      titleEn: String(row.title_en || row.title || ''),
+      content: String(row.content || ''),
+      contentEn: String(row.content_en || row.content || ''),
+      topicTags: Array.isArray(row.topic_tags) ? row.topic_tags : [],
+      mediaPayload: parseJson(row.media_payload || {}) as Record<string, unknown>,
+      metrics: parseJson(row.metrics || {}) as Record<string, unknown>,
+      likeCount: Number(row.like_count || 0),
+      commentCount: Number(row.comment_count || 0),
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : '',
+    };
+  }
+  return null;
 }
 
 export async function listTemplates(query: { category?: unknown; featured?: unknown; limit?: unknown }): Promise<RouteTemplateItem[]> {
@@ -200,6 +239,10 @@ export async function searchAll(userId: string, query: string, scope: string, li
   const limit = normalizeLimit(limitValue, 20, 50);
   if (!keyword) return [];
 
+  // 尝试从 Redis 缓存读取
+  const cached = await getCachedSearchResults(userId, keyword, scope);
+  if (cached) return cached as SearchResultItem[];
+
   await pgPool!.query(
     `INSERT INTO user_search_history (id, user_id, keyword, scope, hit_count, last_searched_at)
      VALUES ($1, $2, $3, $4, 1, NOW())
@@ -296,5 +339,10 @@ export async function searchAll(userId: string, query: string, scope: string, li
     })));
   }
 
-  return results.slice(0, limit);
+  const finalResults = results.slice(0, limit);
+
+  // 写入缓存
+  await setCachedSearchResults(userId, keyword, scope, finalResults);
+
+  return finalResults;
 }

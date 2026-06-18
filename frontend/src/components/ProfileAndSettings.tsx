@@ -93,7 +93,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setAvatarUploading(true);
     try {
       const result = await uploadUserAsset(file, 'avatar');
-      if (result.profile) setProfile(result.profile);
+      if (result.profile) setProfile(result.profile as UserProfile);
       showToast(text('头像已更新', 'Avatar updated'));
     } catch {
       showToast(text('头像上传失败，请稍后重试', 'Avatar upload failed. Try again later.'));
@@ -158,7 +158,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     try {
       const asset = await createUserQrCard();
       const link = document.createElement('a');
-      link.href = assetUrl(asset.url);
+      link.href = assetUrl(String(asset.url || ''));
       link.download = 'tracecraft-runner-card.webp';
       document.body.appendChild(link);
       link.click();

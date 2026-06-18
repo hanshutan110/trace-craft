@@ -38,7 +38,7 @@ router.get('/templates', requireAuth, async (req: Request, res: Response) => {
 
 router.get('/templates/:templateId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const template = await getTemplate(String(req.params.templateId), req.userId!);
+    const template = await getTemplate(String(req.params.templateId));
     if (!template) {
       return res.status(404).json(errorPayload('template not found', 'template_not_found', 404));
     }

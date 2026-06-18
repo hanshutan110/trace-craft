@@ -105,3 +105,13 @@ export async function phoneLogin(phone: string, smsCode: string): Promise<AuthRe
     deviceId: getOrCreateDeviceId(),
   });
 }
+
+/** 退出登录（清除 Cookie + 本地标记） */
+export async function logout(): Promise<void> {
+  try {
+    await apiPost('/auth/logout', {});
+  } catch {
+    // 忽略网络错误，确保本地标记始终被清除
+  }
+  clearAuthSession();
+}

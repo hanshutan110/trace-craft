@@ -213,6 +213,16 @@ export class PostgresStorage implements IStorage {
       `ALTER TABLE routes ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`,
       `ALTER TABLE run_sessions ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`,
       `ALTER TABLE run_sessions ADD COLUMN IF NOT EXISTS idempotency_key TEXT`,
+      // 用户收藏查询索引
+      `CREATE INDEX IF NOT EXISTS idx_user_favorites_user_created ON user_favorites(user_id, created_at DESC)`,
+      // 通知查询索引
+      `CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created ON notifications(user_id, is_read, created_at DESC)`,
+      // 社区帖子 Feed 查询索引
+      `CREATE INDEX IF NOT EXISTS idx_community_posts_feed ON community_posts(status, review_status, published_at DESC NULLS LAST)`,
+      // 社区举报查询索引
+      `CREATE INDEX IF NOT EXISTS idx_community_reports_status ON community_reports(status, created_at DESC)`,
+      // 用户反馈查询索引
+      `CREATE INDEX IF NOT EXISTS idx_user_feedback_status ON user_feedback(status, created_at DESC)`,
     ];
     for (const sql of sqls) {
       await pgPool!.query(sql);
@@ -262,45 +272,64 @@ export class PostgresStorage implements IStorage {
     const expectedVersion =
       Number.isFinite(Number(ctx.expectedVersion)) ? Number(ctx.expectedVersion) : null;
     const existing = await this.getRoute(route.id, null);
-    if (!existing) {
-      await this.ensureUser(route.userId);
-      await pgPool!.query(
-        `INSERT INTO routes (id, user_id, version, anchor_version, status, created_at, updated_at, payload)
-         VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)`,
-        [route.id, route.userId, route.version || 1, route.anchorVersion || 1, route.status || 'active', JSON.stringify(route)]
+    const client = await pgPool!.connect();
+    try {
+      await client.query('BEGIN');
+      if (!existing) {
+        await client.query(
+          `INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`,
+          [route.userId]
+        );
+        await client.query(
+          `INSERT INTO routes (id, user_id, version, anchor_version, status, created_at, updated_at, payload)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)`,
+          [route.id, route.userId, route.version || 1, route.anchorVersion || 1, route.status || 'active', JSON.stringify(route)]
+        );
+        await client.query(
+          `INSERT INTO route_versions (id, route_id, version, snapshot, changed_by, change_reason, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+          [newId('rv'), route.id, route.version || 1, JSON.stringify(route), route.userId, ctx.changeReason || 'create']
+        );
+        await client.query('COMMIT');
+        return clonePayload(route);
+      }
+      const rows = await client.query(
+        `SELECT payload, version, user_id FROM routes WHERE id = $1`,
+        [route.id]
       );
-      await pgPool!.query(
+      const current = rows.rows[0] as { payload: Route; version: number; user_id: string } | undefined;
+      if (!current) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const currentVersion = Number(current.version || 0);
+      const routeUser = current.user_id;
+      if (routeUser && routeUser !== route.userId) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      if (expectedVersion !== null && currentVersion !== expectedVersion) {
+        await client.query('ROLLBACK');
+        throw new Error('route_version_conflict');
+      }
+      await client.query(
         `INSERT INTO route_versions (id, route_id, version, snapshot, changed_by, change_reason, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-        [newId('rv'), route.id, route.version || 1, JSON.stringify(route), route.userId, ctx.changeReason || 'create']
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         ON CONFLICT (route_id, version) DO NOTHING`,
+        [newId('rv'), route.id, currentVersion, JSON.stringify(current.payload), routeUser, ctx.changeReason || 'update']
       );
+      await client.query(
+        `UPDATE routes SET version = $2, anchor_version = $3, updated_at = NOW(), payload = $4, status = $5 WHERE id = $1`,
+        [route.id, route.version, route.anchorVersion, JSON.stringify(route), route.status || 'active']
+      );
+      await client.query('COMMIT');
       return clonePayload(route);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    const rows = await this.query(
-      `SELECT payload, version, user_id FROM routes WHERE id = $1`,
-      [route.id]
-    );
-    const current = rows[0] as { payload: Route; version: number; user_id: string } | undefined;
-    if (!current) return null;
-    const currentVersion = Number(current.version || 0);
-    const routeUser = current.user_id;
-    if (routeUser && routeUser !== route.userId) {
-      return null;
-    }
-    if (expectedVersion !== null && currentVersion !== expectedVersion) {
-      throw new Error('route_version_conflict');
-    }
-    await pgPool!.query(
-      `INSERT INTO route_versions (id, route_id, version, snapshot, changed_by, change_reason, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())
-       ON CONFLICT (route_id, version) DO NOTHING`,
-      [newId('rv'), route.id, currentVersion, JSON.stringify(current.payload), routeUser, ctx.changeReason || 'update']
-    );
-    await pgPool!.query(
-      `UPDATE routes SET version = $2, anchor_version = $3, updated_at = NOW(), payload = $4, status = $5 WHERE id = $1`,
-      [route.id, route.version, route.anchorVersion, JSON.stringify(route), route.status || 'active']
-    );
-    return clonePayload(route);
   }
 
   async getRoute(routeId: string, userId: string | null): Promise<Route | null> {
@@ -448,7 +477,6 @@ export class PostgresStorage implements IStorage {
       }
       const sessionRow = rows.rows[0] as Record<string, unknown>;
       if (userId && sessionRow.user_id !== userId) {
-        await client.query('ROLLBACK');
         await client.query('ROLLBACK');
         return {
           session: this.mapSessionDbRow(sessionRow as unknown as SessionDbRow),

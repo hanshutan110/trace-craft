@@ -20,6 +20,7 @@ import {
   Select,
   Space,
   Statistic,
+  Spin,
   Table,
   Tag,
   Typography,
@@ -59,11 +60,19 @@ function App(): ReactElement | null {
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<ModuleItem | null>(null);
   const [form] = Form.useForm();
 
   const meta = moduleMeta[module];
+  const readableModules = profile?.readableModules;
+  const writableModules = profile?.writableModules;
+  const canRead = !readableModules || readableModules.includes(module);
+  const canWrite = !writableModules || writableModules.includes(module);
+  const visibleModules = readableModules
+    ? (Object.keys(moduleMeta) as AdminModule[]).filter((k) => readableModules.includes(k))
+    : (Object.keys(moduleMeta) as AdminModule[]);
 
   async function load(next = {page: pager.page, limit: pager.limit}): Promise<void> {
     setLoading(true);
@@ -101,7 +110,7 @@ function App(): ReactElement | null {
 
   const columns = useMemo<ColumnsType<ModuleItem>>(() => {
     const actionText = module === 'users' ? '禁用' : module === 'contents' ? '归档' : '停用';
-    const actionColumn = {
+    const actionColumn = canWrite ? {
       title: '操作',
       key: 'actions',
       width: 210,
@@ -115,14 +124,14 @@ function App(): ReactElement | null {
           </Button>
         </Space>
       ),
-    };
+    } : null;
 
     if (module === 'users') {
       return [
         {title: '用户名', dataIndex: 'username', width: 160},
         {
           title: '姓名 / 联系方式',
-          render: (_, record) => {
+          render: (_: unknown, record: ModuleItem) => {
             const item = record as AdminUser;
             return (
               <>
@@ -144,7 +153,7 @@ function App(): ReactElement | null {
         {title: '状态', dataIndex: 'status', width: 100, render: statusTag},
         {title: '更新时间', dataIndex: 'updatedAt', width: 190, render: (v: string) => new Date(v).toLocaleString()},
         actionColumn,
-      ];
+      ].filter((c): c is NonNullable<typeof c> => !!c);
     }
 
     if (module === 'contents') {
@@ -156,7 +165,111 @@ function App(): ReactElement | null {
         {title: '状态', dataIndex: 'status', width: 100, render: statusTag},
         {title: '更新时间', dataIndex: 'updatedAt', width: 190, render: (v: string) => new Date(v).toLocaleString()},
         actionColumn,
-      ];
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'communityPosts') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '标题', dataIndex: 'title'},
+        {title: '作者', dataIndex: 'author', width: 120},
+        {title: '状态', dataIndex: 'status', width: 100, render: statusTag},
+        {title: '点赞', dataIndex: 'likeCount', width: 80},
+        {title: '评论', dataIndex: 'commentCount', width: 80},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'comments') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '帖子ID', dataIndex: 'postId', width: 160, ellipsis: true},
+        {title: '作者', dataIndex: 'author', width: 120},
+        {title: '内容', dataIndex: 'content', ellipsis: true},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'reports') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '帖子ID', dataIndex: 'postId', width: 160, ellipsis: true},
+        {title: '举报类型', dataIndex: 'reportType', width: 120},
+        {title: '原因', dataIndex: 'reason', ellipsis: true},
+        {title: '状态', dataIndex: 'status', width: 100, render: statusTag},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'feedback') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '用户ID', dataIndex: 'userId', width: 160, ellipsis: true},
+        {title: '分类', dataIndex: 'category', width: 100},
+        {title: '内容', dataIndex: 'content', ellipsis: true},
+        {title: '状态', dataIndex: 'status', width: 100, render: statusTag},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'assets') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '用户ID', dataIndex: 'userId', width: 160, ellipsis: true},
+        {title: '类型', dataIndex: 'assetType', width: 100},
+        {title: 'MIME', dataIndex: 'mimeType', width: 120},
+        {title: '大小(KB)', dataIndex: 'sizeBytes', width: 100, render: (v: number) => v ? Math.round(v / 1024) : '-'},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'sessions') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '用户ID', dataIndex: 'userId', width: 160, ellipsis: true},
+        {title: '路线ID', dataIndex: 'routeId', width: 160, ellipsis: true},
+        {title: '状态', dataIndex: 'status', width: 100, render: statusTag},
+        {title: '版本', dataIndex: 'version', width: 80, render: (v: number) => `v${v || 1}`},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'roles') {
+      return [
+        {title: '编码', dataIndex: 'code', width: 160},
+        {title: '名称', dataIndex: 'name'},
+        {title: '描述', dataIndex: 'description', ellipsis: true},
+        {title: '状态', dataIndex: 'status', width: 100, render: statusTag},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'shareRecords') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '用户ID', dataIndex: 'userId', width: 160, ellipsis: true},
+        {title: '渠道', dataIndex: 'channel', width: 120},
+        {title: '路线ID', dataIndex: 'routeId', width: 160, ellipsis: true},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
+    }
+
+    if (module === 'auditLogs') {
+      return [
+        {title: 'ID', dataIndex: 'id', width: 160, ellipsis: true},
+        {title: '事件类型', dataIndex: 'eventType', width: 140},
+        {title: '用户ID', dataIndex: 'userId', width: 160, ellipsis: true},
+        {title: '描述', dataIndex: 'description', ellipsis: true},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: (v: string) => v ? new Date(v).toLocaleString() : '-'},
+        actionColumn,
+      ].filter((c): c is NonNullable<typeof c> => !!c);
     }
 
     return [
@@ -168,8 +281,8 @@ function App(): ReactElement | null {
       {title: '默认', dataIndex: 'isDefault', width: 90, render: (v: boolean) => (v ? <Tag color="processing">默认</Tag> : '-')},
       {title: '版本', dataIndex: 'version', width: 90, render: (v: number) => `v${v || 1}`},
       actionColumn,
-    ];
-  }, [module, roles]);
+    ].filter((c): c is NonNullable<typeof c> => !!c);
+  }, [module, roles, canWrite]);
 
   function openCreate(): void {
     setEditing(null);
@@ -193,17 +306,28 @@ function App(): ReactElement | null {
     setDrawerOpen(true);
   }
 
+  function getRecordLabel(record: ModuleItem): string {
+    if ('username' in record) return String((record as { username: string }).username);
+    if ('title' in record) return String((record as { title: string }).title);
+    if ('name' in record) return String((record as { name: string }).name);
+    return record.id;
+  }
+
   function confirmRemove(record: ModuleItem): void {
     const actionText = module === 'users' ? '禁用' : module === 'contents' ? '归档' : '停用';
     Modal.confirm({
       title: `确认${actionText}`,
-      content: `${actionText}后仍会保留记录和审计日志：${'username' in record ? record.username : 'title' in record ? record.title : record.name}`,
+      content: `${actionText}后仍会保留记录和审计日志：${getRecordLabel(record)}`,
       okText: actionText,
       okButtonProps: {danger: true},
       async onOk() {
-        await removeRecord(module, record.id);
-        message.success(`已${actionText}`);
-        await load();
+        try {
+          await removeRecord(module, record.id);
+          message.success(`已${actionText}`);
+          await load();
+        } catch (err) {
+          message.error((err as Error).message || `${actionText}失败`);
+        }
       },
     });
   }
@@ -222,18 +346,25 @@ function App(): ReactElement | null {
       form.setFields([{name: 'password', errors: ['请输入至少 10 位初始密码']}]);
       return;
     }
-    if (editing) {
-      await updateRecord(module, editing.id, values);
-      message.success('已更新');
-    } else {
-      await createRecord(module, values);
-      message.success('已创建');
+    setSaving(true);
+    try {
+      if (editing) {
+        await updateRecord(module, editing.id, values);
+        message.success('已更新');
+      } else {
+        await createRecord(module, values);
+        message.success('已创建');
+      }
+      setDrawerOpen(false);
+      await load();
+    } catch (err) {
+      message.error((err as Error).message || '保存失败');
+    } finally {
+      setSaving(false);
     }
-    setDrawerOpen(false);
-    await load();
   }
 
-  if (booting) return null;
+  if (booting) return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}><Spin size="large" /></div>;
   if (!profile) return <LoginScreen onLogin={setProfile} />;
 
   return (
@@ -247,7 +378,7 @@ function App(): ReactElement | null {
           theme="dark"
           mode="inline"
           selectedKeys={[module]}
-          items={(Object.keys(moduleMeta) as AdminModule[]).map((key) => ({key, icon: moduleMeta[key].icon, label: moduleMeta[key].title}))}
+          items={visibleModules.map((key) => ({key, icon: moduleMeta[key].icon, label: moduleMeta[key].title}))}
           onClick={(item) => {
             setModule(item.key as AdminModule);
             setKeyword('');
@@ -309,7 +440,7 @@ function App(): ReactElement | null {
             </div>
             <div className="admin-toolbar-right">
               <Button icon={<ReloadOutlined />} onClick={() => load()} />
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{meta.createText}</Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} disabled={!canWrite}>{meta.createText}</Button>
             </div>
           </div>
           <Card className="admin-table-card" styles={{body: {padding: 0}}}>
@@ -331,7 +462,7 @@ function App(): ReactElement | null {
         title={`${editing ? '编辑' : '新增'}${meta.title}`}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        extra={<Button type="primary" onClick={saveForm}>保存</Button>}
+        extra={<Button type="primary" loading={saving} onClick={saveForm}>保存</Button>}
       >
         <Form form={form} layout="vertical">
           <ModuleForm module={module} roles={roles} />

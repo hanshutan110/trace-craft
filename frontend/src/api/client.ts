@@ -8,7 +8,7 @@
  */
 
 /** API 基址：从 Vite 环境变量 VITE_API_BASE_URL 读取，默认指向本地开发服务器 */
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3017/api').replace(/\/$/, '');
 
 /** API 响应载荷基类（ok 可选，兼容各接口自定义返回结构） */
 interface ApiPayload {

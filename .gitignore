@@ -43,6 +43,9 @@ dist/
 build/
 backend/dist/
 coverage/
+
+# User uploads (runtime generated)
+backend/uploads/
 .turbo/
 .next/
 out/

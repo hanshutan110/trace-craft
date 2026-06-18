@@ -700,6 +700,8 @@ export interface CreateRouteParams {
 export interface CreateTemplateRouteParams {
   userId: string | null;
   shapeType: string;
+  templateId?: string | null;
+  templateCode?: string | null;
   provider?: string | null;
   locale?: string | null;
   targetKm?: number | null;
@@ -978,7 +980,7 @@ interface AppendLocationResultExtended {
   lagHint: string | null;
   reason: string | null;
   routeState: SessionState | null;
-  session: Session;
+  session: Session | null;
 }
 
 /**
@@ -999,7 +1001,7 @@ export async function appendLocation(
       pointIndex: -1,
       lagHint: null,
       routeState: null,
-      session: null!,
+      session: null,
     };
   }
   const existingSession = await getSessionRecord(sessionId, userId);

@@ -7,6 +7,7 @@
 import crypto from 'crypto';
 import type { GeoPoint } from '../../../shared/types';
 import { convertPoint } from '../utils/coordAdapter';
+import { getCachedMapConfig, setCachedMapConfig } from './cacheService';
 
 // ===== 常量 =====
 
@@ -145,6 +146,15 @@ export function getMapConfig() {
     cacheSeconds: Number(process.env.MAP_CONFIG_CACHE_SECONDS || '300'),
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** 获取地图配置信息（带 Redis 缓存，TTL 5 分钟） */
+export async function getMapConfigCached() {
+  const cached = await getCachedMapConfig();
+  if (cached) return cached;
+  const config = getMapConfig();
+  await setCachedMapConfig(config, config.cacheSeconds);
+  return config;
 }
 
 /** 将 WGS84 坐标按服务商转换为对应坐标系 */

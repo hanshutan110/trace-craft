@@ -2,19 +2,28 @@
  * TraceCraft 后端入口文件（TypeScript 版）
  *
  * 核心职责：
- *   1. 全局中间件：CORS、JSON 解析、请求追踪
- *   2. 健康检查与地图配置端点
- *   3. 挂载路由模块（routeApi / sessionApi）
- *   4. 服务启动
+ *   1. 全局中间件：安全头、压缩、CORS、JSON 解析、请求追踪、限流
+ *   2. Redis 连接 / BullMQ 队列 / Socket.IO 初始化
+ *   3. 健康检查与地图配置端点
+ *   4. 挂载路由模块
+ *   5. 服务启动与优雅关闭
  */
 
 import 'dotenv/config';
+import http from 'http';
 import path from 'path';
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
-import { getMapConfig } from './services/map-config';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { getMapConfig, getMapConfigCached } from './services/map-config';
 import { initStorage, storageMode } from './services/storage';
 import { buildTraceId, parseUserId, successPayload, applyIfMatch } from './routes/common';
+import { initRedis, isRedisConnected, getRedisClient, closeRedis } from './services/redisService';
+import { initQueues, closeQueues } from './services/queueService';
+import { initWebSocket, closeWebSocket, getOnlineSocketCount } from './services/wsService';
 import authApi from './routes/authApi';
 import routeApi from './routes/routeApi';
 import sessionApi from './routes/sessionApi';
@@ -27,7 +36,19 @@ import { uploadRoot } from './services/assetService';
 const app = express();
 
 // ===== 全局中间件 =====
-const allowedOrigins = (process.env.TRACECRAFT_CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002')
+
+// 安全响应头（XSS、Clickjacking、MIME 嗅探等防护）
+// 开发环境放宽 CSP 以避免前端 HMR 被拦截
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
+// 响应压缩（gzip / brotli），减少传输体积
+app.use(compression());
+
+// CORS 跨域控制
+const allowedOrigins = (process.env.TRACECRAFT_CORS_ORIGINS || 'http://localhost:3016,http://localhost:3018')
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
@@ -42,6 +63,23 @@ app.use(cors({
   },
 }));
 app.use(express.json({ limit: '10mb' }));
+
+// 全局限流：每个 IP 在 15 分钟窗口内最多 200 次请求
+// Redis 可用时使用 RedisStore（分布式），否则回退到内存存储
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  store: getRedisClient()
+    ? new RedisStore({ sendCommand: (...args: string[]) => getRedisClient()!.call(...args as [string, ...string[]]) as any })
+    : undefined,
+  message: { ok: false, code: 'rate_limit_exceeded', error: '请求过于频繁，请稍后再试', status: 429 },
+  // 跳过健康检查和静态资源
+  skip: (req) => req.path === '/health' || req.path.startsWith('/uploads') || req.path.startsWith('/ws'),
+});
+app.use(globalLimiter);
+
 app.use('/uploads', express.static(path.resolve(uploadRoot()), {
   fallthrough: false,
   maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
@@ -57,19 +95,23 @@ app.use((req: Request, _res: Response, next) => {
 
 // ===== 基础端点 =====
 
-// 健康检查接口
+// 健康检查接口（含 Redis / WebSocket 状态）
 app.get('/health', (_req: Request, res: Response) => {
   res.json(successPayload({
     service: 'tracecraft-backend',
     storage: storageMode(),
+    redis: isRedisConnected(),
+    websocketConnections: getOnlineSocketCount(),
   }));
 });
 
 // 地图配置接口，支持 ETag 缓存
-app.get('/api/maps/config', applyIfMatch, (req: Request, res: Response) => {
-  const config = getMapConfig();
-  res.set('Cache-Control', `public,max-age=${config.cacheSeconds},must-revalidate`);
-  res.set('ETag', `"${config.mapConfigVersion}"`);
+app.get('/api/maps/config', applyIfMatch, async (req: Request, res: Response) => {
+  const config = await getMapConfigCached();
+  const cacheSeconds = (config as Record<string, unknown>).cacheSeconds as number || 300;
+  const version = (config as Record<string, unknown>).mapConfigVersion as string || '';
+  res.set('Cache-Control', `public,max-age=${cacheSeconds},must-revalidate`);
+  res.set('ETag', `"${version}"`);
   res.json(successPayload({
     ...config,
     traceId: req.traceId,
@@ -102,10 +144,41 @@ app.use((err: unknown, _req: Request, res: Response, _next: import('express').Ne
 });
 
 // ===== 服务启动 =====
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3017;
+
 (async () => {
+  // 初始化 Redis（可选，失败时降级）
+  await initRedis();
+
+  // 初始化数据库存储
   await initStorage();
-  app.listen(Number(port), () => {
+
+  // 初始化 BullMQ 队列（依赖 Redis）
+  await initQueues();
+
+  // 创建 HTTP 服务器并挂载 Socket.IO
+  const server = http.createServer(app);
+  initWebSocket(server);
+
+  server.listen(Number(port), () => {
     console.log(`TraceCraft backend listening on port ${port}`);
+    console.log(`  Redis: ${isRedisConnected() ? 'connected' : 'disabled'}`);
+    console.log(`  WebSocket: /ws`);
   });
+
+  // 优雅关闭：依次关闭 Socket.IO → BullMQ → Redis → HTTP
+  const shutdown = async (signal: string) => {
+    console.log(`\n[shutdown] received ${signal}, closing services...`);
+    await closeWebSocket();
+    await closeQueues();
+    await closeRedis();
+    server.close(() => {
+      console.log('[shutdown] HTTP server closed');
+      process.exit(0);
+    });
+    // 强制超时退出
+    setTimeout(() => process.exit(1), 10000);
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 })();

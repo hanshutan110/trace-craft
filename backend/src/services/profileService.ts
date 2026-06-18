@@ -10,6 +10,7 @@
  */
 import { initStorage } from './storage';
 import { pgPool } from './postgres-storage';
+import { newId } from '../utils/id';
 
 /** 用户偏好设置（距离单位、语音播报、震动反馈、地图样式、线宽） */
 export interface UserSettings {
@@ -55,7 +56,7 @@ async function ensurePostgres(): Promise<void> {
   }
 }
 
-/** 获取用户完整资料：基本信息 + 统计数据 + 设置 */
+/** 获取用户完整资料：基本信息 + 统计数据 + 设置（4 查询并行） */
 export async function getUserProfile(userId: string): Promise<Record<string, unknown>> {
   await ensurePostgres();
   await pgPool!.query(
@@ -65,30 +66,32 @@ export async function getUserProfile(userId: string): Promise<Record<string, unk
     [userId],
   );
 
-  const userResult = await pgPool!.query('SELECT id, metadata, created_at FROM users WHERE id = $1 LIMIT 1', [userId]);
-  const metadata = (userResult.rows[0]?.metadata || {}) as Record<string, unknown>;
-  const identityResult = await pgPool!.query(
-    `SELECT provider, display_name FROM auth_identities WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1`,
-    [userId],
-  );
+  const [userResult, identityResult, routeStats, sessionStats] = await Promise.all([
+    pgPool!.query('SELECT id, metadata, created_at FROM users WHERE id = $1 LIMIT 1', [userId]),
+    pgPool!.query(
+      `SELECT provider, display_name FROM auth_identities WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1`,
+      [userId],
+    ),
+    pgPool!.query(
+      `SELECT
+         COUNT(*)::int AS total_routes,
+         COALESCE(SUM(COALESCE((payload->>'actualDistanceM')::double precision, 0)), 0) AS planned_distance_m
+       FROM routes
+       WHERE user_id = $1`,
+      [userId],
+    ),
+    pgPool!.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'finished')::int AS completed_runs,
+         COALESCE(SUM(COALESCE((metrics->>'actualDistanceM')::double precision, 0)), 0) AS actual_distance_m,
+         COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(finished_at, updated_at) - COALESCE(started_at, created_at)))), 0) AS duration_sec
+       FROM run_sessions
+       WHERE user_id = $1`,
+      [userId],
+    ),
+  ]);
 
-  const routeStats = await pgPool!.query(
-    `SELECT
-       COUNT(*)::int AS total_routes,
-       COALESCE(SUM(COALESCE((payload->>'actualDistanceM')::double precision, 0)), 0) AS planned_distance_m
-     FROM routes
-     WHERE user_id = $1`,
-    [userId],
-  );
-  const sessionStats = await pgPool!.query(
-    `SELECT
-       COUNT(*) FILTER (WHERE status = 'finished')::int AS completed_runs,
-       COALESCE(SUM(COALESCE((metrics->>'actualDistanceM')::double precision, 0)), 0) AS actual_distance_m,
-       COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(finished_at, updated_at) - COALESCE(started_at, created_at)))), 0) AS duration_sec
-     FROM run_sessions
-     WHERE user_id = $1`,
-    [userId],
-  );
+  const metadata = (userResult.rows[0]?.metadata || {}) as Record<string, unknown>;
 
   const actualDistanceM = Number(sessionStats.rows[0]?.actual_distance_m || 0);
   const plannedDistanceM = Number(routeStats.rows[0]?.planned_distance_m || 0);
@@ -133,6 +136,44 @@ export async function updateUserSettings(userId: string, patch: Partial<UserSett
     ...current,
     settings,
   };
+}
+
+/** 更新用户资料（displayName、signature、badge 等元数据字段） */
+export async function updateUserProfile(userId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+  await ensurePostgres();
+  const current = await getUserProfile(userId);
+  const allowedFields = ['displayName', 'signature', 'badge'];
+  const updates: Record<string, unknown> = {};
+  for (const key of allowedFields) {
+    if (key in patch) {
+      if (typeof patch[key] !== 'string' || !String(patch[key]).trim()) {
+        throw new Error('profile_field_required');
+      }
+      updates[key] = String(patch[key]).trim();
+    }
+  }
+  if (Object.keys(updates).length > 0) {
+    const userResult = await pgPool!.query('SELECT metadata FROM users WHERE id = $1 LIMIT 1', [userId]);
+    const metadata = mergeMetadata(userResult.rows[0]?.metadata as Record<string, unknown> | undefined, updates);
+    await pgPool!.query('UPDATE users SET metadata = $2::jsonb WHERE id = $1', [userId, JSON.stringify(metadata)]);
+  }
+  return { ...current, ...updates };
+}
+
+/** 提交用户反馈（内容必填，分类默认 general） */
+export async function submitUserFeedback(userId: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  await ensurePostgres();
+  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  if (!content) throw new Error('feedback_content_required');
+  const category = typeof body.category === 'string' && body.category.trim() ? body.category.trim() : 'general';
+  const contact = typeof body.contact === 'string' && body.contact.trim() ? body.contact.trim() : null;
+  const id = newId('fb');
+  await pgPool!.query(
+    `INSERT INTO user_feedback (id, user_id, contact, category, content)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [id, userId, contact, category, content]
+  );
+  return { id, userId, category, content, contact, status: 'open', createdAt: new Date().toISOString() };
 }
 
 /** 查询用户跑步历史记录（按完成时间倒序） */

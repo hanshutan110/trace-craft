@@ -4,6 +4,7 @@ import { asPositiveInt, errorPayload, requireAuth, successPayload } from './comm
 import { getUserProfile, listRunHistory, submitUserFeedback, updateUserProfile, updateUserSettings } from '../services/profileService';
 import { allowedAssetMimeTypes, assetMaxBytes, clearUserGeneratedCache, listUserAssets, saveUserImageAsset } from '../services/assetService';
 import { createShareCard, createUserQrCard } from '../services/shareService';
+import { enqueueShareCard, enqueueQrCard, getJobStatus } from '../services/queueService';
 
 const router = express.Router();
 const assetUpload = multer({
@@ -124,8 +125,19 @@ router.post('/me/feedback', requireAuth, async (req: Request, res: Response) => 
 
 router.post('/share/cards', requireAuth, async (req: Request, res: Response) => {
   try {
+    // 优先通过 BullMQ 异步生成，Redis 不可用时降级为同步
+    const jobId = await enqueueShareCard({
+      userId: req.userId as string,
+      routeId: req.body?.routeId,
+      sessionId: req.body?.sessionId,
+      channel: req.body?.channel,
+    });
+    if (jobId) {
+      return res.json(successPayload({ jobId, queue: 'share-card', async: true, traceId: req.traceId }));
+    }
+    // 同步降级
     const result = await createShareCard(req.userId as string, req.body || {});
-    return res.json(successPayload({ ...result, traceId: req.traceId }));
+    return res.json(successPayload({ ...result, async: false, traceId: req.traceId }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'share_card_failed';
     const status = ['share_route_required', 'route_not_found'].includes(message) ? 400 : 500;
@@ -136,12 +148,32 @@ router.post('/share/cards', requireAuth, async (req: Request, res: Response) => 
 
 router.post('/me/qr-card', requireAuth, async (req: Request, res: Response) => {
   try {
+    const jobId = await enqueueQrCard(req.userId as string);
+    if (jobId) {
+      return res.json(successPayload({ jobId, queue: 'qr-card', async: true, traceId: req.traceId }));
+    }
     const result = await createUserQrCard(req.userId as string);
-    return res.json(successPayload({ ...result, traceId: req.traceId }));
+    return res.json(successPayload({ ...result, async: false, traceId: req.traceId }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'qr_card_failed';
     console.error(error);
     return res.status(500).json(errorPayload(message, 'qr_card_failed', 500));
+  }
+});
+
+/** 查询异步任务状态（前端轮询） */
+router.get('/jobs/:queueName/:jobId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { queueName, jobId } = req.params as { queueName: string; jobId: string };
+    const validQueues = ['share-card', 'qr-card', 'cleanup'];
+    if (!validQueues.includes(queueName)) {
+      return res.status(400).json(errorPayload('invalid queue name', 'invalid_queue', 400));
+    }
+    const status = await getJobStatus(queueName, jobId);
+    return res.json(successPayload({ jobId, queue: queueName, ...status, traceId: req.traceId }));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json(errorPayload('job status fetch failed', 'job_status_failed', 500));
   }
 });
 

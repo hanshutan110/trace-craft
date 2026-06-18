@@ -1,5 +1,6 @@
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
+import { pushNotification } from './wsService';
 
 function requireDb(): void {
   if (!pgPool) throw new Error('postgres_not_configured');
@@ -210,6 +211,17 @@ export async function addComment(userId: string, postId: string, content: string
          VALUES ($1, $2, $3, 'comment', '收到新评论', $4, 'post', $5)`,
         [newId('notice'), ownerId, userId, content, postId]
       );
+      // 实时推送通知
+      pushNotification(ownerId, {
+        id: `notice-${Date.now()}`,
+        type: 'comment',
+        title: '收到新评论',
+        body: content,
+        targetType: 'post',
+        targetId: postId,
+        actorUserId: userId,
+        createdAt: new Date().toISOString(),
+      });
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -263,6 +275,17 @@ export async function togglePostLike(userId: string, postId: string): Promise<{ 
              VALUES ($1, $2, $3, 'like', '收到新点赞', '有人点赞了你的作品', 'post', $4)`,
             [newId('notice'), ownerId, userId, postId]
           );
+          // 实时推送通知
+          pushNotification(ownerId, {
+            id: `notice-${Date.now()}`,
+            type: 'like',
+            title: '收到新点赞',
+            body: '有人点赞了你的作品',
+            targetType: 'post',
+            targetId: postId,
+            actorUserId: userId,
+            createdAt: new Date().toISOString(),
+          });
         }
       }
       liked = true;
@@ -305,6 +328,17 @@ export async function toggleFollow(userId: string, followingId: string): Promise
          VALUES ($1, $2, $3, 'follow', '新增关注', '有人关注了你', 'user', $3)`,
         [newId('notice'), followingId, userId]
       );
+      // 实时推送通知
+      pushNotification(followingId, {
+        id: `notice-${Date.now()}`,
+        type: 'follow',
+        title: '新增关注',
+        body: '有人关注了你',
+        targetType: 'user',
+        targetId: userId,
+        actorUserId: userId,
+        createdAt: new Date().toISOString(),
+      });
     }
     await client.query('COMMIT');
     return { following: Boolean(inserted.rows[0]) };
@@ -350,4 +384,22 @@ export async function markNotificationsRead(userId: string, notificationId?: str
     return;
   }
   await pgPool!.query(`UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE user_id = $1 AND is_read = FALSE`, [userId]);
+}
+
+/** 举报帖子（不允许举报自己的帖子，写入 community_reports 表） */
+export async function reportPost(userId: string, postId: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  requireDb();
+  await ensureUser(userId);
+  const post = await getPost(userId, postId);
+  if (!post || post.userId === 'null') throw new Error('post_not_found');
+  if (post.userId === userId) throw new Error('cannot_report_self_post');
+  const reportType = typeof body.reportType === 'string' && body.reportType.trim() ? body.reportType.trim() : 'spam';
+  const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+  const id = newId('report');
+  await pgPool!.query(
+    `INSERT INTO community_reports (id, post_id, reporter_id, report_type, reason)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [id, postId, userId, reportType, reason]
+  );
+  return { id, postId, reporterId: userId, reportType, reason, status: 'open', createdAt: new Date().toISOString() };
 }

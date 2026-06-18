@@ -8,14 +8,21 @@ import { apiGet, apiPost, apiRequest } from './client';
 
 // ===== 定位 =====
 
+// ===== 默认定位降级坐标（北京天安门） =====
+const DEFAULT_FALLBACK_POINT: GeoPoint = { lat: 39.9087, lng: 116.3975 };
+
 /**
  * 获取当前 GPS 定位点
  * 使用浏览器 Geolocation API，高精度模式，超时 3.5 秒
+ * 定位失败时自动降级为默认坐标（北京），避免阻断路线生成
  */
-export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: number | null }> {
-  if (!navigator.geolocation) throw new Error('location_required');
+export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: number | null; isFallback?: boolean }> {
+  if (!navigator.geolocation) {
+    console.warn('[geo] Geolocation API not available, using fallback');
+    return { point: DEFAULT_FALLBACK_POINT, accuracy: null, isFallback: true };
+  }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
@@ -26,7 +33,10 @@ export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: nu
           accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
         });
       },
-      () => reject(new Error('location_required')),
+      () => {
+        console.warn('[geo] Location permission denied or timeout, using fallback');
+        resolve({ point: DEFAULT_FALLBACK_POINT, accuracy: null, isFallback: true });
+      },
       {
         enableHighAccuracy: true,
         timeout: 3500,
@@ -38,8 +48,12 @@ export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: nu
 
 // ===== 路线创建 =====
 
-/** 从模板图形创建路线（默认高德服务商） */
-export async function createTemplateRoute(shapeType: string, targetKm: number = 5): Promise<GeneratedRoute> {
+/** 从模板图形创建路线（默认高德服务商，支持传入模板详情） */
+export async function createTemplateRoute(
+  shapeType: string,
+  targetKm: number = 5,
+  template?: Record<string, unknown> | null,
+): Promise<GeneratedRoute> {
   const current = await getCurrentPoint();
   const payload = await apiPost<{ route?: GeneratedRoute }>('/routes/from-template', {
     shapeType,
@@ -47,6 +61,8 @@ export async function createTemplateRoute(shapeType: string, targetKm: number = 
     provider: 'amap',
     startPoint: current.point,
     currentAccuracy: current.accuracy,
+    templateId: template?.id || null,
+    templateCode: template?.templateCode || null,
   });
   if (!payload.route) throw new Error('route_missing');
   return payload.route;
@@ -151,4 +167,24 @@ export async function finishSession(sessionId: string): Promise<FinishResult> {
   );
   if (!payload.result) throw new Error('result_missing');
   return payload.result;
+}
+
+/** 暂停跑步会话，返回更新后的会话状态 */
+export async function pauseSession(sessionId: string): Promise<SessionState> {
+  const payload = await apiPost<{ state?: SessionState }>(
+    `/sessions/${encodeURIComponent(sessionId)}/pause`,
+    {},
+  );
+  if (!payload.state) throw new Error('state_missing');
+  return payload.state;
+}
+
+/** 恢复跑步会话，返回更新后的会话状态 */
+export async function resumeSession(sessionId: string): Promise<SessionState> {
+  const payload = await apiPost<{ state?: SessionState }>(
+    `/sessions/${encodeURIComponent(sessionId)}/resume`,
+    {},
+  );
+  if (!payload.state) throw new Error('state_missing');
+  return payload.state;
 }
