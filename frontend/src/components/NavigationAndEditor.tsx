@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { CrsType, GeneratedRoute, GeoPoint, ScreenId, SessionState } from '../types';
 import { useI18n } from '../i18n';
-import { finishSession, getCurrentPoint, getSessionState, reportLocation } from '../api/routes';
+import { finishSession, getCurrentPoint, getSessionState, pauseSession, reportLocation, resumeSession } from '../api/routes';
 
 /* ==========================================
    Screen 2: Map Navigation Screen (导航界面)
@@ -46,6 +46,7 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [navError, setNavError] = useState<string | null>(null);
+  const [sessionActionLoading, setSessionActionLoading] = useState(false);
   
   useEffect(() => {
     if (!isPlaying) return;
@@ -139,6 +140,27 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
   }, [progress, routePoints, sessionState?.lastPosition]);
 
   const completedPath = projected.path.slice(0, Math.max(1, Math.ceil(progress * projected.path.length)));
+
+  const handleToggleSession = async () => {
+    if (!activeSessionId) {
+      setIsPlaying((value) => !value);
+      return;
+    }
+    if (sessionActionLoading) return;
+    setSessionActionLoading(true);
+    try {
+      const state = isPlaying
+        ? await pauseSession(activeSessionId)
+        : await resumeSession(activeSessionId);
+      setSessionState(state);
+      setIsPlaying(!isPlaying);
+      setNavError(null);
+    } catch {
+      setNavError(text('暂停/继续失败，请稍后重试', 'Pause/resume failed, try again'));
+    } finally {
+      setSessionActionLoading(false);
+    }
+  };
 
   const handleFinish = async () => {
     if (!activeSessionId) {
@@ -275,12 +297,13 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
         <div className="flex items-center justify-between px-2">
           {/* Pause / Play */}
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => void handleToggleSession()}
+            disabled={sessionActionLoading}
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
               isPlaying 
                 ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 active:scale-95' 
                 : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200 active:scale-95'
-            }`}
+            } disabled:opacity-60 disabled:cursor-not-allowed`}
           >
             {isPlaying ? <Pause size={18} /> : <Play size={18} className="fill-emerald-600 ml-0.5" />}
           </button>

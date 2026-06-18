@@ -1,7 +1,7 @@
-export type AdminModule = 'users' | 'contents' | 'templates';
+export type AdminModule = 'users' | 'roles' | 'sessions' | 'contents' | 'templates' | 'communityPosts' | 'comments' | 'reports' | 'feedback' | 'assets' | 'shareRecords' | 'auditLogs';
 export type AdminModuleKey = AdminModule | 'roleLibrary';
 
-export const ADMIN_MODULES: AdminModule[] = ['users', 'contents', 'templates'];
+export const ADMIN_MODULES: AdminModule[] = ['users', 'roles', 'sessions', 'contents', 'templates', 'communityPosts', 'comments', 'reports', 'feedback', 'assets', 'shareRecords', 'auditLogs'];
 
 export const ADMIN_USER_STATUS = {
   ACTIVE: 'active',
@@ -29,12 +29,38 @@ export interface AdminProfile {
   username: string;
   displayName: string;
   roles: string[];
+  sessionId?: string;
+  readableModules?: AdminModule[];
+  writableModules?: AdminModule[];
 }
 
 export interface RoleItem {
   code: string;
   name: string;
   desc: string;
+  permissionMatrix?: string;
+}
+
+export interface AdminRoleItem {
+  id: string;
+  code: string;
+  name: string;
+  desc: string;
+  permissionMatrix: string;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+export interface AdminSessionItem {
+  id: string;
+  adminUserId: string;
+  username: string;
+  ip: string;
+  userAgent: string;
+  expiresAt: string;
+  createdAt: string;
+  revokedAt: string;
+  status: 'active' | 'expired' | 'revoked';
 }
 
 export interface AdminUser {
@@ -64,18 +90,116 @@ export interface TemplateItem {
   id: string;
   code: string;
   name: string;
-  category: 'map' | 'route' | 'ui';
-  providerHint: string;
-  payload: string;
-  isDefault: boolean;
+  titleEn: string;
+  category: string;
+  shapeType: string;
+  distanceKm: number;
+  previewPayload: string;
+  generationPayload: string;
+  usageCount: number;
+  favoriteCount: number;
+  isFeatured: boolean;
   isActive: boolean;
-  version: number;
   sortOrder: number;
   updatedAt: string;
-  description: string;
 }
 
-export type AdminModuleItem = AdminUser | ContentItem | TemplateItem;
+export interface CommunityPostAdminItem {
+  id: string;
+  userId: string;
+  author: string;
+  title: string;
+  content: string;
+  status: 'pending' | 'published' | 'hidden' | 'deleted';
+  reviewStatus: 'pending' | 'approved' | 'rejected';
+  rejectReason: string;
+  likeCount: number;
+  commentCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunityCommentAdminItem {
+  id: string;
+  postId: string;
+  userId: string;
+  author: string;
+  postTitle: string;
+  content: string;
+  status: 'published' | 'hidden' | 'deleted';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunityReportAdminItem {
+  id: string;
+  postId: string;
+  reporterId: string;
+  reportType: string;
+  reason: string;
+  status: 'open' | 'closed';
+  actionTaken: string;
+  hidePost: boolean;
+  createdAt: string;
+  handledAt: string;
+}
+
+export interface UserFeedbackAdminItem {
+  id: string;
+  userId: string;
+  contact: string;
+  category: string;
+  content: string;
+  status: 'open' | 'processing' | 'closed';
+  createdAt: string;
+  handledAt: string;
+}
+
+export interface UserAssetAdminItem {
+  id: string;
+  userId: string;
+  assetType: 'avatar' | 'share_poster' | 'route_preview' | 'qr_card';
+  url: string;
+  storageProvider: string;
+  metadata: string;
+  createdAt: string;
+}
+
+export interface RouteShareRecordAdminItem {
+  id: string;
+  userId: string;
+  routeId: string;
+  sessionId: string;
+  channel: 'wechat' | 'moments' | 'xiaohongshu' | 'douyin' | 'poster' | 'system';
+  sharePayload: string;
+  createdAt: string;
+}
+
+export interface AdminAuditLogItem {
+  id: string;
+  actorAdminId: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  requestPath: string;
+  requestMethod: string;
+  diff: string;
+  createdAt: string;
+}
+
+export type AdminModuleItem =
+  | AdminUser
+  | AdminRoleItem
+  | AdminSessionItem
+  | ContentItem
+  | TemplateItem
+  | CommunityPostAdminItem
+  | CommunityCommentAdminItem
+  | CommunityReportAdminItem
+  | UserFeedbackAdminItem
+  | UserAssetAdminItem
+  | RouteShareRecordAdminItem
+  | AdminAuditLogItem;
 
 export interface AdminListParams {
   page: number;
@@ -85,6 +209,8 @@ export interface AdminListParams {
   type?: string;
   category?: string;
   roleCode?: string;
+  assetType?: string;
+  channel?: string;
 }
 
 export interface AdminListResult<T = AdminModuleItem> {

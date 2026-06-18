@@ -1,23 +1,25 @@
-/**
- * TraceCraft 社区服务模块
- *
- * 提供帖子发布、评论、点赞、关注、通知等社区功能
- * 涉及事务操作，确保数据一致性
- */
-
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
-import { toIso } from '../utils/date';
-import { safeJsonParse } from '../utils/json';
 
-/** 确保数据库连接可用，否则抛出异常 */
 function requireDb(): void {
   if (!pgPool) throw new Error('postgres_not_configured');
 }
 
-/** 确保用户记录存在（幂等插入） */
 async function ensureUser(userId: string): Promise<void> {
   await pgPool!.query(`INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, [userId]);
+}
+
+function toIso(value: unknown): string {
+  return value ? new Date(value as string | Date).toISOString() : new Date().toISOString();
+}
+
+function parseJson<T>(value: T): T {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return value;
+  }
 }
 
 export interface CommunityPostItem {
@@ -73,8 +75,8 @@ function mapPost(row: Record<string, unknown>): CommunityPostItem {
     content: String(row.content || ''),
     contentEn: String(row.content_en || row.content || ''),
     topicTags: Array.isArray(row.topic_tags) ? row.topic_tags as string[] : [],
-    metrics: safeJsonParse(row.metrics || {}) as Record<string, unknown>,
-    mediaPayload: safeJsonParse(row.media_payload || {}) as Record<string, unknown>,
+    metrics: parseJson(row.metrics || {}) as Record<string, unknown>,
+    mediaPayload: parseJson(row.media_payload || {}) as Record<string, unknown>,
     likeCount: Number(row.like_count || 0),
     commentCount: Number(row.comment_count || 0),
     favoriteCount: Number(row.favorite_count || 0),
@@ -337,7 +339,7 @@ export async function listNotifications(userId: string, type: string = 'all'): P
     actorUserId: row.actor_user_id ? String(row.actor_user_id) : null,
     isRead: Boolean(row.is_read),
     createdAt: toIso(row.created_at),
-    metadata: safeJsonParse(row.metadata || {}) as Record<string, unknown>,
+    metadata: parseJson(row.metadata || {}) as Record<string, unknown>,
   }));
 }
 

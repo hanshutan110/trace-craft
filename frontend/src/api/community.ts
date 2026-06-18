@@ -1,8 +1,11 @@
 /**
  * TraceCraft 社区相关 API
+ *
+ * 提供帖子 CRUD、评论、点赞、关注、通知等功能
  */
 import { apiGet, apiPost } from './client';
 
+/** 社区帖子条目 */
 export interface CommunityPostItem {
   id: string;
   userId: string;
@@ -24,6 +27,7 @@ export interface CommunityPostItem {
   isFollowing: boolean;
 }
 
+/** 帖子评论条目 */
 export interface CommunityCommentItem {
   id: string;
   postId: string;
@@ -33,6 +37,7 @@ export interface CommunityCommentItem {
   createdAt: string;
 }
 
+/** 系统通知条目 */
 export interface NotificationItem {
   id: string;
   type: string;
@@ -46,9 +51,9 @@ export interface NotificationItem {
   metadata: Record<string, unknown>;
 }
 
-// ===== localStorage 缓存：记录用户当前选中的帖子 ID =====
+// ===== localStorage 缓存 =====
 
-/** 缓存当前选中的帖子 ID，进入详情页时自动读取 */
+/** 缓存选中帖子 ID（用于详情页回显） */
 export function selectPost(postId: string): void {
   try {
     localStorage.setItem('tracecraft_selected_post_id', postId);
@@ -57,7 +62,7 @@ export function selectPost(postId: string): void {
   }
 }
 
-/** 读取缓存的帖子 ID，无缓存返回 null */
+/** 获取缓存的选中帖子 ID */
 export function getSelectedPostId(): string | null {
   try {
     return localStorage.getItem('tracecraft_selected_post_id');
@@ -68,7 +73,7 @@ export function getSelectedPostId(): string | null {
 
 // ===== 帖子 CRUD =====
 
-/** 发布社区帖子（支持关联路线、标签、媒体等） */
+/** 发布社区帖子 */
 export async function createCommunityPost(payload: {
   title?: string;
   content: string;
@@ -82,13 +87,13 @@ export async function createCommunityPost(payload: {
   return data.post;
 }
 
-/** 获取帖子列表，支持按推荐/最新/热门/关注过滤 */
+/** 查询帖子列表（按 tab 过滤：recommend/latest/following） */
 export async function listCommunityPosts(tab: string = 'recommend'): Promise<CommunityPostItem[]> {
   const data = await apiGet<{ posts?: CommunityPostItem[] }>(`/community/posts?tab=${encodeURIComponent(tab)}`);
   return data.posts || [];
 }
 
-/** 获取单个帖子详情及其评论列表 */
+/** 获取帖子详情 + 评论列表 */
 export async function getCommunityPost(postId: string): Promise<{ post: CommunityPostItem; comments: CommunityCommentItem[] }> {
   const data = await apiGet<{ post?: CommunityPostItem; comments?: CommunityCommentItem[] }>(
     `/community/posts/${encodeURIComponent(postId)}`,
@@ -97,7 +102,7 @@ export async function getCommunityPost(postId: string): Promise<{ post: Communit
   return { post: data.post, comments: data.comments || [] };
 }
 
-/** 添加帖子评论 */
+/** 发表评论 */
 export async function addCommunityComment(postId: string, content: string): Promise<CommunityCommentItem> {
   const data = await apiPost<{ comment?: CommunityCommentItem }>(
     `/community/posts/${encodeURIComponent(postId)}/comments`,
@@ -115,7 +120,7 @@ export async function toggleCommunityLike(postId: string): Promise<{ liked: bool
   return { liked: Boolean(data.liked), likeCount: Number(data.likeCount || 0) };
 }
 
-/** 切换用户关注状态 */
+/** 切换关注用户状态 */
 export async function toggleFollowUser(userId: string): Promise<boolean> {
   const data = await apiPost<{ following?: boolean }>(
     `/community/follows/${encodeURIComponent(userId)}`,
@@ -123,15 +128,15 @@ export async function toggleFollowUser(userId: string): Promise<boolean> {
   return Boolean(data.following);
 }
 
-// ===== 通知管理 =====
+// ===== 通知 =====
 
-/** 获取通知列表，支持按类型过滤（全部/系统/互动） */
+/** 查询通知列表（默认全部，可按类型过滤） */
 export async function listNotifications(type: string = 'all'): Promise<NotificationItem[]> {
   const data = await apiGet<{ notifications?: NotificationItem[] }>(`/notifications?type=${encodeURIComponent(type)}`);
   return data.notifications || [];
 }
 
-/** 标记通知为已读，不传 id 则全部标记已读 */
+/** 标记通知已读（传 id 标记单条，不传标记全部） */
 export async function markNotificationsRead(id?: string): Promise<void> {
   await apiPost('/notifications/read', id ? { id } : {});
 }

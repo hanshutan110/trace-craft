@@ -12,7 +12,7 @@
 
 import crypto from 'crypto';
 import sharp from 'sharp';
-import { pointDistanceMeters, scalePathPreserveShape, latLngCentroid, resampleByDistance, angleSmooth } from '../utils/geo';
+import { pointDistanceMeters, scalePathPreserveShape, resampleByDistance, angleSmooth } from '../utils/geo';
 import type { GeoPoint } from '../utils/geo';
 import { convertPoint } from '../utils/coordAdapter';
 import type { CrsType } from '../utils/coordAdapter';
@@ -32,7 +32,6 @@ import type {
   Route,
   RouteMeta,
   RouteBounds,
-  RouteContext,
   RouteRiskSegment,
   RouteStartPointStatus,
   Session,
@@ -43,7 +42,20 @@ import type {
 } from './storage';
 
 // 地图配置从独立模块导入
-import { normalizeProvider, normalizeLocale } from './map-config';
+import {
+  normalizeProvider,
+  normalizeLocale,
+  getMapConfig,
+  seedWgs84ToProvider,
+  getLocaleMeta,
+  splitList,
+} from './map-config';
+
+// 从 geo 模块重新导出 GeoPoint，供 index.ts 使用
+export type { GeoPoint } from '../utils/geo';
+
+// 重新导出地图配置函数，保持向后兼容
+export { normalizeProvider, normalizeLocale, getMapConfig, seedWgs84ToProvider, getLocaleMeta, splitList };
 
 // ===== 常量与配置 =====
 
@@ -55,8 +67,6 @@ export const SESSION_STATUS = {
   FINISHED: 'finished',
   FAILED: 'failed',
 } as const;
-
-export type SessionStatusType = (typeof SESSION_STATUS)[keyof typeof SESSION_STATUS];
 
 /** 各状态对应的下一步动作提示 */
 const SESSION_NEXT_ACTION: Record<string, string> = {
@@ -162,6 +172,7 @@ function alignFirstPointToStart(points: GeoPoint[], start: GeoPoint | null): Geo
   }));
 }
 
+/** 从图片提取轮廓：缩放到 96px、亮度阈值分割、极坐标采样边界点 */
 async function extractImageContourUnitPoints(buffer: Buffer): Promise<Array<{ x: number; y: number }>> {
   const image = await sharp(buffer, { limitInputPixels: 16_000_000 })
     .rotate()
@@ -240,6 +251,7 @@ async function extractImageContourUnitPoints(buffer: Buffer): Promise<Array<{ x:
   return contour;
 }
 
+/** 将图片轮廓按目标距离缩放、平滑，生成经纬度坐标序列 */
 async function generateImageContourPoints(buffer: Buffer, center: GeoPoint, targetKm: number | null | undefined): Promise<GeoPoint[]> {
   const unit = await extractImageContourUnitPoints(buffer);
   const perimeterUnit = unit.reduce((sum, point, index) => {
@@ -290,6 +302,7 @@ function normalizeRouteForProvider(route: Route, provider: string): Route {
   };
 }
 
+/** 将用户当前位置对齐到路线最近线段，计算偏离距离 */
 function normalizeLocationForRoute(point: GeoPoint, route: Route): GeoPoint {
   const crs = route.crsHint as CrsType;
   if (crs === 'gcj02' || crs === 'bd09') {
@@ -398,11 +411,7 @@ function computeSessionState(session: Session, route: Route): SessionState | nul
   };
 }
 
-function toPositiveNumber(value: unknown, fallback: number): number {
-  const normalized = Number(value);
-  return Number.isFinite(normalized) ? normalized : fallback;
-}
-
+/** 将值限制在 [min, max] 区间内 */
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -413,12 +422,14 @@ function routeRiskSummary(level: 'low' | 'medium' | 'high'): string {
   return '路线风险较低，可预览确认后开始导航';
 }
 
+/** 合并所有风险路段，取最高风险等级 */
 function mergeRiskLevel(segments: RouteRiskSegment[]): 'low' | 'medium' | 'high' {
   return segments.reduce<'low' | 'medium' | 'high'>((level, segment) => {
     return RISK_LEVEL_WEIGHT[segment.level] > RISK_LEVEL_WEIGHT[level] ? segment.level : level;
   }, 'low');
 }
 
+/** 构建起点状态：距离、定位精度、是否需要重映射 */
 function buildStartPointStatus(route: Route, currentPoint: GeoPoint | null, accuracyM: number | null): RouteStartPointStatus {
   if (!currentPoint || !route.meta?.start) {
     return {
@@ -439,6 +450,7 @@ function buildStartPointStatus(route: Route, currentPoint: GeoPoint | null, accu
   };
 }
 
+/** 追加本地风险路段：GPS 精度、起点距离、距离偏差、过长直连 */
 function addLocalRiskSegments(route: Route, currentPoint: GeoPoint | null, accuracyM: number | null): RouteRiskSegment[] {
   const segments: RouteRiskSegment[] = [];
   const startStatus = buildStartPointStatus(route, currentPoint, accuracyM);
@@ -493,6 +505,7 @@ function toLngLat(point: GeoPoint): string {
   return `${point.lng.toFixed(6)},${point.lat.toFixed(6)}`;
 }
 
+/** 采样路线中段，用于高德步行规划可跑性验证 */
 function sampleAmapWalkingSegments(points: GeoPoint[]): Array<{ from: GeoPoint; to: GeoPoint }> {
   if (points.length < 8) return [];
   const pairs: Array<{ from: GeoPoint; to: GeoPoint }> = [];
@@ -508,6 +521,7 @@ function sampleAmapWalkingSegments(points: GeoPoint[]): Array<{ from: GeoPoint; 
   return pairs;
 }
 
+/** 调用高德步行规划 API，获取两点间步行距离 */
 async function getAmapWalkingDistance(from: GeoPoint, to: GeoPoint): Promise<number | null> {
   const key = process.env.AMAP_KEY;
   if (!key) return null;
@@ -530,6 +544,7 @@ async function getAmapWalkingDistance(from: GeoPoint, to: GeoPoint): Promise<num
   }
 }
 
+/** 通过高德步行规划校验路线是否可跑（采样多段比对绕行比） */
 async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> {
   if (process.env.TRACECRAFT_ALLOW_UNVERIFIED_ROUTES === '1') return [];
   if (normalizeProvider(route.providerHint) !== 'amap') {
@@ -583,6 +598,7 @@ async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> 
   return segments;
 }
 
+/** 综合评估路线风险：本地规则检查 + 高德步行可跑性校验 */
 async function enrichRouteRisk(
   route: Route,
   options: { currentPoint?: GeoPoint | null; currentAccuracy?: number | null } = {}
@@ -611,12 +627,14 @@ async function enrichRouteRisk(
   };
 }
 
+/** 米制偏移到经纬度：eastM 为东向偏移，northM 为北向偏移 */
 function metersToPoint(origin: GeoPoint, eastM: number, northM: number): GeoPoint {
   const lat = origin.lat + northM / 111320;
   const lng = origin.lng + eastM / (111320 * Math.cos((origin.lat * Math.PI) / 180));
   return { lat, lng };
 }
 
+/** 根据形状类型生成单位坐标点（用于模板路线的几何图形构建） */
 function buildTemplateUnitPoints(shapeType: string): Array<{ x: number; y: number }> {
   if (shapeType === 'circle') {
     return Array.from({ length: 80 }, (_, index) => {
@@ -647,6 +665,7 @@ function buildTemplateUnitPoints(shapeType: string): Array<{ x: number; y: numbe
   });
 }
 
+/** 将单位图形按目标距离缩放并采样为路线坐标点 */
 function generateTemplatePoints(shapeType: string, center: GeoPoint, targetKm: number): GeoPoint[] {
   const unit = buildTemplateUnitPoints(shapeType);
   const perimeterUnit = unit.reduce((sum, point, index) => {

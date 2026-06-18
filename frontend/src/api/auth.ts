@@ -6,21 +6,24 @@
  */
 import { apiPost } from './client';
 
+/** 本地存储键名映射（仅存储 UI 状态标记，非真实 token） */
 const AUTH_STORAGE_KEYS = {
   userId: 'tracecraft_user_id',
   provider: 'tracecraft_auth_provider',
   deviceId: 'tracecraft_device_id',
 } as const;
 
+/** 快捷登录提供商类型 */
 export type QuickLoginProvider = 'wechat' | 'alipay';
 
+/** 登录接口返回结果 */
 interface AuthResult {
   userId: string;
   isNewUser: boolean;
   provider: QuickLoginProvider | 'phone';
 }
 
-/** 生成唯一设备标识，用于快捷登录关联 */
+/** 生成唯一设备 ID（优先使用 crypto.randomUUID，回退到时间戳 + 随机数） */
 function createDeviceId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -30,6 +33,7 @@ function createDeviceId(): string {
 
 // ===== 会话状态管理（仅 UI 标记） =====
 
+/** 检查本地是否存在登录标记（仅判断 userId 是否存在） */
 export function hasAuthSession(): boolean {
   try {
     return Boolean(localStorage.getItem(AUTH_STORAGE_KEYS.userId));
@@ -38,6 +42,7 @@ export function hasAuthSession(): boolean {
   }
 }
 
+/** 获取或创建设备 ID（用于快捷登录关联） */
 export function getOrCreateDeviceId(): string {
   try {
     const current = localStorage.getItem(AUTH_STORAGE_KEYS.deviceId);
@@ -50,7 +55,7 @@ export function getOrCreateDeviceId(): string {
   }
 }
 
-/** 将登录结果持久化到 localStorage（仅保存 UI 状态标记） */
+/** 保存登录标记到 localStorage（仅存 userId/provider） */
 function saveAuthMarker(auth: AuthResult): void {
   try {
     localStorage.setItem(AUTH_STORAGE_KEYS.userId, auth.userId);
@@ -60,6 +65,7 @@ function saveAuthMarker(auth: AuthResult): void {
   }
 }
 
+/** 清除本地登录标记（退出登录时调用） */
 export function clearAuthSession(): void {
   try {
     localStorage.removeItem(AUTH_STORAGE_KEYS.userId);
@@ -71,6 +77,7 @@ export function clearAuthSession(): void {
 
 // ===== 登录接口 =====
 
+/** 通用登录请求：发送 POST 并保存登录标记 */
 async function doLogin(
   path: string,
   body: Record<string, unknown>,
@@ -81,6 +88,7 @@ async function doLogin(
   return payload.auth;
 }
 
+/** 快捷登录（微信/支付宝，开发环境自动填充 mock authCode） */
 export async function quickLogin(provider: QuickLoginProvider): Promise<AuthResult> {
   return doLogin('/auth/quick-login', {
     provider,
@@ -89,6 +97,7 @@ export async function quickLogin(provider: QuickLoginProvider): Promise<AuthResu
   });
 }
 
+/** 手机号登录 */
 export async function phoneLogin(phone: string, smsCode: string): Promise<AuthResult> {
   return doLogin('/auth/phone-login', {
     phone,

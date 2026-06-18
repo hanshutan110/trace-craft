@@ -1,11 +1,12 @@
 /**
  * TraceCraft 用户相关 API
  *
- * 包含用户画像、设置更新、跑步历史等功能
+ * 提供用户资料查询、设置更新、跑步历史等功能
  */
 import type { GeneratedRoute, GeoPoint, SessionMetrics } from '../types';
 import { apiGet, apiPut } from './client';
 
+/** 用户偏好设置（与后端 UserSettings 保持一致） */
 export interface UserSettings {
   distanceUnit: 'km' | 'mile';
   voiceBroadcast: boolean;
@@ -14,6 +15,7 @@ export interface UserSettings {
   lineWeight: 'thin' | 'mid' | 'thick';
 }
 
+/** 用户累计统计 */
 export interface UserStats {
   totalDistanceKm: number;
   totalDurationHours: number;
@@ -22,6 +24,7 @@ export interface UserStats {
   favoriteCount: number;
 }
 
+/** 用户完整资料（基本信息 + 统计 + 设置） */
 export interface UserProfile {
   userId: string;
   displayName: string;
@@ -32,6 +35,7 @@ export interface UserProfile {
   stats: UserStats;
 }
 
+/** 跑步历史记录条目 */
 export interface RunHistoryEntry {
   sessionId: string;
   routeId: string;
@@ -44,21 +48,21 @@ export interface RunHistoryEntry {
   route: GeneratedRoute | null;
 }
 
-/** 获取当前登录用户的完整画像（基本信息 + 统计数据 + 设置） */
+/** 获取当前登录用户资料 */
 export async function getCurrentUserProfile(): Promise<UserProfile> {
   const payload = await apiGet<{ profile?: UserProfile }>('/me');
   if (!payload.profile) throw new Error('profile_missing');
   return payload.profile;
 }
 
-/** 更新用户设置（合并模式，仅更新传入的字段） */
+/** 更新用户偏好设置（部分更新） */
 export async function updateUserSettings(settings: Partial<UserSettings>): Promise<UserProfile> {
   const payload = await apiPut<{ profile?: UserProfile }>('/me/settings', settings);
   if (!payload.profile) throw new Error('profile_missing');
   return payload.profile;
 }
 
-/** 获取跑步历史记录，默认返回最近 30 条 */
+/** 获取跑步历史记录（默认最近 30 条） */
 export async function getRunHistory(limit: number = 30): Promise<RunHistoryEntry[]> {
   const payload = await apiGet<{ runs?: RunHistoryEntry[] }>(`/run-history?limit=${limit}`);
   return payload.runs || [];

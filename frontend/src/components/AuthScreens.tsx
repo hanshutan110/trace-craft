@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CloudRain,
   MapPin,
@@ -8,6 +8,7 @@ import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
 import { useToast } from './common/Toast';
 import { phoneLogin, quickLogin, type QuickLoginProvider } from '../api/auth';
+import { getPublicContent, type PublicContentItem } from '../api/content';
 
 /* ==========================================
    Screen 5: Onboarding Screen (首次使用引导页)
@@ -144,6 +145,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   const [codeSent, setCodeSent] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showDocModal, setShowDocModal] = useState<'privacy' | 'agreement' | null>(null);
+  const [docContent, setDocContent] = useState<PublicContentItem | null>(null);
+  const [docLoading, setDocLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showDocModal) {
+      setDocContent(null);
+      return;
+    }
+    let cancelled = false;
+    setDocLoading(true);
+    getPublicContent('policy', showDocModal)
+      .then((content) => {
+        if (!cancelled) setDocContent(content);
+      })
+      .catch(() => {
+        if (!cancelled) setDocContent(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDocLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showDocModal]);
 
   const handleThirdPartyLogin = async (platform: QuickLoginProvider) => {
     setIsLoggingIn(true);
@@ -426,16 +451,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-5 z-40">
           <div className="bg-white rounded-3xl w-full max-w-xs p-5 shadow-2xl flex flex-col space-y-4 max-h-[80%]">
             <h3 className="text-base font-extrabold text-slate-800 border-b pb-2">
-              {showDocModal === 'privacy' ? t('auth.privacy_title', '轨迹工坊隐私政策说明') : t('auth.agreement_title', '轨迹工坊用户服务协议')}
+              {docContent?.title || (showDocModal === 'privacy' ? t('auth.privacy_title', '轨迹工坊隐私政策说明') : t('auth.agreement_title', '轨迹工坊用户服务协议'))}
             </h3>
             
             <div className="text-[12px] text-slate-500 overflow-y-auto max-h-56 space-y-2 leading-relaxed">
-              <p className="font-bold text-slate-700">{t('auth.updated_at', '更新日期：2026年6月9日')}</p>
-              <p>{t('auth.doc_p1', '欢迎阁下使用"轨迹工坊"运动绘图寻航应用软件！')}</p>
-              <p>{t('auth.doc_p2', '为了保障您的合法合法权益，请务必仔细阅读本文件。我们深度关注您的个人信息和隐私数据保护：')}</p>
-              <p>{t('auth.doc_p3', '1. 我们仅在您使用"手动描边(4)"或"图片寻回(9)"以及位置跟踪时访问您的地理坐标，且采用最严格的脱敏算法保密，坚决不上送任何社交无关机密。')}</p>
-              <p>{t('auth.doc_p4', '2. 账号绑定基于微信/支付宝官方授权流程，提供一键免密码注册，不采集不索要明文账户密码。')}</p>
-              <p>{t('auth.doc_p5', '3. 您有随时清除本地生成图片缓存(13)以及彻底注销本人账号权利。')}</p>
+              {docLoading ? (
+                <p>{text('内容加载中...', 'Loading...')}</p>
+              ) : docContent ? (
+                <>
+                  <p className="font-bold text-slate-700">{docContent.summary || t('auth.updated_at', '更新日期：2026年6月9日')}</p>
+                  {docContent.body.split(/\n{2,}/).map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-slate-700">{t('auth.updated_at', '更新日期：2026年6月9日')}</p>
+                  <p>{t('auth.doc_p1', '欢迎阁下使用"轨迹工坊"运动绘图寻航应用软件！')}</p>
+                  <p>{t('auth.doc_p2', '为了保障您的合法合法权益，请务必仔细阅读本文件。我们深度关注您的个人信息和隐私数据保护：')}</p>
+                  <p>{t('auth.doc_p3', '1. 我们仅在您使用"手动描边(4)"或"图片寻回(9)"以及位置跟踪时访问您的地理坐标，且采用最严格的脱敏算法保密，坚决不上送任何社交无关机密。')}</p>
+                  <p>{t('auth.doc_p4', '2. 账号绑定基于微信/支付宝官方授权流程，提供一键免密码注册，不采集不索要明文账户密码。')}</p>
+                  <p>{t('auth.doc_p5', '3. 您有随时清除本地生成图片缓存(13)以及彻底注销本人账号权利。')}</p>
+                </>
+              )}
             </div>
 
             <button

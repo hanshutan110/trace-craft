@@ -9,6 +9,7 @@
  */
 
 import 'dotenv/config';
+import path from 'path';
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import { getMapConfig } from './services/map-config';
@@ -21,6 +22,7 @@ import userApi from './routes/userApi';
 import discoveryApi from './routes/discoveryApi';
 import communityApi from './routes/communityApi';
 import adminApi from './routes/adminApi';
+import { uploadRoot } from './services/assetService';
 
 const app = express();
 
@@ -40,6 +42,10 @@ app.use(cors({
   },
 }));
 app.use(express.json({ limit: '10mb' }));
+app.use('/uploads', express.static(path.resolve(uploadRoot()), {
+  fallthrough: false,
+  maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
+}));
 
 // 为每个请求注入追踪 ID、用户身份和幂等键
 app.use((req: Request, _res: Response, next) => {

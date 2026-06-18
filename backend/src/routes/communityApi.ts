@@ -8,6 +8,7 @@ import {
   listNotifications,
   listPosts,
   markNotificationsRead,
+  reportPost,
   toggleFollow,
   togglePostLike,
 } from '../services/communityService';
@@ -70,6 +71,18 @@ router.post('/community/posts/:postId/like', requireAuth, async (req: Request, r
   } catch (err) {
     console.error('[community:like]', err);
     res.status(500).json(errorPayload('toggle like failed', 'like_failed', 500));
+  }
+});
+
+router.post('/community/posts/:postId/report', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const report = await reportPost(req.userId!, String(req.params.postId), req.body || {});
+    return res.json(successPayload({ report }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'report_post_failed';
+    const status = message === 'post_not_found' ? 404 : ['cannot_report_self_post'].includes(message) ? 400 : 500;
+    console.error('[community:report]', err);
+    return res.status(status).json(errorPayload(message, message, status));
   }
 });
 

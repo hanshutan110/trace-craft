@@ -4,9 +4,10 @@ import {
   Download,
   Share2,
 } from 'lucide-react';
-import { ScreenId } from '../types';
+import { ScreenId, type GeneratedRoute } from '../types';
 import { useI18n } from '../i18n';
 import { miniToast } from '../utils';
+import { createShareCard, publicAssetUrl, type ShareChannel } from '../api/share';
 
 // 彩纸粒子数据提升到模块级常量，避免每次组件挂载时重新生成
 const CONFETTI_PARTICLES = Array.from({ length: 48 }).map((_, i) => ({
@@ -24,10 +25,41 @@ const CONFETTI_PARTICLES = Array.from({ length: 48 }).map((_, i) => ({
    ========================================== */
 interface SuccessScreenProps {
   onNavigate: (screen: ScreenId) => void;
+  generatedRoute?: GeneratedRoute | null;
+  activeSessionId?: string | null;
 }
 
-export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
+export const SuccessScreen: React.FC<SuccessScreenProps> = ({
+  onNavigate,
+  generatedRoute,
+  activeSessionId,
+}) => {
   const { text } = useI18n();
+  const [shareLoading, setShareLoading] = useState(false);
+
+  const handleCreateShareCard = async (channel: ShareChannel = 'poster') => {
+    if (shareLoading) return;
+    if (!generatedRoute?.id && !activeSessionId) {
+      miniToast(text('暂无可分享的路线记录', 'No route to share yet'));
+      return;
+    }
+    setShareLoading(true);
+    try {
+      const result = await createShareCard({
+        routeId: generatedRoute?.id,
+        sessionId: activeSessionId,
+        channel,
+      });
+      const url = publicAssetUrl(result.asset.url);
+      miniToast(text('跑步卡片已生成', 'Share card generated'));
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('[share-card] create failed', error);
+      miniToast(text('生成分享卡片失败', 'Failed to generate share card'));
+    } finally {
+      setShareLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-white select-none relative overflow-hidden">
@@ -137,7 +169,11 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
           <div className="flex justify-around px-2 mb-5">
             {/* WeChat */}
             <div className="flex flex-col items-center">
-              <button className="w-10 h-10 rounded-full bg-[#10B981] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
+              <button
+                onClick={() => void handleCreateShareCard('wechat')}
+                disabled={shareLoading}
+                className="w-10 h-10 rounded-full bg-[#10B981] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs disabled:opacity-50"
+              >
                 {text('微', 'We')}
               </button>
               <span className="text-[9px] text-gray-400 mt-1">{text('微信', 'WeChat')}</span>
@@ -145,7 +181,11 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
 
             {/* Red / Xiaohongshu */}
             <div className="flex flex-col items-center">
-              <button className="w-10 h-10 rounded-full bg-[#EF4444] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
+              <button
+                onClick={() => void handleCreateShareCard('xiaohongshu')}
+                disabled={shareLoading}
+                className="w-10 h-10 rounded-full bg-[#EF4444] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs disabled:opacity-50"
+              >
                 {text('书', 'Red')}
               </button>
               <span className="text-[9px] text-gray-400 mt-1">{text('小红书', 'Xiaohongshu')}</span>
@@ -153,7 +193,11 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
 
             {/* Douyin */}
             <div className="flex flex-col items-center">
-              <button className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
+              <button
+                onClick={() => void handleCreateShareCard('douyin')}
+                disabled={shareLoading}
+                className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs disabled:opacity-50"
+              >
                 {text('音', 'Do')}
               </button>
               <span className="text-[9px] text-gray-400 mt-1">{text('抖音', 'Douyin')}</span>
@@ -161,7 +205,11 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
 
             {/* WeChat Moments */}
             <div className="flex flex-col items-center">
-              <button className="w-10 h-10 rounded-full bg-[#3B82F6] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs">
+              <button
+                onClick={() => void handleCreateShareCard('moments')}
+                disabled={shareLoading}
+                className="w-10 h-10 rounded-full bg-[#3B82F6] text-white flex items-center justify-center text-xs font-bold active:scale-90 transition-transform shadow-xs disabled:opacity-50"
+              >
                 {text('圈', 'Mom')}
               </button>
               <span className="text-[9px] text-gray-400 mt-1">{text('朋友圈', 'Moments')}</span>
@@ -178,19 +226,21 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ onNavigate }) => {
 
           {/* Album & Share Card triggers */}
           <div className="flex justify-center space-x-6">
+              <button
+                onClick={() => void handleCreateShareCard('poster')}
+                disabled={shareLoading}
+                className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline disabled:opacity-50"
+              >
+                <Download size={13} />
+                <span>{shareLoading ? text('生成中...', 'Generating...') : text('保存到相册', 'Save to Photos')}</span>
+              </button>
             <button
-              onClick={() => miniToast(text('已保存到相册', 'Saved to Photos'))}
-              className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline"
-            >
-              <Download size={13} />
-              <span>{text('保存到相册', 'Save to Photos')}</span>
-            </button>
-            <button
-              onClick={() => miniToast(text('跑步卡片已生成，快去分享吧', 'Share card generated!'))}
-              className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline"
+              onClick={() => void handleCreateShareCard('poster')}
+              disabled={shareLoading}
+              className="text-[12px] font-bold text-[#4FACFE] active:opacity-75 flex items-center space-x-0.5 hover:underline disabled:opacity-50"
             >
               <Share2 size={13} />
-              <span>{text('分享跑步卡片', 'Share Card')}</span>
+              <span>{shareLoading ? text('生成中...', 'Generating...') : text('分享跑步卡片', 'Share Card')}</span>
             </button>
           </div>
         </div>

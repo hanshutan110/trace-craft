@@ -15,6 +15,7 @@ import { AppViewport } from './components/AppViewport';
 import { I18nProvider } from './i18n';
 import { ToastProvider } from './components/common/Toast';
 import { createImageRoute, createTemplateRoute, startRoute } from './api/routes';
+import { getTemplate } from './api/discovery';
 import { clearAuthSession, hasAuthSession } from './api/auth';
 import { miniToast } from './utils';
 
@@ -224,7 +225,18 @@ export default function App() {
     setRouteGenerationError(null);
     navigateToScreen('loading');
     try {
-      const route = await createTemplateRoute(shapeId, targetKm);
+      let template: { id?: string; templateCode?: string; shapeType?: string } | null = null;
+      if (activeScreen === 'param_adjust') {
+        try {
+          const templateId = localStorage.getItem('tracecraft_selected_template_id');
+          template = templateId ? await getTemplate(templateId) : null;
+        } catch {
+          template = null;
+        }
+      }
+      const effectiveShapeId = template?.shapeType || shapeId;
+      const route = await createTemplateRoute(effectiveShapeId, targetKm, template || undefined);
+      setSelectedShapeId(effectiveShapeId);
       setGeneratedRoute(route);
       navigateToScreen('route_preview', { replace: true });
     } catch (error) {
@@ -235,7 +247,7 @@ export default function App() {
     } finally {
       setIsRouteGenerating(false);
     }
-  }, [navigateToScreen]);
+  }, [activeScreen, navigateToScreen]);
 
   const handleUploadImageRoute = useCallback(async (file: File) => {
     setIsRouteGenerating(true);

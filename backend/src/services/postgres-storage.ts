@@ -23,6 +23,7 @@ import { normalizePoint } from './geo-utils';
 
 // ===== 内部工具函数 =====
 
+/** JSON 安全序列化（失败时返回 fallback 字符串） */
 function toJson(value: unknown, fallback: string): string {
   try {
     return JSON.stringify(value);
@@ -31,6 +32,7 @@ function toJson(value: unknown, fallback: string): string {
   }
 }
 
+/** 深拷贝对象（通过 JSON 序列化/反序列化实现） */
 function clonePayload<T>(value: T): T {
   try {
     return JSON.parse(JSON.stringify(value));
@@ -39,10 +41,12 @@ function clonePayload<T>(value: T): T {
   }
 }
 
+/** 获取当前时间 ISO 字符串 */
 function nowTimestamp(): string {
   return new Date().toISOString();
 }
 
+/** 安全转换时间戳，无效值返回 null */
 function toPgTimestamp(value: unknown): Date | null {
   if (!value) return null;
   return new Date(value as string | Date);
@@ -50,6 +54,7 @@ function toPgTimestamp(value: unknown): Date | null {
 
 // ===== 数据库行类型（snake_case） =====
 
+/** 数据库行类型（与 PostgreSQL 表结构对应的 snake_case 映射） */
 interface SessionDbRow {
   id: string;
   route_id: string;
@@ -89,9 +94,17 @@ export function getConnectionString(): string | undefined {
 
 /**
  * PostgreSQL 存储实现
- * 使用连接池管理数据库连接，支持事务操作
+ *
+ * 核心表：
+ *   - users：用户基础信息 + metadata JSONB
+ *   - routes：路线数据（payload JSONB 存储完整路线对象）
+ *   - route_versions：路线变更历史快照
+ *   - run_sessions：跑步会话（状态、轨迹、指标）
+ *   - run_location_events：上报位置事件（完整历史）
+ *   - run_audit_logs：审计日志
  */
 export class PostgresStorage implements IStorage {
+  /** 初始化连接池 + 建表 + 建索引 */
   async init(): Promise<void> {
     if (pgPool) return;
     if (!connectionString) {
@@ -111,6 +124,7 @@ export class PostgresStorage implements IStorage {
     return result.rows || [];
   }
 
+  /** 确保所有表结构存在（幂等，仅创建不存在的表） */
   private async ensureSchema(): Promise<void> {
     const statements = [
       `CREATE TABLE IF NOT EXISTS users (
@@ -187,6 +201,7 @@ export class PostgresStorage implements IStorage {
     }
   }
 
+  /** 创建索引 + 补充历史迁移字段 */
   private async ensureIndexes(): Promise<void> {
     const sqls = [
       `CREATE INDEX IF NOT EXISTS idx_routes_user_created ON routes(user_id, updated_at DESC)`,
@@ -204,6 +219,7 @@ export class PostgresStorage implements IStorage {
     }
   }
 
+  /** 确保用户存在（幂等插入） */
   private async ensureUser(userId: string): Promise<void> {
     await pgPool!.query(
       `INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`,
@@ -237,6 +253,11 @@ export class PostgresStorage implements IStorage {
     };
   }
 
+  /**
+   * 创建或更新路线
+   * - 首次创建：插入 routes + route_versions，返回克隆对象
+   * - 已存在：校验用户归属和版本冲突，追加新版本快照并更新 payload
+   */
   async createRoute(route: Route, ctx: RouteContext = {}): Promise<Route | null> {
     const expectedVersion =
       Number.isFinite(Number(ctx.expectedVersion)) ? Number(ctx.expectedVersion) : null;
@@ -395,6 +416,12 @@ export class PostgresStorage implements IStorage {
     return this.mapSessionDbRow(row);
   }
 
+  /**
+   * 上报位置点（事务操作）
+   * - 校验会话状态（必须 running/created）
+   * - 追加到 run_location_events（完整历史）
+   * - 更新 run_sessions 的 location_sample/actual_path（环形缓冲，最多 200 条）
+   */
   async appendLocation(
     sessionId: string,
     point: GeoPoint,
@@ -421,6 +448,7 @@ export class PostgresStorage implements IStorage {
       }
       const sessionRow = rows.rows[0] as Record<string, unknown>;
       if (userId && sessionRow.user_id !== userId) {
+        await client.query('ROLLBACK');
         await client.query('ROLLBACK');
         return {
           session: this.mapSessionDbRow(sessionRow as unknown as SessionDbRow),
@@ -481,6 +509,11 @@ export class PostgresStorage implements IStorage {
     }
   }
 
+  /**
+   * 更新会话（事务操作）
+   * - 支持部分字段更新（状态、指标、轨迹、元数据等）
+   * - 自动递增版本号，更新 updated_at/last_state_at
+   */
   async updateSession(
     sessionId: string,
     payload: Partial<Session>,

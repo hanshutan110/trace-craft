@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Heart,
   Activity,
@@ -23,13 +23,21 @@ import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
 import { useToast } from './common/Toast';
 import { BottomNavBar } from './common/BottomNavBar';
-import { getCurrentUserProfile, updateUserSettings, type UserProfile, type UserSettings } from '../api/user';
+import { API_BASE } from '../api/client';
+import { logout } from '../api/auth';
+import { clearUserCache, createUserQrCard, getCurrentUserProfile, submitUserFeedback, updateUserProfile, updateUserSettings, uploadUserAsset, type UserProfile, type UserSettings } from '../api/user';
 
 function providerLabel(provider: string, text: (cn: string, en: string) => string): string {
   if (provider === 'wechat') return text('已绑定微信', 'WeChat linked');
   if (provider === 'alipay') return text('已绑定支付宝', 'Alipay linked');
   if (provider === 'phone') return text('已绑定手机号', 'Phone linked');
   return text('游客账号', 'Guest account');
+}
+
+function assetUrl(url: string | undefined): string {
+  if (!url) return '';
+  if (/^https?:\/\//.test(url)) return url;
+  return `${API_BASE.replace(/\/api$/, '')}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
 /* ==========================================
@@ -50,6 +58,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { showToast } = useToast();
   const [showQRModal, setShowQRModal] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showProfileEditModal, setShowProfileEditModal] = useState(false);
+  const [qrSaving, setQrSaving] = useState(false);
+  const [profileNameDraft, setProfileNameDraft] = useState('');
+  const [profileSignatureDraft, setProfileSignatureDraft] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [feedbackContent, setFeedbackContent] = useState('');
+  const [feedbackContact, setFeedbackContact] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     getCurrentUserProfile()
@@ -64,6 +83,93 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     completedRuns: 0,
     favoriteCount: 0,
   };
+
+  async function handleAvatarFile(file: File | undefined): Promise<void> {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast(text('请选择图片文件', 'Choose an image file'));
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const result = await uploadUserAsset(file, 'avatar');
+      if (result.profile) setProfile(result.profile);
+      showToast(text('头像已更新', 'Avatar updated'));
+    } catch {
+      showToast(text('头像上传失败，请稍后重试', 'Avatar upload failed. Try again later.'));
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  }
+
+  async function handleSubmitFeedback(): Promise<void> {
+    const content = feedbackContent.trim();
+    if (content.length < 3) {
+      showToast(text('请填写反馈内容', 'Please enter feedback'));
+      return;
+    }
+    setFeedbackSubmitting(true);
+    try {
+      await submitUserFeedback({
+        content,
+        contact: feedbackContact.trim(),
+        category: 'general',
+      });
+      setFeedbackContent('');
+      setFeedbackContact('');
+      setShowFeedbackModal(false);
+      showToast(text('反馈已提交', 'Feedback submitted'));
+    } catch {
+      showToast(text('反馈提交失败，请稍后重试', 'Feedback failed. Try again later.'));
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }
+
+  function openProfileEdit(): void {
+    setProfileNameDraft(profile?.displayName || '');
+    setProfileSignatureDraft(profile?.signature || '');
+    setShowProfileEditModal(true);
+  }
+
+  async function handleSaveProfile(): Promise<void> {
+    const displayName = profileNameDraft.trim();
+    const signature = profileSignatureDraft.trim();
+    if (!displayName || !signature) {
+      showToast(text('昵称和签名不能为空', 'Name and signature are required'));
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      const nextProfile = await updateUserProfile({ displayName, signature });
+      setProfile(nextProfile);
+      setShowProfileEditModal(false);
+      showToast(text('个人资料已更新', 'Profile updated'));
+    } catch {
+      showToast(text('个人资料保存失败，请稍后重试', 'Profile update failed. Try again later.'));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function handleSaveQrCard(): Promise<void> {
+    setQrSaving(true);
+    try {
+      const asset = await createUserQrCard();
+      const link = document.createElement('a');
+      link.href = assetUrl(asset.url);
+      link.download = 'tracecraft-runner-card.webp';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast(text('跑者名片已生成并开始下载', 'Runner card generated and downloading'));
+    } catch {
+      showToast(text('跑者名片生成失败，请稍后重试', 'Runner card generation failed. Try again later.'));
+    } finally {
+      setQrSaving(false);
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-full bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_24%,#eef7ff_100%)] text-slate-800 select-none relative pb-[calc(96px+env(safe-area-inset-bottom))]">
@@ -86,11 +192,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               
               {/* Profile Avatar with clickable edit indicator */}
               <div 
-                onClick={() => showToast(text('上传个人照片头像功能正在建设中', 'Profile photo upload is under construction'))}
+                onClick={() => avatarInputRef.current?.click()}
                 className="w-16 h-16 rounded-full bg-slate-100 border-2 border-slate-200/60 relative cursor-pointer group-hover:border-[#00F2FE]/50 transition-colors flex items-center justify-center shrink-0 overflow-hidden"
               >
-                {/* Running avatar graphic */}
-                <span className="text-2xl">🏃‍♂️</span>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(event) => void handleAvatarFile(event.target.files?.[0])}
+                />
+                {profile?.avatarUrl ? (
+                  <img src={assetUrl(profile.avatarUrl)} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-2xl">🏃‍♂️</span>
+                )}
+                {avatarUploading && (
+                  <div className="absolute inset-0 bg-slate-900/45 text-[10px] font-bold text-white flex items-center justify-center">
+                    {text('上传中', 'Uploading')}
+                  </div>
+                )}
                 
                 {/* Mini Edit Camera overlay */}
                 <div className="absolute bottom-0 right-0 w-5 h-5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] text-white rounded-full flex items-center justify-center border border-white shrink-0">
@@ -101,7 +222,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               {/* Text Info */}
               <div>
                 <h3 className="text-[18px] font-black text-slate-800 flex items-center gap-1">
-                <span>{profile?.displayName || t('profile.nickname', '跑者小明')}</span>
+                <button onClick={openProfileEdit} className="text-left hover:text-[#4FACFE] transition-colors">
+                  {profile?.displayName || t('profile.nickname', '跑者小明')}
+                </button>
                   <span className="text-[9px] font-bold bg-[#4FACFE]/10 text-[#4FACFE] px-1.5 py-0.5 rounded-full">{profile?.badge || t('profile.badge', '中级达人')}</span>
                 </h3>
                 <p className="text-[12px] text-slate-400 mt-1 font-mono">ID: {profile?.userId || '...'}</p>
@@ -122,7 +245,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           {/* Slogan Quote Bottom line inside card */}
           <div className="pt-2 px-1 flex items-center justify-between text-[11px] text-slate-400 font-medium">
             <span>{profile?.signature || t('profile.signature', '个性签名: 用汗水在水泥地上书写画作')}</span>
-            <span className="text-[#00F2FE]/90 font-bold hover:underline cursor-pointer" onClick={() => showToast(t('profile.signature_edit_toast', '个性签名修改'))}>{t('profile.edit', '修改')}</span>
+            <button className="text-[#00F2FE]/90 font-bold hover:underline cursor-pointer" onClick={openProfileEdit}>{t('profile.edit', '修改')}</button>
           </div>
         </div>
 
@@ -235,7 +358,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
             {/* Item 6 - Feedback help */}
             <div 
-              onClick={() => showToast(text('欢迎发送您的宝贵反馈至 hanshutan110@gmail.com', 'Send your feedback to hanshutan110@gmail.com'))}
+              onClick={() => setShowFeedbackModal(true)}
               className="flex items-center justify-between py-3.5 px-4 active:bg-gray-55/60 transition-colors cursor-pointer"
             >
               <div className="flex items-center space-x-3 text-slate-700">
@@ -251,7 +374,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <div className="text-center py-2 mb-4">
           <button 
             id="btn_logout_action"
-            onClick={() => {
+            onClick={async () => {
+              await logout().catch(() => undefined);
               onNavigate('login');
             }}
             className="text-[14px] font-bold text-slate-400 hover:text-red-400 active:scale-95 transition-all px-6 py-2.5 rounded-full"
@@ -268,6 +392,82 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         activeNavbarTab={activeNavbarTab}
         setActiveNavbarTab={setActiveNavbarTab}
       />
+
+      {showFeedbackModal && (
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-end justify-center z-40">
+          <div className="w-full bg-white rounded-t-[28px] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[15px] font-black text-slate-800">{t('profile.item.feedback', '帮助与反馈')}</h3>
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center active:scale-95"
+              >
+                ✕
+              </button>
+            </div>
+            <textarea
+              value={feedbackContent}
+              onChange={(event) => setFeedbackContent(event.target.value)}
+              maxLength={2000}
+              rows={5}
+              className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[14px] text-slate-700 outline-none focus:border-[#4FACFE]"
+              placeholder={text('请描述遇到的问题或建议', 'Describe the issue or suggestion')}
+            />
+            <input
+              value={feedbackContact}
+              onChange={(event) => setFeedbackContact(event.target.value)}
+              maxLength={160}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[14px] text-slate-700 outline-none focus:border-[#4FACFE]"
+              placeholder={text('联系方式（选填）', 'Contact (optional)')}
+            />
+            <button
+              onClick={() => void handleSubmitFeedback()}
+              disabled={feedbackSubmitting}
+              className="w-full h-12 rounded-full bg-[#4FACFE] text-white text-[14px] font-extrabold active:scale-98 disabled:opacity-60"
+            >
+              {feedbackSubmitting ? text('提交中...', 'Submitting...') : text('提交反馈', 'Submit Feedback')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showProfileEditModal && (
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex items-end justify-center z-40">
+          <div className="w-full bg-white rounded-t-[28px] p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[15px] font-black text-slate-800">{text('编辑个人资料', 'Edit Profile')}</h3>
+              <button
+                onClick={() => setShowProfileEditModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center active:scale-95"
+              >
+                ✕
+              </button>
+            </div>
+            <input
+              value={profileNameDraft}
+              onChange={(event) => setProfileNameDraft(event.target.value)}
+              maxLength={48}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[14px] text-slate-700 outline-none focus:border-[#4FACFE]"
+              placeholder={text('昵称', 'Nickname')}
+            />
+            <textarea
+              value={profileSignatureDraft}
+              onChange={(event) => setProfileSignatureDraft(event.target.value)}
+              maxLength={120}
+              rows={3}
+              className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[14px] text-slate-700 outline-none focus:border-[#4FACFE]"
+              placeholder={text('个性签名', 'Signature')}
+            />
+            <button
+              onClick={() => void handleSaveProfile()}
+              disabled={profileSaving}
+              className="w-full h-12 rounded-full bg-[#4FACFE] text-white text-[14px] font-extrabold active:scale-98 disabled:opacity-60"
+            >
+              {profileSaving ? text('保存中...', 'Saving...') : text('保存资料', 'Save Profile')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Overlay modal for Personal QR Code display */}
       {showQRModal && (
@@ -340,10 +540,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </div>
 
             <button
-              onClick={() => showToast(text('跑者名片截图已保存至本地相册', 'Runner card screenshot saved to your photo library'))}
-              className="w-full py-2.5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0"
+              onClick={() => void handleSaveQrCard()}
+              disabled={qrSaving}
+              className="w-full py-2.5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0 disabled:opacity-60"
             >
-              {t('profile.save_qr', '保存至系统相册')}
+              {qrSaving ? text('生成中...', 'Generating...') : t('profile.save_qr', '保存至系统相册')}
             </button>
           </div>
         </div>
@@ -371,6 +572,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
   const [mapStyleStyle, setMapStyleStyle] = useState<'light' | 'satellite'>('light');
   const [lineWeightThickness, setLineWeightThickness] = useState<'mid' | 'thick' | 'thin'>('mid');
   const [cacheMemoryMB, setCacheMemoryMB] = useState(128);
+  const [cacheClearing, setCacheClearing] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const [showLanguageSheet, setShowLanguageSheet] = useState(false);
@@ -396,16 +598,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
       .catch(() => showToast(text('设置保存失败，请稍后重试', 'Failed to save settings')));
   };
 
-  const clearCacheAction = () => {
+  const clearCacheAction = async () => {
     if (cacheMemoryMB === 0) {
       showToast(text('缓存已被完全清空，无需二次清除', 'Cache has already been cleared'));
       return;
     }
     showToast(text('正在为您深度清扫文件及地图轨迹图缓存...', 'Clearing files and route cache...'));
-    setTimeout(() => {
+    setCacheClearing(true);
+    try {
+      const result = await clearUserCache();
       setCacheMemoryMB(0);
-      showToast(text('128MB 缓存数据清除成功！', '128 MB cache cleared successfully'));
-    }, 1000);
+      showToast(text(`已清理 ${result.removedAssets} 条缓存资源`, `${result.removedAssets} cached assets cleared`));
+    } catch {
+      showToast(text('缓存清理失败，请稍后重试', 'Cache clear failed. Try again later.'));
+    } finally {
+      setCacheClearing(false);
+    }
   };
 
   return (
@@ -667,10 +875,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
           </span>
           <button
             id="btn_clear_cache"
-            onClick={clearCacheAction}
-            className="text-[12.5px] font-extrabold text-[#4FACFE] mt-2 border border-[#4FACFE]/20 hover:bg-teal-50 px-5 py-2 rounded-full active:scale-95 transition-all outline-none"
+            onClick={() => void clearCacheAction()}
+            disabled={cacheClearing}
+            className="text-[12.5px] font-extrabold text-[#4FACFE] mt-2 border border-[#4FACFE]/20 hover:bg-teal-50 px-5 py-2 rounded-full active:scale-95 transition-all outline-none disabled:opacity-60"
           >
-            {t('settings.clear_cache', '清除缓存')}
+            {cacheClearing ? text('清理中...', 'Clearing...') : t('settings.clear_cache', '清除缓存')}
           </button>
         </div>
 

@@ -8,7 +8,10 @@ import { apiGet, apiPost, apiRequest } from './client';
 
 // ===== 定位 =====
 
-/** 获取当前 GPS 位置，失败时抛出 location_required 错误 */
+/**
+ * 获取当前 GPS 定位点
+ * 使用浏览器 Geolocation API，高精度模式，超时 3.5 秒
+ */
 export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: number | null }> {
   if (!navigator.geolocation) throw new Error('location_required');
 
@@ -35,7 +38,7 @@ export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: nu
 
 // ===== 路线创建 =====
 
-/** 通过模板形状创建路线（自动获取当前位置作为起点） */
+/** 从模板图形创建路线（默认高德服务商） */
 export async function createTemplateRoute(shapeType: string, targetKm: number = 5): Promise<GeneratedRoute> {
   const current = await getCurrentPoint();
   const payload = await apiPost<{ route?: GeneratedRoute }>('/routes/from-template', {
@@ -49,7 +52,7 @@ export async function createTemplateRoute(shapeType: string, targetKm: number = 
   return payload.route;
 }
 
-/** 通过上传图片创建路线（提取图片轮廓生成路线） */
+/** 从上传图片创建路线（FormData 上传，支持 targetKm/startPoint/currentAccuracy） */
 export async function createImageRoute(file: File, targetKm: number = 5): Promise<GeneratedRoute> {
   const current = await getCurrentPoint();
   const body = new FormData();
@@ -71,7 +74,7 @@ export async function createImageRoute(file: File, targetKm: number = 5): Promis
 
 // ===== 路线查询 =====
 
-/** 根据 ID 获取单条路线详情 */
+/** 获取单条路线详情 */
 export function getRoute(routeId: string): Promise<GeneratedRoute> {
   return apiGet<{ route?: GeneratedRoute }>(`/routes/${encodeURIComponent(routeId)}`)
     .then((p) => {
@@ -103,9 +106,9 @@ export async function listUserRuns(options: {
   };
 }
 
-// ===== 会话管理 =====
+// ===== 会话 =====
 
-/** 开始跑步会话，返回会话 ID（支持风险确认拦截） */
+/** 开始跑步会话，返回 sessionId（支持风险确认标志） */
 export async function startRoute(routeId: string, riskConfirmed: boolean): Promise<string> {
   const payload = await apiPost<{ sessionId?: string; session?: { id?: string } }>(
     `/routes/${encodeURIComponent(routeId)}/start`,
@@ -116,7 +119,7 @@ export async function startRoute(routeId: string, riskConfirmed: boolean): Promi
   return sessionId;
 }
 
-/** 获取跑步会话实时状态 */
+/** 获取会话实时状态（进度、偏离、下一步动作等） */
 export async function getSessionState(sessionId: string): Promise<SessionState> {
   const payload = await apiGet<{ state?: SessionState }>(`/sessions/${encodeURIComponent(sessionId)}`);
   if (!payload.state) throw new Error('state_missing');
@@ -140,7 +143,7 @@ export async function reportLocation(
   return payload.routeState || null;
 }
 
-/** 结束跑步会话，返回成绩汇总数据 */
+/** 结束跑步会话，返回完成率/平均偏离等统计结果 */
 export async function finishSession(sessionId: string): Promise<FinishResult> {
   const payload = await apiPost<{ result?: FinishResult }>(
     `/sessions/${encodeURIComponent(sessionId)}/finish`,

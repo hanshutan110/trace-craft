@@ -85,7 +85,7 @@ export function storageMode(): string {
 
 // ===== 对外暴露的存储操作函数 =====
 
-/** 创建或更新路线记录（内部按 ID 幂等判断） */
+/** 创建或更新路线记录（内部按 ID 幂等判断，首次创建时自动插入） */
 export const upsertRouteRecord = async (route: Route, ctx: RouteContext): Promise<Route> => {
   const repo = await getStorage();
   const result = await repo.createRoute(route, ctx);
@@ -93,6 +93,7 @@ export const upsertRouteRecord = async (route: Route, ctx: RouteContext): Promis
   return result;
 };
 
+/** 查询路线记录（按 ID 查询，可选用户权限校验） */
 export const getRouteRecord = async (routeId: string, userId: string | null): Promise<Route | null> => {
   const repo = await getStorage();
   return repo.getRoute(routeId, userId);
@@ -104,11 +105,13 @@ export const createSessionRecord = async (session: Session): Promise<Session> =>
   return repo.createSession(session);
 };
 
+/** 查询会话记录（按 ID 查询，可选用户权限校验） */
 export const getSessionRecord = async (sessionId: string, userId: string | null): Promise<Session | null> => {
   const repo = await getStorage();
   return repo.getSession(sessionId, userId);
 };
 
+/** 更新会话记录（部分更新，返回更新后的完整会话） */
 export const updateSessionRecord = async (
   sessionId: string,
   payload: Partial<Session>,
@@ -118,6 +121,7 @@ export const updateSessionRecord = async (
   return repo.updateSession(sessionId, payload, userId);
 };
 
+/** 追加上报位置点到会话轨迹（写入 run_location_events + 更新环形缓冲） */
 export const appendSessionLocationRecord = async (
   sessionId: string,
   point: GeoPoint,
@@ -127,6 +131,7 @@ export const appendSessionLocationRecord = async (
   return repo.appendLocation(sessionId, point, userId);
 };
 
+/** 分页查询用户跑步会话列表 */
 export const listUserRuns = async (query: ListRunsQuery): Promise<ListRunsResult> => {
   const repo = await getStorage();
   return repo.listUserRuns(query);

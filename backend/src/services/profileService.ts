@@ -1,14 +1,17 @@
 /**
  * TraceCraft 用户资料服务
  *
- * 提供用户画像查询、设置更新、跑步历史记录等功能
- * 统计数据从 routes / run_sessions 表实时聚合计算
+ * 职责：
+ *   - 查询/更新用户资料、设置
+ *   - 汇总跑步历史统计
+ *   - 跑步历史列表
+ *
+ * 数据来源：users 表 (metadata JSONB) + auth_identities + routes + run_sessions
  */
-
 import { initStorage } from './storage';
 import { pgPool } from './postgres-storage';
 
-/** 用户设置项 */
+/** 用户偏好设置（距离单位、语音播报、震动反馈、地图样式、线宽） */
 export interface UserSettings {
   distanceUnit: 'km' | 'mile';
   voiceBroadcast: boolean;
@@ -17,7 +20,7 @@ export interface UserSettings {
   lineWeight: 'thin' | 'mid' | 'thick';
 }
 
-/** 用户统计数据 */
+/** 用户累计统计（总距离、时长、路线数、完成次数、收藏数） */
 export interface UserStats {
   totalDistanceKm: number;
   totalDurationHours: number;
@@ -26,16 +29,6 @@ export interface UserStats {
   favoriteCount: number;
 }
 
-/** 默认用户设置 */
-const DEFAULT_SETTINGS: UserSettings = {
-  distanceUnit: 'km',
-  voiceBroadcast: true,
-  vibeDeviation: true,
-  mapStyle: 'light',
-  lineWeight: 'mid',
-};
-
-/** 规范化用户设置，确保所有字段都有合法值 */
 function normalizeSettings(value: Record<string, unknown> | undefined): UserSettings {
   return {
     distanceUnit: value?.distanceUnit === 'mile' ? 'mile' : 'km',
@@ -46,7 +39,7 @@ function normalizeSettings(value: Record<string, unknown> | undefined): UserSett
   };
 }
 
-/** 合并元数据，新字段覆盖旧字段 */
+/** 合并元数据（浅合并，patch 覆盖原有字段） */
 function mergeMetadata(metadata: Record<string, unknown> | null | undefined, patch: Record<string, unknown>): Record<string, unknown> {
   return {
     ...(metadata || {}),
@@ -54,7 +47,7 @@ function mergeMetadata(metadata: Record<string, unknown> | null | undefined, pat
   };
 }
 
-/** 确保 PostgreSQL 连接可用 */
+/** 确保 PostgreSQL 连接池已初始化 */
 async function ensurePostgres(): Promise<void> {
   await initStorage();
   if (!pgPool) {
@@ -62,10 +55,7 @@ async function ensurePostgres(): Promise<void> {
   }
 }
 
-/**
- * 获取用户完整画像
- * 包含：基本信息、认证来源、用户设置、统计数据（距离/时长/路线数/完成次数）
- */
+/** 获取用户完整资料：基本信息 + 统计数据 + 设置 */
 export async function getUserProfile(userId: string): Promise<Record<string, unknown>> {
   await ensurePostgres();
   await pgPool!.query(
@@ -127,7 +117,7 @@ export async function getUserProfile(userId: string): Promise<Record<string, unk
   };
 }
 
-/** 更新用户设置（合并模式，仅更新传入的字段） */
+/** 更新用户偏好设置（部分更新，返回更新后的完整资料） */
 export async function updateUserSettings(userId: string, patch: Partial<UserSettings>): Promise<Record<string, unknown>> {
   await ensurePostgres();
   const current = await getUserProfile(userId);
@@ -145,7 +135,7 @@ export async function updateUserSettings(userId: string, patch: Partial<UserSett
   };
 }
 
-/** 查询用户跑步历史记录，关联路线数据 */
+/** 查询用户跑步历史记录（按完成时间倒序） */
 export async function listRunHistory(userId: string, limit: number): Promise<Record<string, unknown>[]> {
   await ensurePostgres();
   const result = await pgPool!.query(

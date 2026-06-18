@@ -1,15 +1,8 @@
-/**
- * 管理后台登录页面
- *
- * 提供用户名/密码表单，登录成功后通过 onLogin 回调传递管理员信息
- */
-
 import {useState, type ReactElement} from 'react';
 import {SafetyCertificateOutlined} from '@ant-design/icons';
 import {App as AntApp, Button, Form, Input, Typography} from 'antd';
 import {login, type AdminProfile} from '../api/admin';
 
-/** 登录屏幕组件，登录成功后调用 onLogin(profile) 通知父组件 */
 export function LoginScreen({onLogin}: {onLogin: (profile: AdminProfile) => void}): ReactElement {
   const {message} = AntApp.useApp();
   const [loading, setLoading] = useState(false);

@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { errorPayload, requireAuth, successPayload } from './common';
 import {
+  getPublishedContent,
   getSearchHints,
   getTemplate,
   listFavorites,
@@ -11,6 +12,19 @@ import {
 } from '../services/discoveryService';
 
 const router = Router();
+
+router.get('/contents/:type/:key', async (req: Request, res: Response) => {
+  try {
+    const content = await getPublishedContent(String(req.params.type), String(req.params.key));
+    if (!content) {
+      return res.status(404).json(errorPayload('content not found', 'content_not_found', 404));
+    }
+    return res.json(successPayload({ content }));
+  } catch (err) {
+    console.error('[contents:get]', err);
+    return res.status(500).json(errorPayload('get content failed', 'content_failed', 500));
+  }
+});
 
 router.get('/templates', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -24,7 +38,7 @@ router.get('/templates', requireAuth, async (req: Request, res: Response) => {
 
 router.get('/templates/:templateId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const template = await getTemplate(String(req.params.templateId));
+    const template = await getTemplate(String(req.params.templateId), req.userId!);
     if (!template) {
       return res.status(404).json(errorPayload('template not found', 'template_not_found', 404));
     }
@@ -56,14 +70,16 @@ router.post('/favorites', requireAuth, async (req: Request, res: Response) => {
     return res.json(successPayload({ favorited: true }));
   } catch (err) {
     console.error('[favorites:set]', err);
-    return res.status(500).json(errorPayload('set favorite failed', 'favorite_set_failed', 500));
+    const message = err instanceof Error ? err.message : 'favorite_set_failed';
+    const status = message === 'favorite_target_not_found' ? 404 : message === 'invalid_favorite_target_type' ? 400 : 500;
+    return res.status(status).json(errorPayload(status === 500 ? 'set favorite failed' : message, status === 500 ? 'favorite_set_failed' : message, status));
   }
 });
 
 router.delete('/favorites/:targetType/:targetId', requireAuth, async (req: Request, res: Response) => {
   try {
-    await removeFavorite(req.userId!, String(req.params.targetType), String(req.params.targetId));
-    res.json(successPayload({ favorited: false }));
+    const removed = await removeFavorite(req.userId!, String(req.params.targetType), String(req.params.targetId));
+    res.json(successPayload({ favorited: false, removed }));
   } catch (err) {
     console.error('[favorites:remove]', err);
     res.status(500).json(errorPayload('remove favorite failed', 'favorite_remove_failed', 500));

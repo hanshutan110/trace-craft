@@ -1,28 +1,27 @@
-/**
- * TraceCraft 发现/搜索服务模块
- *
- * 提供模板查询、收藏管理、搜索建议、全局搜索等功能
- */
-
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
-import { safeJsonParse } from '../utils/json';
 
-/** 确保数据库连接可用，否则抛出异常 */
 function requireDb(): void {
   if (!pgPool) {
     throw new Error('postgres_not_configured');
   }
 }
 
-/** 将数值限制在合法范围内 */
 function normalizeLimit(value: unknown, fallback: number = 30, max: number = 100): number {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   return Math.max(1, Math.min(max, Math.floor(num)));
 }
 
-/** 搜索关键词别名映射，提升中文搜索体验 */
+function parseJson<T>(value: T): T {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return value;
+  }
+}
+
 function searchTerms(keyword: string): string[] {
   const normalized = keyword.toLowerCase();
   const aliases: Record<string, string[]> = {
@@ -40,7 +39,6 @@ function searchTerms(keyword: string): string[] {
   return Array.from(new Set(terms.map((term) => `%${term.toLowerCase()}%`)));
 }
 
-/** 确保用户记录存在（幂等插入） */
 async function ensureUser(userId: string): Promise<void> {
   await pgPool!.query(
     `INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`,
@@ -48,7 +46,6 @@ async function ensureUser(userId: string): Promise<void> {
   );
 }
 
-/** 路线模板数据结构 */
 export interface RouteTemplateItem {
   id: string;
   templateCode: string;
@@ -65,7 +62,6 @@ export interface RouteTemplateItem {
   sortOrder: number;
 }
 
-/** 用户收藏项数据结构 */
 export interface FavoriteItem {
   id: string;
   targetType: string;
@@ -74,7 +70,6 @@ export interface FavoriteItem {
   template?: RouteTemplateItem;
 }
 
-/** 搜索结果项数据结构 */
 export interface SearchResultItem {
   id: string;
   type: 'route' | 'template' | 'user';
@@ -95,8 +90,8 @@ function mapTemplate(row: Record<string, unknown>): RouteTemplateItem {
     category: String(row.category),
     shapeType: String(row.shape_type),
     distanceKm: Number(row.distance_km || 0),
-    previewPayload: safeJsonParse(row.preview_payload || {}) as Record<string, unknown>,
-    generationPayload: safeJsonParse(row.generation_payload || {}) as Record<string, unknown>,
+    previewPayload: parseJson(row.preview_payload || {}) as Record<string, unknown>,
+    generationPayload: parseJson(row.generation_payload || {}) as Record<string, unknown>,
     usageCount: Number(row.usage_count || 0),
     favoriteCount: Number(row.favorite_count || 0),
     isFeatured: Boolean(row.is_featured),
@@ -269,7 +264,7 @@ export async function searchAll(userId: string, query: string, scope: string, li
       [likes, userId, limit]
     );
     results.push(...rows.rows.map((row) => {
-      const payload = safeJsonParse(row.payload || {}) as Record<string, unknown>;
+      const payload = parseJson(row.payload || {}) as Record<string, unknown>;
       const shapeType = String(payload.shapeType || 'route');
       const distanceM = Number(payload.actualDistanceM || (payload.meta as Record<string, unknown> | undefined)?.distanceM || 0);
       return {

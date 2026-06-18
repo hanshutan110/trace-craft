@@ -121,6 +121,8 @@ router.post('/routes/from-template', requireAuth, async (req: Request, res: Resp
     const route = await createRouteFromTemplate({
       userId: req.userId ?? null,
       shapeType: typeof body.shapeType === 'string' ? body.shapeType : 'star',
+      templateId: typeof body.templateId === 'string' ? body.templateId : null,
+      templateCode: typeof body.templateCode === 'string' ? body.templateCode : null,
       provider: body.provider,
       locale: body.locale,
       targetKm: Number(body.targetKm),

@@ -89,4 +89,14 @@ router.post('/auth/phone-login', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/auth/logout', (_req: Request, res: Response) => {
+  res.clearCookie('tc_user_token', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+  });
+  return res.json(successPayload({ loggedOut: true }));
+});
+
 export default router;

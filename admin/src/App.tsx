@@ -46,15 +46,8 @@ import {ModuleForm} from './components/ModuleForm';
 
 const {Header, Sider, Content} = Layout;
 
-/** 空分页器默认值 */
 const emptyPager = {page: 1, limit: 10, total: 0};
 
-/**
- * 管理后台主组件
- *
- * 包含：侧边栏导航、内容列表、搜索过滤、新增/编辑抽屉
- * 支持用户/内容/模板三大模块的统一管理
- */
 function App(): ReactElement | null {
   const {message} = AntApp.useApp();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
@@ -72,7 +65,6 @@ function App(): ReactElement | null {
 
   const meta = moduleMeta[module];
 
-  /** 并发加载列表数据和角色列表 */
   async function load(next = {page: pager.page, limit: pager.limit}): Promise<void> {
     setLoading(true);
     try {
@@ -107,7 +99,6 @@ function App(): ReactElement | null {
     }
   }, [profile, module]);
 
-  /** 根据当前模块动态生成表格列定义 */
   const columns = useMemo<ColumnsType<ModuleItem>>(() => {
     const actionText = module === 'users' ? '禁用' : module === 'contents' ? '归档' : '停用';
     const actionColumn = {
@@ -180,7 +171,6 @@ function App(): ReactElement | null {
     ];
   }, [module, roles]);
 
-  /** 打开新增表单抽屉，按模块设置默认值 */
   function openCreate(): void {
     setEditing(null);
     form.resetFields();
@@ -196,7 +186,6 @@ function App(): ReactElement | null {
     setDrawerOpen(true);
   }
 
-  /** 打开编辑表单抽屉，填充已有数据 */
   function openEdit(record: ModuleItem): void {
     setEditing(record);
     form.resetFields();
@@ -204,7 +193,6 @@ function App(): ReactElement | null {
     setDrawerOpen(true);
   }
 
-  /** 确认删除（禁用/归档/停用）并刷新列表 */
   function confirmRemove(record: ModuleItem): void {
     const actionText = module === 'users' ? '禁用' : module === 'contents' ? '归档' : '停用';
     Modal.confirm({
@@ -220,7 +208,6 @@ function App(): ReactElement | null {
     });
   }
 
-  /** 保存表单：包含 JSON 校验和密码强度检查 */
   async function saveForm(): Promise<void> {
     const values = await form.validateFields();
     if (module === 'templates') {

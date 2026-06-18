@@ -28,6 +28,7 @@ const FULL_LIBRARY_TABS = [
   { id: 'holiday', label: '节日' },
 ] as const;
 
+/** 根据图形类型渲染对应图标（心形/星形/圆形/三角/方形） */
 function templateIcon(shapeType: string, size: number = 40) {
   if (shapeType === 'heart') return <Heart size={size} className="fill-white stroke-none text-white/95" />;
   if (shapeType === 'star') return <Star size={size} className="fill-white stroke-none text-white/95" />;
@@ -37,6 +38,7 @@ function templateIcon(shapeType: string, size: number = 40) {
   return <span className="font-bold text-white text-base">{shapeType.slice(0, 1).toUpperCase()}</span>;
 }
 
+/** 获取图形对应的渐变色背景（CSS linear-gradient） */
 function templateGradient(shapeType: string): string {
   const gradients: Record<string, string> = {
     heart: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)',
@@ -49,6 +51,7 @@ function templateGradient(shapeType: string): string {
   return gradients[shapeType] || 'linear-gradient(135deg, #64748B 0%, #0F766E 100%)';
 }
 
+/** 获取图形对应的 Tailwind 渐变 class */
 function templateClassGradient(shapeType: string): string {
   const gradients: Record<string, string> = {
     heart: 'from-[#FF758C] to-[#FF7EB3]',
@@ -61,6 +64,7 @@ function templateClassGradient(shapeType: string): string {
   return gradients[shapeType] || 'from-slate-500 to-teal-700';
 }
 
+/** 将模板项的 shapeType 映射为内部支持的图形 ID */
 function templateToShapeId(template: RouteTemplateItem): string {
   return ['circle','triangle','star','square','heart','hexagon'].includes(template.shapeType) ? template.shapeType : 'star';
 }
@@ -81,7 +85,7 @@ export const QuickTemplateScreen: React.FC<QuickTemplateScreenProps> = ({
   onGenerateTemplateRoute,
   onUploadImageRoute,
 }) => {
-  const { t, text } = useI18n();
+  const { t } = useI18n();
   const [templates, setTemplates] = useState<RouteTemplateItem[]>([]);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const cards = templates.slice(0, 6).map((item) => ({
@@ -216,14 +220,13 @@ interface FullLibraryScreenProps {
   onNavigate: (screen: ScreenId) => void;
   onSelectShape: (shapeId: string) => void;
   onGenerateTemplateRoute: (shapeId: string, targetKm?: number) => Promise<void>;
-  onUploadImageRoute: (file: File) => Promise<void>;
 }
 
+/** 预设图形选择页：分类浏览模板，点击即生成路线 */
 export const FullLibraryScreen: React.FC<FullLibraryScreenProps> = ({
   onNavigate,
   onSelectShape,
   onGenerateTemplateRoute,
-  onUploadImageRoute,
 }) => {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'base' | 'recommend' | 'animal' | 'text' | 'holiday'>('base');

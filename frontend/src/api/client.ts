@@ -7,8 +7,10 @@
  *   - apiGet / apiPost / apiPut / apiDelete：常用 HTTP 方法快捷函数
  */
 
+/** API 基址：从 Vite 环境变量 VITE_API_BASE_URL 读取，默认指向本地开发服务器 */
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
+/** API 响应载荷基类（ok 可选，兼容各接口自定义返回结构） */
 interface ApiPayload {
   ok?: boolean;
   error?: string;
@@ -16,7 +18,10 @@ interface ApiPayload {
   [key: string]: unknown;
 }
 
-/** 统一解析响应：检查 HTTP 状态和 ok 标记，失败时抛出带错误码的 Error */
+/**
+ * 统一解析响应：检查 HTTP 状态和 ok 标记
+ * - HTTP 状态非 2xx 或 payload.ok 为 false 时抛出带错误码的 Error
+ */
 export async function parseApiResponse<T extends ApiPayload>(response: Response): Promise<T> {
   const payload = (await response.json()) as T;
   if (!response.ok || !payload.ok) {
@@ -25,7 +30,11 @@ export async function parseApiResponse<T extends ApiPayload>(response: Response)
   return payload;
 }
 
-/** 底层请求封装：自动附加 credentials，按 body 类型注入 Content-Type */
+/**
+ * 底层请求封装
+ * - 自动附加 credentials: 'include'（携带 HttpOnly Cookie）
+ * - 非 FormData 请求自动注入 Content-Type: application/json
+ */
 export async function apiRequest<T extends ApiPayload>(
   path: string,
   init: RequestInit = {},
@@ -41,10 +50,12 @@ export async function apiRequest<T extends ApiPayload>(
   return parseApiResponse<T>(response);
 }
 
+/** GET 请求快捷方法 */
 export function apiGet<T extends ApiPayload>(path: string): Promise<T> {
   return apiRequest<T>(path);
 }
 
+/** POST 请求快捷方法（支持 JSON 和 FormData） */
 export function apiPost<T extends ApiPayload>(path: string, body: unknown = {}): Promise<T> {
   return apiRequest<T>(path, {
     method: 'POST',
@@ -52,6 +63,7 @@ export function apiPost<T extends ApiPayload>(path: string, body: unknown = {}):
   });
 }
 
+/** PUT 请求快捷方法 */
 export function apiPut<T extends ApiPayload>(path: string, body: unknown = {}): Promise<T> {
   return apiRequest<T>(path, {
     method: 'PUT',
@@ -59,6 +71,7 @@ export function apiPut<T extends ApiPayload>(path: string, body: unknown = {}): 
   });
 }
 
+/** DELETE 请求快捷方法 */
 export function apiDelete<T extends ApiPayload>(path: string): Promise<T> {
   return apiRequest<T>(path, { method: 'DELETE' });
 }

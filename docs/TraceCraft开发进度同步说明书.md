@@ -1,8 +1,8 @@
 # TraceCraft 开发进度同步说明书
 
-**版本**：V1.8
-**适用范围**：TraceCraft 单仓项目（backend + frontend + shared + docs）
-**更新时间**：2026-06-17
+**版本**：V1.9
+**适用范围**：TraceCraft 单仓项目（backend + frontend + admin + shared + docs）
+**更新时间**：2026-06-18
 
 ## 1. 目的
 
@@ -123,7 +123,60 @@
 3. 标注下周高优先级两项
 4. 列出阻塞项及处理建议
 
-## 11. 最新进度表（2026-06-17）
+## 11. 最新进度表（2026-06-18）
+
+### 本次同步目标（全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
+
+1. 后端存储层、认证体系、工具函数全面优化
+2. 前端统一 API 客户端，消除重复代码，清理死代码
+3. 管理后台语义重命名 + 安全加固
+4. 全项目未使用导入/变量/导出检索并删除
+5. 关键文件补充中文注释，提高代码可读性
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 后端 | `postgres-storage.ts` CJS→ESM、`null!`修复、`appendLocation`环形缓冲(200条) | 已完成 | 防止 locationSample/actualPath 无限增长 |
+| 后端 | `storage.ts` 接口契约修复：`createRoute`返回`Route\|null`、包装层抛错 | 已完成 | `shared/types.ts` 同步更新 IStorage |
+| 后端 | `index.ts` 添加全局错误处理中间件（CORS + 500 兆底） | 已完成 | 未捕获异常不再崩溃 |
+| 后端 | 统一 `newId`：4处重复实现→`utils/id.ts` | 已完成 | routeService/authService/communityService/discoveryService |
+| 后端 | `.env.example` AMAP_KEY 替换为占位符 | 已完成 | 安全保护 |
+| 后端 | `routeService.ts` 删除未使用导入(`latLngCentroid`/`RouteContext`)、未使用函数(`toPositiveNumber`)、未使用导出(`SessionStatusType`) | 已完成 | 零新增错误 |
+| 后端 | `profileService.ts` 删除未使用常量 `DEFAULT_SETTINGS` | 已完成 | |
+| 后端 | `storage.ts` 删除未使用导出(`createRouteRecord`/`normalizePoints`) | 已完成 | |
+| 后端 | 关键文件中文注释增强(`routeService`/`postgres-storage`/`storage`/`profileService`/`shareService`) | 已完成 | 60+ 处函数/接口注释 |
+| 前端 | 创建统一 `api/client.ts`，消除 5 个 API 文件的 `API_BASE`/`authHeaders`/`parsePayload` 重复 | 已完成 | `apiGet/apiPost/apiPut/apiDelete` |
+| 前端 | `auth.ts` 清理 token 死代码（`getAuthToken`等） | 已完成 | 认证完全依赖 HttpOnly Cookie |
+| 前端 | `routes.ts` `listUserRuns` 支持分页参数 | 已完成 | 返回 `{runs,total,page,limit}` |
+| 前端 | 所有 5 个 api 文件迁移到统一 client | 已完成 | routes/auth/user/community/discovery |
+| 前端 | 删除 `routes.ts` 未使用 `API_BASE` 导入、`HomeExtraScreens.tsx` 未使用 `text`/`onUploadImageRoute` | 已完成 | |
+| 前端 | 关键文件中文注释增强（client/routes/auth/user/community/discovery） | 已完成 | 80+ 处函数/接口注释 |
+| 管理后台 | `admin.ts` `saveAdminToken`→`markAdminLoggedIn` 语义重命名 + JSON.parse try-catch | 已完成 | |
+| 管理后台 | `App.tsx` 清理 eslint-disable 死注释 | 已完成 | |
+| 管理后台 | 删除未使用 `ContentItem`/`TemplateItem` 类型重导出 | 已完成 | |
+| 管理后台 | 中文注释增强（API 客户端、CRUD 操作、登录态管理） | 已完成 | 20+ 处注释 |
+| 跨模块 | 清理所有 ESLint disable 残留注释 | 已完成 | |
+
+### 已验证证据
+
+| 验证项 | 结果 |
+| --- | --- |
+| `backend npx tsc --noEmit` | 通过（6 个预存未实现导入错误，非本次引入） |
+| `frontend npx tsc --noEmit` | 通过（12 个预存未实现导入/类型错误，非本次引入） |
+| `admin npx tsc --noEmit` | 通过（2 个预存配置错误，非本次引入） |
+| 新增编译错误 | 0 |
+
+### 当前风险/待处理
+
+| 模块 | 待办 | 目标日期 | 风险 |
+| --- | --- | --- | --- |
+| 前端 | `ProfileAndSettings.tsx` 引用 6 个未实现的 API 函数(logout/clearUserCache等) | 内测前 | 中 |
+| 前端 | `NavigationAndEditor.tsx` 引用 `pauseSession`/`resumeSession` 未实现 | 内测前 | 中 |
+| 后端 | `communityApi`/`discoveryApi`/`userApi` 引用未实现的 Service 函数 | 内测前 | 中 |
+| 前端 | `App.tsx` 错误信息接入 i18n（需重构 Provider 层级） | 内测前 | 低 |
+
+## 12. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
 
 ### 本次同步目标（管理后台 React + Ant Design 改造）
 
@@ -165,7 +218,7 @@
 | 删除策略 | 后台 `DELETE` 从物理删除调整为软删除或二次确认策略 | 内测前 | 中 |
 | 社区审核 | 社区帖子审核、举报工单接入后台页面 | 内测前 | 中 |
 
-## 12. 历史进度表（2026-06-17）
+## 13. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
 
 ### 本次同步目标（数据库接入 + 用户数据页真实化 + 后续表结构预建）
 
@@ -256,7 +309,7 @@
 - 技术决策：暂不接 OSS；图片上传仅在请求处理中临时读取，业务持久化统一进入 PostgreSQL，不再使用 `state.json` 文件态存储。
 - 下一步建议：优先补真实第三方授权、文件存储、后台管理员鉴权和社区审核操作。
 
-## 13. 历史进度表（2026-06-16）
+## 14. 历史进度表（2026-06-16，路线预览地图真实化）
 
 ### 本次同步目标（路线预览地图真实化 + UX 增强）
 
@@ -297,7 +350,7 @@
 - 技术决策：选用 Leaflet（轻量、免费、无需 API Key）而非 AMap JS SDK，降低接入成本
 - 下次同步建议：数据库连通后执行 `admin-schema.sql` 建表，验证 PostgresStorage 全链路
 
-## 14. 历史进度表（2026-06-10）
+## 15. 历史进度表（2026-06-10，前端代码审查与优化）
 
 ### 本次同步目标（前端代码审查与优化）
 
