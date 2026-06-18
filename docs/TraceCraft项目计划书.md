@@ -136,8 +136,8 @@ TraceCraft 是一款“**图片/形状转跑步路径并可实时导航的城市
 ### 4）后端
 - **Node.js + Express** 保留，原因：快速实现 API 契约、便于接入已有服务。
 - 持久化：
-  - V1：文件态持久化（已实现 state.json，避免服务重启丢失）。
-  - 后续 30 天内替换：Redis（会话） + PostgreSQL（route/run）。
+  - 当前：PostgreSQL（route/run）。
+  - 后续按需补充：Redis（会话缓存）。
 - 不再直接读/写前端文件；所有地图逻辑与会话在后端集中。
 
 ---

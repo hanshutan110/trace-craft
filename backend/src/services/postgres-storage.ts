@@ -17,7 +17,7 @@ import type {
   AppendLocationResult,
   IStorage,
 } from '../../../shared/types';
-import { normalizePoint } from './memory-storage';
+import { normalizePoint } from './geo-utils';
 
 // ===== 内部工具函数 =====
 
