@@ -105,7 +105,7 @@ npm run dev
 | 前端 | React 19 + TypeScript + Vite 6 + TailwindCSS 4 + Motion |
 | 管理后台 | React 19 + TypeScript + Vite 6 + Ant Design 5 |
 | 后端 | Node.js + Express |
-| 数据库 | PostgreSQL（核心链路已接入）；Memory 仅作本地兜底 |
+| 数据库 | PostgreSQL（唯一持久化存储，不再使用 state.json / 内存文件兜底） |
 | 地图 | 高德（国内）/ Google Maps（国际），预留百度、腾讯 |
 | 国际化 | 内置 i18n（中/英双语）|
 | 代码规范 | ESLint（`.eslintrc.cjs`），支持 JS/TS/TSX |
