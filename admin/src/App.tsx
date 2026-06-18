@@ -190,6 +190,7 @@ function App(): ReactElement | null {
 
   function openEdit(record: ModuleItem): void {
     setEditing(record);
+    form.resetFields();
     form.setFieldsValue(record);
     setDrawerOpen(true);
   }
@@ -213,6 +214,10 @@ function App(): ReactElement | null {
     const values = await form.validateFields();
     if (module === 'templates') {
       JSON.parse(values.payload || '{}');
+    }
+    if (module === 'users' && !editing && !values.password) {
+      form.setFields([{name: 'password', errors: ['请输入至少 10 位初始密码']}]);
+      return;
     }
     if (editing) {
       await updateRecord(module, editing.id, values);

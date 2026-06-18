@@ -13,7 +13,7 @@ interface AuthPayload {
   ok: boolean;
   auth?: {
     userId: string;
-    token: string;
+    token?: string;
     isNewUser: boolean;
     provider: QuickLoginProvider | 'phone';
   };
@@ -36,6 +36,14 @@ export function getAuthToken(): string | null {
   }
 }
 
+export function hasAuthSession(): boolean {
+  try {
+    return Boolean(localStorage.getItem(AUTH_STORAGE_KEYS.userId));
+  } catch {
+    return false;
+  }
+}
+
 export function getOrCreateDeviceId(): string {
   try {
     const current = localStorage.getItem(AUTH_STORAGE_KEYS.deviceId);
@@ -50,7 +58,7 @@ export function getOrCreateDeviceId(): string {
 
 export function saveAuthSession(auth: NonNullable<AuthPayload['auth']>): void {
   try {
-    localStorage.setItem(AUTH_STORAGE_KEYS.token, auth.token);
+    localStorage.removeItem(AUTH_STORAGE_KEYS.token);
     localStorage.setItem(AUTH_STORAGE_KEYS.userId, auth.userId);
     localStorage.setItem(AUTH_STORAGE_KEYS.provider, auth.provider);
   } catch {
@@ -80,6 +88,7 @@ async function parseAuthResponse(response: Response): Promise<NonNullable<AuthPa
 export async function quickLogin(provider: QuickLoginProvider): Promise<NonNullable<AuthPayload['auth']>> {
   const response = await fetch(`${API_BASE}/auth/quick-login`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       provider,
@@ -93,6 +102,7 @@ export async function quickLogin(provider: QuickLoginProvider): Promise<NonNulla
 export async function phoneLogin(phone: string, smsCode: string): Promise<NonNullable<AuthPayload['auth']>> {
   const response = await fetch(`${API_BASE}/auth/phone-login`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       phone,

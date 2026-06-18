@@ -7,6 +7,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { getMapConfig } from '../services/map-config';
+import { verifyUserToken } from '../services/token';
 
 // ===== Express Request 类型扩展 =====
 
@@ -31,33 +32,37 @@ export function buildTraceId(req: Request): string {
   return `trace-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
-/** 解析用户身份，优先 Authorization header，再回退到 body/query */
+/** 解析用户身份：只接受服务端签名 token，避免 body/query/header 冒充用户。 */
 export function parseUserId(req: Request): string | null {
-  const auth = req.headers.authorization;
-  if (typeof auth === 'string') {
-    const token = auth.replace(/^Bearer\s+/i, '').trim();
-    if (token) {
-      if (token.startsWith('user:')) {
-        return token.slice(5);
-      }
-      try {
-        const decoded = Buffer.from(token, 'base64').toString('utf8');
-        return decoded.startsWith('user:') ? decoded.slice(5) : decoded;
-      } catch {
-        return token;
-      }
-    }
-  }
-  if (typeof req.headers['x-user-id'] === 'string' && req.headers['x-user-id'].trim()) {
-    return req.headers['x-user-id'].trim();
-  }
-  if (req.body && typeof req.body.userId === 'string' && req.body.userId.trim()) {
-    return req.body.userId.trim();
-  }
-  if (req.query.userId && typeof req.query.userId === 'string' && req.query.userId.trim()) {
-    return req.query.userId.trim();
+  const token = bearerToken(req) || readCookie(req, 'tc_user_token');
+  if (token) {
+    return verifyUserToken(token)?.userId || null;
   }
   return null;
+}
+
+export function bearerToken(req: Request): string | null {
+  const auth = req.headers.authorization;
+  if (typeof auth !== 'string') return null;
+  return auth.replace(/^Bearer\s+/i, '').trim() || null;
+}
+
+export function readCookie(req: Request, name: string): string | null {
+  const raw = req.headers.cookie;
+  if (typeof raw !== 'string' || !raw) return null;
+  const prefix = `${name}=`;
+  const item = raw.split(';').map((part) => part.trim()).find((part) => part.startsWith(prefix));
+  return item ? decodeURIComponent(item.slice(prefix.length)) : null;
+}
+
+export function cookieOptions(maxAgeMs: number): { httpOnly: true; sameSite: 'lax'; secure: boolean; maxAge: number; path: string } {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: maxAgeMs,
+    path: '/',
+  };
 }
 
 /** 将参数安全转换为正整数，并限制在 [min, max] 范围内 */

@@ -15,7 +15,7 @@ import { AppViewport } from './components/AppViewport';
 import { I18nProvider } from './i18n';
 import { ToastProvider } from './components/common/Toast';
 import { createImageRoute, createTemplateRoute, startRoute } from './api/routes';
-import { clearAuthSession, getAuthToken } from './api/auth';
+import { clearAuthSession, hasAuthSession } from './api/auth';
 import { miniToast } from './utils';
 
 // localStorage 持久化键名（移至组件外部，避免每次渲染重新创建）
@@ -88,7 +88,7 @@ export default function App() {
   useEffect(() => {
     try {
       const onboardingDone = localStorage.getItem(STORAGE_KEYS.onboardingDone) === '1';
-      const loggedIn = localStorage.getItem(STORAGE_KEYS.isLoggedIn) === '1' && Boolean(getAuthToken());
+      const loggedIn = localStorage.getItem(STORAGE_KEYS.isLoggedIn) === '1' && hasAuthSession();
       setHasCompletedOnboarding(onboardingDone);
       setIsLoggedIn(loggedIn);
     } catch {
@@ -209,6 +209,14 @@ export default function App() {
     navigateToScreen(screen);
   };
 
+  function routeErrorMessage(error: unknown, fallback: string): string {
+    const message = error instanceof Error ? error.message : fallback;
+    if (message === 'location_required') return '需要开启定位或授权当前位置后再生成路线';
+    if (message === 'invalid_target_distance') return '目标里程需在 1-50 公里之间';
+    if (message === 'start_point_required') return '缺少起点位置，请授权定位后重试';
+    return message;
+  }
+
   const handleGenerateTemplateRoute = useCallback(async (shapeId: string, targetKm?: number) => {
     setSelectedShapeId(shapeId);
     setActiveSessionId(null);
@@ -220,9 +228,9 @@ export default function App() {
       setGeneratedRoute(route);
       navigateToScreen('route_preview', { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'route_generation_failed';
+      const message = routeErrorMessage(error, 'route_generation_failed');
       setRouteGenerationError(message);
-      miniToast('路线生成失败，请稍后重试');
+      miniToast(message);
       navigateToScreen('home', { replace: true });
     } finally {
       setIsRouteGenerating(false);
@@ -240,9 +248,9 @@ export default function App() {
       setGeneratedRoute(route);
       navigateToScreen('route_preview', { replace: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'image_route_generation_failed';
+      const message = routeErrorMessage(error, 'image_route_generation_failed');
       setRouteGenerationError(message);
-      miniToast('图片路线生成失败，请换一张图试试');
+      miniToast(message);
       navigateToScreen('home', { replace: true });
     } finally {
       setIsRouteGenerating(false);

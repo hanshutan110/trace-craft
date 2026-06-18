@@ -94,6 +94,8 @@ const TEMPLATE_TARGET_KM: Record<string, number> = {
   heart: 4.2,
   hexagon: 4.8,
 };
+const MIN_TARGET_KM = 1;
+const MAX_TARGET_KM = 50;
 
 // ===== 工具函数 =====
 
@@ -109,6 +111,13 @@ function parsePoint(raw: unknown, fallback: GeoPoint | null = null): GeoPoint | 
   const point = normalizePoint(raw || {});
   if (point) return point;
   return fallback;
+}
+
+function normalizeTargetKm(value: unknown, fallback: number): number {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) return fallback;
+  if (normalized < MIN_TARGET_KM || normalized > MAX_TARGET_KM) throw new Error('invalid_target_distance');
+  return normalized;
 }
 
 // ===== 路线计算函数 =====
@@ -168,28 +177,6 @@ function alignFirstPointToStart(points: GeoPoint[], start: GeoPoint | null): Geo
     lat: point.lat + shift.lat,
     lng: point.lng + shift.lng,
   }));
-}
-
-/**
- * 根据 seed 生成兜底路线点集
- * 以中心点为基准，使用极坐标绘制不规则闭合曲线
- * 默认中心点为上海（31.2304, 121.4737）
- */
-function generateFallbackRoutePoints(seed: number, count: number, center?: GeoPoint | null): GeoPoint[] {
-  const origin = center || { lat: 31.2304, lng: 121.4737 };
-  const radius = 0.004 + seed * 0.0015;
-  const points: GeoPoint[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const angle = (Math.PI * 2 * i) / count;
-    const wobble = (seed - 0.5) * 0.3;
-    const r = radius * (0.6 + 0.4 * Math.sin(angle * 3 + wobble * 10));
-    points.push({
-      lat: origin.lat + Math.cos(angle) * r,
-      lng: origin.lng + Math.sin(angle) * r,
-      ts: Date.now() + i * 1000,
-    });
-  }
-  return points;
 }
 
 async function extractImageContourUnitPoints(buffer: Buffer): Promise<Array<{ x: number; y: number }>> {
@@ -561,7 +548,21 @@ async function getAmapWalkingDistance(from: GeoPoint, to: GeoPoint): Promise<num
 }
 
 async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> {
-  if (normalizeProvider(route.providerHint) !== 'amap' || !process.env.AMAP_KEY) return [];
+  if (process.env.TRACECRAFT_ALLOW_UNVERIFIED_ROUTES === '1') return [];
+  if (normalizeProvider(route.providerHint) !== 'amap') {
+    return [{
+      type: 'walkability_unverified',
+      level: 'high',
+      message: '当前地图服务暂未接入道路可跑性校验，请切换可验证服务或重新生成',
+    }];
+  }
+  if (!process.env.AMAP_KEY) {
+    return [{
+      type: 'amap_key_missing',
+      level: 'high',
+      message: '缺少高德步行规划 Key，无法确认路线是否可跑',
+    }];
+  }
   const segments: RouteRiskSegment[] = [];
   const samples = sampleAmapWalkingSegments(route.points);
   let checked = 0;
@@ -592,8 +593,8 @@ async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> 
   if (samples.length > 0 && checked === 0) {
     segments.push({
       type: 'amap_walk_unavailable',
-      level: 'medium',
-      message: '暂未获取到高德步行规划结果，请人工预览路线后再开始',
+      level: 'high',
+      message: '暂未获取到高德步行规划结果，无法确认路线是否可跑',
     });
   }
   return segments;
@@ -709,13 +710,15 @@ export async function createRouteFromImage(params: CreateRouteParams): Promise<R
   const { userId, filename, buffer, provider, locale, targetKm, startPoint, endPoint, currentAccuracy } = params;
   await initStorage();
   const seed = randomSeedFromString(filename + (buffer ? buffer.length : 0));
-  const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
+  const baseStart = normalizePoint(startPoint);
+  if (!baseStart) throw new Error('start_point_required');
+  const target = normalizeTargetKm(targetKm, 5);
   const routeId = id('route');
   const normalizedLocale = normalizeLocale(locale);
   if (!buffer || buffer.length === 0) {
     throw new Error('image_buffer_empty');
   }
-  const points = alignFirstPointToStart(await generateImageContourPoints(buffer, baseStart!, targetKm), baseStart);
+  const points = alignFirstPointToStart(await generateImageContourPoints(buffer, baseStart, target), baseStart);
   const meta = routeMeta(points);
   const created: Route = {
     id: routeId,
@@ -739,7 +742,7 @@ export async function createRouteFromImage(params: CreateRouteParams): Promise<R
     status: 'active',
     createdAt: nowIso(),
     updatedAt: nowIso(),
-    targetKm: Number.isFinite(Number(targetKm)) ? Number(targetKm) : null,
+    targetKm: target,
     actualDistanceM: Math.round(meta.distanceM),
   };
   if (!created.startPoint) {
@@ -765,13 +768,12 @@ export async function createRouteFromTemplate(params: CreateTemplateRouteParams)
   const { userId, shapeType, provider, locale, targetKm, startPoint, currentAccuracy } = params;
   await initStorage();
   const normalizedShape = String(shapeType || 'star').trim() || 'star';
-  const target = Number.isFinite(Number(targetKm)) && Number(targetKm) > 0
-    ? Number(targetKm)
-    : TEMPLATE_TARGET_KM[normalizedShape] || 5;
+  const target = normalizeTargetKm(targetKm, TEMPLATE_TARGET_KM[normalizedShape] || 5);
   const routeId = id('route');
   const normalizedLocale = normalizeLocale(locale);
-  const baseStart = normalizePoint(startPoint) || parsePoint(startPoint, { lat: 31.2304, lng: 121.4737 });
-  const rawPoints = alignFirstPointToStart(generateTemplatePoints(normalizedShape, baseStart!, target), baseStart);
+  const baseStart = normalizePoint(startPoint);
+  if (!baseStart) throw new Error('start_point_required');
+  const rawPoints = alignFirstPointToStart(generateTemplatePoints(normalizedShape, baseStart, target), baseStart);
   const meta = routeMeta(rawPoints);
   const created: Route = {
     id: routeId,
@@ -824,7 +826,7 @@ export async function adjustRouteDistance(
   const route = await getRouteRecord(routeId, userId);
   if (!route) return null;
   const target = Number(targetKm);
-  if (!Number.isFinite(target) || target <= 0) return null;
+  if (!Number.isFinite(target) || target < MIN_TARGET_KM || target > MAX_TARGET_KM) return null;
   const targetMeters = target * 1000;
   const scaled = scalePathPreserveShape(route.points, targetMeters, {
     minPoints: 30,

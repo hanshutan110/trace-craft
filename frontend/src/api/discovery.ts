@@ -1,5 +1,3 @@
-import { getAuthToken } from './auth';
-
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
 export interface RouteTemplateItem {
@@ -55,12 +53,7 @@ interface ApiPayload<T> {
 }
 
 function authHeaders(extra: HeadersInit = {}): HeadersInit {
-  const token = getAuthToken();
-  if (!token) {
-    throw new Error('auth_required');
-  }
   return {
-    Authorization: `Bearer ${token}`,
     ...extra,
   };
 }
@@ -95,6 +88,7 @@ export async function listTemplates(options: { category?: string; featured?: boo
   if (options.featured) params.set('featured', 'true');
   if (options.limit) params.set('limit', String(options.limit));
   const response = await fetch(`${API_BASE}/templates?${params.toString()}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = await parsePayload<RouteTemplateItem[]>(response);
@@ -103,6 +97,7 @@ export async function listTemplates(options: { category?: string; featured?: boo
 
 export async function getTemplate(templateId: string): Promise<RouteTemplateItem> {
   const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(templateId)}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = await parsePayload<RouteTemplateItem>(response);
@@ -112,6 +107,7 @@ export async function getTemplate(templateId: string): Promise<RouteTemplateItem
 
 export async function listFavorites(): Promise<FavoriteItem[]> {
   const response = await fetch(`${API_BASE}/favorites`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = await parsePayload<FavoriteItem[]>(response);
@@ -121,6 +117,7 @@ export async function listFavorites(): Promise<FavoriteItem[]> {
 export async function addFavorite(targetType: string, targetId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/favorites`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ targetType, targetId }),
   });
@@ -130,6 +127,7 @@ export async function addFavorite(targetType: string, targetId: string): Promise
 export async function removeFavorite(targetType: string, targetId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/favorites/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`, {
     method: 'DELETE',
+    credentials: 'include',
     headers: authHeaders(),
   });
   await parsePayload(response);
@@ -137,6 +135,7 @@ export async function removeFavorite(targetType: string, targetId: string): Prom
 
 export async function getSearchHints(): Promise<SearchHints> {
   const response = await fetch(`${API_BASE}/search/hints`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = await parsePayload<SearchHints>(response);
@@ -146,6 +145,7 @@ export async function getSearchHints(): Promise<SearchHints> {
 export async function searchTraceCraft(query: string, scope: string = 'all', limit: number = 30): Promise<SearchResultItem[]> {
   const params = new URLSearchParams({ q: query, scope, limit: String(limit) });
   const response = await fetch(`${API_BASE}/search?${params.toString()}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = await parsePayload<SearchResultItem[]>(response);

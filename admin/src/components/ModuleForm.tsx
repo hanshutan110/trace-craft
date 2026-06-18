@@ -18,6 +18,9 @@ export function ModuleForm({module, roles}: {module: AdminModule; roles: RoleIte
         <Form.Item name="email" label="邮箱">
           <Input />
         </Form.Item>
+        <Form.Item name="password" label="密码" rules={[{min: 10, message: '至少 10 位'}]}>
+          <Input.Password autoComplete="new-password" />
+        </Form.Item>
         <Form.Item name="roles" label="角色">
           <Select mode="multiple" options={roles.map((role) => ({value: role.code, label: role.name}))} />
         </Form.Item>

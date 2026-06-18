@@ -1,5 +1,4 @@
 import type { FinishResult, GeneratedRoute, GeoPoint, SessionState } from '../types';
-import { getAuthToken } from './auth';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
@@ -16,12 +15,7 @@ interface RouteApiPayload {
 }
 
 function authHeaders(extra: HeadersInit = {}): HeadersInit {
-  const token = getAuthToken();
-  if (!token) {
-    throw new Error('auth_required');
-  }
   return {
-    Authorization: `Bearer ${token}`,
     ...extra,
   };
 }
@@ -35,10 +29,9 @@ async function parseRouteResponse(response: Response): Promise<GeneratedRoute> {
 }
 
 export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: number | null }> {
-  const fallback = { point: { lat: 31.2304, lng: 121.4737 }, accuracy: null };
-  if (!navigator.geolocation) return fallback;
+  if (!navigator.geolocation) throw new Error('location_required');
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
@@ -49,7 +42,7 @@ export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: nu
           accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
         });
       },
-      () => resolve(fallback),
+      () => reject(new Error('location_required')),
       {
         enableHighAccuracy: true,
         timeout: 3500,
@@ -63,6 +56,7 @@ export async function createTemplateRoute(shapeType: string, targetKm: number = 
   const current = await getCurrentPoint();
   const response = await fetch(`${API_BASE}/routes/from-template`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       shapeType,
@@ -77,6 +71,7 @@ export async function createTemplateRoute(shapeType: string, targetKm: number = 
 
 export async function listUserRuns(): Promise<GeneratedRoute[]> {
   const response = await fetch(`${API_BASE}/runs?limit=100`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = (await response.json()) as RouteApiPayload & { runs?: GeneratedRoute[] };
@@ -88,6 +83,7 @@ export async function listUserRuns(): Promise<GeneratedRoute[]> {
 
 export async function getRoute(routeId: string): Promise<GeneratedRoute> {
   const response = await fetch(`${API_BASE}/routes/${routeId}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   return parseRouteResponse(response);
@@ -106,6 +102,7 @@ export async function createImageRoute(file: File, targetKm: number = 5): Promis
 
   const response = await fetch(`${API_BASE}/routes`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders(),
     body,
   });
@@ -115,6 +112,7 @@ export async function createImageRoute(file: File, targetKm: number = 5): Promis
 export async function startRoute(routeId: string, riskConfirmed: boolean): Promise<string> {
   const response = await fetch(`${API_BASE}/routes/${routeId}/start`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       provider: 'amap',
@@ -131,6 +129,7 @@ export async function startRoute(routeId: string, riskConfirmed: boolean): Promi
 
 export async function getSessionState(sessionId: string): Promise<SessionState> {
   const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = (await response.json()) as RouteApiPayload;
@@ -143,6 +142,7 @@ export async function getSessionState(sessionId: string): Promise<SessionState> 
 export async function reportLocation(sessionId: string, point: GeoPoint & { accuracy?: number | null }): Promise<SessionState | null> {
   const response = await fetch(`${API_BASE}/sessions/${sessionId}/location`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       lat: point.lat,
@@ -161,6 +161,7 @@ export async function reportLocation(sessionId: string, point: GeoPoint & { accu
 export async function finishSession(sessionId: string): Promise<FinishResult> {
   const response = await fetch(`${API_BASE}/sessions/${sessionId}/finish`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({}),
   });

@@ -1,9 +1,12 @@
 import express, { type Request, type Response } from 'express';
-import { errorPayload, successPayload } from './common';
+import { cookieOptions, errorPayload, successPayload } from './common';
 import { parseQuickAuthProvider, quickLogin } from '../services/authService';
 
 const router = express.Router();
-const allowDevelopmentAuth = process.env.NODE_ENV !== 'production' || process.env.TRACECRAFT_ALLOW_DEV_AUTH === '1';
+
+function allowDevelopmentAuth(): boolean {
+  return process.env.TRACECRAFT_ALLOW_DEV_AUTH === '1';
+}
 
 function normalizeDeviceId(value: unknown): string {
   if (typeof value === 'string' && value.trim()) {
@@ -14,7 +17,7 @@ function normalizeDeviceId(value: unknown): string {
 
 router.post('/auth/quick-login', async (req: Request, res: Response) => {
   try {
-    if (!allowDevelopmentAuth) {
+    if (!allowDevelopmentAuth()) {
       return res.status(403).json(errorPayload('development quick login disabled', 'dev_auth_disabled', 403));
     }
     const provider = parseQuickAuthProvider(req.body?.provider);
@@ -32,10 +35,15 @@ router.post('/auth/quick-login', async (req: Request, res: Response) => {
       deviceId,
       authCode: typeof req.body?.authCode === 'string' ? req.body.authCode : null,
     });
+    res.cookie('tc_user_token', result.token, cookieOptions(30 * 24 * 60 * 60 * 1000));
 
     return res.json(successPayload({
       traceId: req.traceId,
-      auth: result,
+      auth: {
+        userId: result.userId,
+        isNewUser: result.isNewUser,
+        provider: result.provider,
+      },
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'quick_login_failed';
@@ -45,7 +53,7 @@ router.post('/auth/quick-login', async (req: Request, res: Response) => {
 
 router.post('/auth/phone-login', async (req: Request, res: Response) => {
   try {
-    if (!allowDevelopmentAuth) {
+    if (!allowDevelopmentAuth()) {
       return res.status(403).json(errorPayload('development phone login disabled', 'dev_auth_disabled', 403));
     }
     const phone = typeof req.body?.phone === 'string' ? req.body.phone.replace(/\D/g, '') : '';
@@ -55,7 +63,7 @@ router.post('/auth/phone-login', async (req: Request, res: Response) => {
     if (phone.length !== 11) {
       return res.status(400).json(errorPayload('invalid phone number', 'invalid_phone', 400));
     }
-    if (smsCode !== '8888') {
+    if (smsCode !== String(process.env.TRACECRAFT_DEV_SMS_CODE || '')) {
       return res.status(400).json(errorPayload('invalid sms code', 'invalid_sms_code', 400));
     }
 
@@ -65,10 +73,15 @@ router.post('/auth/phone-login', async (req: Request, res: Response) => {
       deviceId: deviceId || phone,
       authCode: smsCode,
     });
+    res.cookie('tc_user_token', result.token, cookieOptions(30 * 24 * 60 * 60 * 1000));
 
     return res.json(successPayload({
       traceId: req.traceId,
-      auth: result,
+      auth: {
+        userId: result.userId,
+        isNewUser: result.isNewUser,
+        provider: result.provider,
+      },
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'phone_login_failed';

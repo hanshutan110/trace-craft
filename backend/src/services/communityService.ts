@@ -195,29 +195,33 @@ export async function addComment(userId: string, postId: string, content: string
   requireDb();
   await ensureUser(userId);
   const id = newId('comment');
-  await pgPool!.query('BEGIN');
+  const client = await pgPool!.connect();
   try {
-    await pgPool!.query(
+    await client.query('BEGIN');
+    await client.query(
       `INSERT INTO community_comments (id, post_id, user_id, content) VALUES ($1, $2, $3, $4)`,
       [id, postId, userId, content]
     );
-    const postRows = await pgPool!.query(
+    const postRows = await client.query(
       `UPDATE community_posts SET comment_count = comment_count + 1, updated_at = NOW()
        WHERE id = $1 RETURNING user_id, title`,
       [postId]
     );
+    if (!postRows.rows[0]) throw new Error('post_not_found');
     const ownerId = postRows.rows[0]?.user_id;
     if (ownerId && ownerId !== userId) {
-      await pgPool!.query(
+      await client.query(
         `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
          VALUES ($1, $2, $3, 'comment', '收到新评论', $4, 'post', $5)`,
         [newId('notice'), ownerId, userId, content, postId]
       );
     }
-    await pgPool!.query('COMMIT');
+    await client.query('COMMIT');
   } catch (err) {
-    await pgPool!.query('ROLLBACK');
+    await client.query('ROLLBACK');
     throw err;
+  } finally {
+    client.release();
   }
   const result = await pgPool!.query(
     `SELECT c.*, COALESCE(a.display_name, c.user_id) AS author
@@ -232,41 +236,51 @@ export async function addComment(userId: string, postId: string, content: string
 export async function togglePostLike(userId: string, postId: string): Promise<{ liked: boolean; likeCount: number }> {
   requireDb();
   await ensureUser(userId);
-  const existing = await pgPool!.query(
-    `SELECT id FROM community_reactions WHERE target_type = 'post' AND target_id = $1 AND user_id = $2 AND reaction_type = 'like' LIMIT 1`,
-    [postId, userId]
-  );
-  await pgPool!.query('BEGIN');
+  const client = await pgPool!.connect();
+  let liked = false;
   try {
+    await client.query('BEGIN');
+    const existing = await client.query(
+      `SELECT id FROM community_reactions WHERE target_type = 'post' AND target_id = $1 AND user_id = $2 AND reaction_type = 'like' LIMIT 1`,
+      [postId, userId]
+    );
     if (existing.rows[0]) {
-      await pgPool!.query(`DELETE FROM community_reactions WHERE id = $1`, [existing.rows[0].id]);
-      await pgPool!.query(`UPDATE community_posts SET like_count = GREATEST(like_count - 1, 0), updated_at = NOW() WHERE id = $1`, [postId]);
+      await client.query(`DELETE FROM community_reactions WHERE id = $1`, [existing.rows[0].id]);
+      await client.query(`UPDATE community_posts SET like_count = GREATEST(like_count - 1, 0), updated_at = NOW() WHERE id = $1`, [postId]);
     } else {
-      await pgPool!.query(
+      const inserted = await client.query(
         `INSERT INTO community_reactions (id, target_type, target_id, user_id, reaction_type)
-         VALUES ($1, 'post', $2, $3, 'like')`,
+         VALUES ($1, 'post', $2, $3, 'like')
+         ON CONFLICT (target_type, target_id, user_id, reaction_type) DO NOTHING
+         RETURNING id`,
         [newId('react'), postId, userId]
       );
-      const postRows = await pgPool!.query(
-        `UPDATE community_posts SET like_count = like_count + 1, updated_at = NOW() WHERE id = $1 RETURNING user_id, like_count`,
-        [postId]
-      );
-      const ownerId = postRows.rows[0]?.user_id;
-      if (ownerId && ownerId !== userId) {
-        await pgPool!.query(
-          `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
-           VALUES ($1, $2, $3, 'like', '收到新点赞', '有人点赞了你的作品', 'post', $4)`,
-          [newId('notice'), ownerId, userId, postId]
+      if (inserted.rows[0]) {
+        const postRows = await client.query(
+          `UPDATE community_posts SET like_count = like_count + 1, updated_at = NOW() WHERE id = $1 RETURNING user_id, like_count`,
+          [postId]
         );
+        if (!postRows.rows[0]) throw new Error('post_not_found');
+        const ownerId = postRows.rows[0]?.user_id;
+        if (ownerId && ownerId !== userId) {
+          await client.query(
+            `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
+             VALUES ($1, $2, $3, 'like', '收到新点赞', '有人点赞了你的作品', 'post', $4)`,
+            [newId('notice'), ownerId, userId, postId]
+          );
+        }
       }
+      liked = true;
     }
-    await pgPool!.query('COMMIT');
+    await client.query('COMMIT');
   } catch (err) {
-    await pgPool!.query('ROLLBACK');
+    await client.query('ROLLBACK');
     throw err;
+  } finally {
+    client.release();
   }
   const count = await pgPool!.query(`SELECT like_count FROM community_posts WHERE id = $1`, [postId]);
-  return { liked: !existing.rows[0], likeCount: Number(count.rows[0]?.like_count || 0) };
+  return { liked, likeCount: Number(count.rows[0]?.like_count || 0) };
 }
 
 export async function toggleFollow(userId: string, followingId: string): Promise<{ following: boolean }> {
@@ -274,21 +288,37 @@ export async function toggleFollow(userId: string, followingId: string): Promise
   await ensureUser(userId);
   await ensureUser(followingId);
   if (userId === followingId) return { following: false };
-  const existing = await pgPool!.query(`SELECT id FROM user_follows WHERE follower_id = $1 AND following_id = $2`, [userId, followingId]);
-  if (existing.rows[0]) {
-    await pgPool!.query(`DELETE FROM user_follows WHERE id = $1`, [existing.rows[0].id]);
-    return { following: false };
+  const client = await pgPool!.connect();
+  try {
+    await client.query('BEGIN');
+    const existing = await client.query(`SELECT id FROM user_follows WHERE follower_id = $1 AND following_id = $2`, [userId, followingId]);
+    if (existing.rows[0]) {
+      await client.query(`DELETE FROM user_follows WHERE id = $1`, [existing.rows[0].id]);
+      await client.query('COMMIT');
+      return { following: false };
+    }
+    const inserted = await client.query(
+      `INSERT INTO user_follows (id, follower_id, following_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (follower_id, following_id) DO NOTHING
+       RETURNING id`,
+      [newId('follow'), userId, followingId]
+    );
+    if (inserted.rows[0]) {
+      await client.query(
+        `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
+         VALUES ($1, $2, $3, 'follow', '新增关注', '有人关注了你', 'user', $3)`,
+        [newId('notice'), followingId, userId]
+      );
+    }
+    await client.query('COMMIT');
+    return { following: Boolean(inserted.rows[0]) };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
-  await pgPool!.query(
-    `INSERT INTO user_follows (id, follower_id, following_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-    [newId('follow'), userId, followingId]
-  );
-  await pgPool!.query(
-    `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
-     VALUES ($1, $2, $3, 'follow', '新增关注', '有人关注了你', 'user', $3)`,
-    [newId('notice'), followingId, userId]
-  );
-  return { following: true };
 }
 
 export async function listNotifications(userId: string, type: string = 'all'): Promise<NotificationItem[]> {

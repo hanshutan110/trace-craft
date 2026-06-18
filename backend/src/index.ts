@@ -25,7 +25,20 @@ import adminApi from './routes/adminApi';
 const app = express();
 
 // ===== 全局中间件 =====
-app.use(cors());
+const allowedOrigins = (process.env.TRACECRAFT_CORS_ORIGINS || 'http://localhost:3000,http://localhost:3002')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('cors_origin_denied'));
+  },
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // 为每个请求注入追踪 ID、用户身份和幂等键

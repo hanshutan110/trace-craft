@@ -1,5 +1,3 @@
-import { getAuthToken } from './auth';
-
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
 export interface CommunityPostItem {
@@ -60,12 +58,7 @@ interface ApiPayload {
 }
 
 function authHeaders(extra: HeadersInit = {}): HeadersInit {
-  const token = getAuthToken();
-  if (!token) {
-    throw new Error('auth_required');
-  }
   return {
-    Authorization: `Bearer ${token}`,
     ...extra,
   };
 }
@@ -104,6 +97,7 @@ export async function createCommunityPost(payload: {
 }): Promise<CommunityPostItem> {
   const response = await fetch(`${API_BASE}/community/posts`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   });
@@ -114,6 +108,7 @@ export async function createCommunityPost(payload: {
 
 export async function listCommunityPosts(tab: string = 'recommend'): Promise<CommunityPostItem[]> {
   const response = await fetch(`${API_BASE}/community/posts?tab=${encodeURIComponent(tab)}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const data = await parsePayload(response);
@@ -122,6 +117,7 @@ export async function listCommunityPosts(tab: string = 'recommend'): Promise<Com
 
 export async function getCommunityPost(postId: string): Promise<{ post: CommunityPostItem; comments: CommunityCommentItem[] }> {
   const response = await fetch(`${API_BASE}/community/posts/${encodeURIComponent(postId)}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const data = await parsePayload(response);
@@ -132,6 +128,7 @@ export async function getCommunityPost(postId: string): Promise<{ post: Communit
 export async function addCommunityComment(postId: string, content: string): Promise<CommunityCommentItem> {
   const response = await fetch(`${API_BASE}/community/posts/${encodeURIComponent(postId)}/comments`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ content }),
   });
@@ -143,6 +140,7 @@ export async function addCommunityComment(postId: string, content: string): Prom
 export async function toggleCommunityLike(postId: string): Promise<{ liked: boolean; likeCount: number }> {
   const response = await fetch(`${API_BASE}/community/posts/${encodeURIComponent(postId)}/like`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders(),
   });
   const data = await parsePayload(response);
@@ -152,6 +150,7 @@ export async function toggleCommunityLike(postId: string): Promise<{ liked: bool
 export async function toggleFollowUser(userId: string): Promise<boolean> {
   const response = await fetch(`${API_BASE}/community/follows/${encodeURIComponent(userId)}`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders(),
   });
   const data = await parsePayload(response);
@@ -160,6 +159,7 @@ export async function toggleFollowUser(userId: string): Promise<boolean> {
 
 export async function listNotifications(type: string = 'all'): Promise<NotificationItem[]> {
   const response = await fetch(`${API_BASE}/notifications?type=${encodeURIComponent(type)}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const data = await parsePayload(response);
@@ -169,6 +169,7 @@ export async function listNotifications(type: string = 'all'): Promise<Notificat
 export async function markNotificationsRead(id?: string): Promise<void> {
   const response = await fetch(`${API_BASE}/notifications/read`, {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(id ? { id } : {}),
   });

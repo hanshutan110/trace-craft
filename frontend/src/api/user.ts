@@ -1,5 +1,4 @@
 import type { GeneratedRoute, GeoPoint, SessionMetrics } from '../types';
-import { getAuthToken } from './auth';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
@@ -53,12 +52,7 @@ interface ApiPayload<T> {
 }
 
 function authHeaders(extra: HeadersInit = {}): HeadersInit {
-  const token = getAuthToken();
-  if (!token) {
-    throw new Error('auth_required');
-  }
   return {
-    Authorization: `Bearer ${token}`,
     ...extra,
   };
 }
@@ -73,6 +67,7 @@ async function parsePayload<T>(response: Response): Promise<ApiPayload<T>> {
 
 export async function getCurrentUserProfile(): Promise<UserProfile> {
   const response = await fetch(`${API_BASE}/me`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = await parsePayload<UserProfile>(response);
@@ -83,6 +78,7 @@ export async function getCurrentUserProfile(): Promise<UserProfile> {
 export async function updateUserSettings(settings: Partial<UserSettings>): Promise<UserProfile> {
   const response = await fetch(`${API_BASE}/me/settings`, {
     method: 'PUT',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(settings),
   });
@@ -93,6 +89,7 @@ export async function updateUserSettings(settings: Partial<UserSettings>): Promi
 
 export async function getRunHistory(limit: number = 30): Promise<RunHistoryEntry[]> {
   const response = await fetch(`${API_BASE}/run-history?limit=${limit}`, {
+    credentials: 'include',
     headers: authHeaders(),
   });
   const payload = await parsePayload<RunHistoryEntry[]>(response);

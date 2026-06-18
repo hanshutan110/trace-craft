@@ -19,7 +19,7 @@ import type {
 
 const API_BASE = (import.meta.env.VITE_ADMIN_API_BASE_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 
-const TOKEN_KEY = 'tracecraft_admin_token';
+const TOKEN_KEY = 'tracecraft_admin_session';
 
 interface ApiPayload<T> {
   ok: boolean;
@@ -45,7 +45,7 @@ export function getAdminToken(): string | null {
 }
 
 export function saveAdminToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, token ? '1' : '');
 }
 
 export function clearAdminToken(): void {
@@ -64,12 +64,11 @@ function buildQuery(params: Partial<ListParams>): string {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getAdminToken();
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       ...(init.body ? {'Content-Type': 'application/json'} : {}),
-      ...(token ? {Authorization: `Bearer ${token}`} : {}),
       ...init.headers,
     },
   });
@@ -85,10 +84,10 @@ export async function login(username: string, password: string): Promise<AdminPr
     method: 'POST',
     body: JSON.stringify({username, password}),
   });
-  if (!payload.token || !payload.admin) {
+  if (!payload.admin) {
     throw new Error('admin_login_failed');
   }
-  saveAdminToken(payload.token);
+  saveAdminToken('cookie');
   return payload.admin;
 }
 

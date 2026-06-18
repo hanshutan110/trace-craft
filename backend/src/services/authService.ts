@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { initStorage } from './storage';
 import { pgPool } from './postgres-storage';
+import { signUserToken } from './token';
 
 export type QuickAuthProvider = 'wechat' | 'alipay' | 'phone';
 
@@ -81,7 +82,7 @@ export async function quickLogin(params: QuickLoginParams): Promise<QuickLoginRe
     const userId = String(existing.rows[0].user_id);
     return {
       userId,
-      token: `user:${userId}`,
+      token: signUserToken({ userId, provider: params.provider }),
       isNewUser: false,
       provider: params.provider,
     };
@@ -119,7 +120,7 @@ export async function quickLogin(params: QuickLoginParams): Promise<QuickLoginRe
 
   return {
     userId,
-    token: `user:${userId}`,
+    token: signUserToken({ userId, provider: params.provider }),
     isNewUser: true,
     provider: params.provider,
   };

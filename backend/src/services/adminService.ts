@@ -4,6 +4,7 @@ import { pgPool } from './postgres-storage';
 import { toIso } from '../utils/date';
 import { newId } from '../utils/id';
 import { safeJsonObject } from '../utils/json';
+import { signAdminTokenPayload, verifySignedAdminPayload } from './token';
 
 export type AdminActor = AdminProfile;
 
@@ -18,27 +19,19 @@ function normalizePage(query: Partial<AdminListParams>): { page: number; limit: 
 }
 
 function signToken(actor: AdminActor): string {
-  const payload = Buffer.from(JSON.stringify({
+  return signAdminTokenPayload({
     id: actor.id,
     username: actor.username,
     displayName: actor.displayName,
     roles: actor.roles,
     ts: Date.now(),
-  })).toString('base64url');
-  const secret = process.env.TRACECRAFT_ADMIN_TOKEN_SECRET || 'tracecraft-admin-dev-secret';
-  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
-  return `${payload}.${sig}`;
+  });
 }
 
 export function verifyAdminToken(token: string): AdminActor | null {
-  const [payload, sig] = token.split('.');
-  if (!payload || !sig) return null;
-  const secret = process.env.TRACECRAFT_ADMIN_TOKEN_SECRET || 'tracecraft-admin-dev-secret';
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
-  if (Buffer.byteLength(sig) !== Buffer.byteLength(expected)) return null;
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as AdminActor & { ts?: number };
+    const parsed = verifySignedAdminPayload(token) as AdminActor & { ts?: number } | null;
+    if (!parsed) return null;
     const ttlHours = Math.max(1, Number(process.env.TRACECRAFT_ADMIN_TOKEN_TTL_HOURS || 12));
     if (parsed.ts && Date.now() - parsed.ts > ttlHours * 60 * 60 * 1000) return null;
     return {
@@ -131,17 +124,34 @@ export async function authenticateAdmin(username: string, password: string): Pro
 }
 
 function verifyAdminPassword(password: string, passwordHash: string): boolean {
+  if (passwordHash.startsWith('scrypt:')) {
+    const [, salt, expected] = passwordHash.split(':');
+    if (!salt || !expected) return false;
+    const actual = crypto.scryptSync(password, salt, 64).toString('hex');
+    if (Buffer.byteLength(actual) !== Buffer.byteLength(expected)) return false;
+    return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+  }
   if (passwordHash.startsWith('sha256:')) {
     const [, salt, expected] = passwordHash.split(':');
     const actual = crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
     if (!expected || Buffer.byteLength(actual) !== Buffer.byteLength(expected)) return false;
     return Boolean(expected) && crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
   }
-  // MVP 兼容：现有种子账号仍是占位 hash 时，使用环境变量口令。
-  if (passwordHash === 'password_login_disabled_until_admin_auth_ready') {
-    return password === (process.env.TRACECRAFT_ADMIN_PASSWORD || 'admin123');
+  // 仅本地显式开启时兼容旧种子账号，生产环境不允许默认口令回退。
+  if (passwordHash === 'password_login_disabled_until_admin_auth_ready' && process.env.TRACECRAFT_ALLOW_ADMIN_PASSWORD_FALLBACK === '1') {
+    return Boolean(process.env.TRACECRAFT_ADMIN_PASSWORD) && password === process.env.TRACECRAFT_ADMIN_PASSWORD;
   }
   return false;
+}
+
+function hashAdminPassword(password: unknown): string {
+  const normalized = typeof password === 'string' ? password : '';
+  if (normalized.length < 10) {
+    throw new Error('admin_password_too_weak');
+  }
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(normalized, salt, 64).toString('hex');
+  return `scrypt:${salt}:${hash}`;
 }
 
 export async function listAdminModule(
@@ -259,7 +269,7 @@ export async function createAdminRecord(moduleKey: AdminModuleKey, payload: Reco
       [
         id,
         String(payload.username || ''),
-        'password_login_disabled_until_admin_auth_ready',
+        hashAdminPassword(payload.password),
         String(payload.name || payload.username || ''),
         payload.phone ? String(payload.phone) : null,
         payload.email ? String(payload.email) : null,
@@ -321,6 +331,7 @@ export async function createAdminRecord(moduleKey: AdminModuleKey, payload: Reco
 export async function updateAdminRecord(moduleKey: AdminModuleKey, id: string, payload: Record<string, unknown>, actorId: string | null = null): Promise<Record<string, unknown> | null> {
   requireDb();
   if (moduleKey === 'users') {
+    const nextPasswordHash = payload.password ? hashAdminPassword(payload.password) : null;
     await pgPool!.query(
       `UPDATE admin_users
        SET username = COALESCE($2, username),
@@ -328,6 +339,7 @@ export async function updateAdminRecord(moduleKey: AdminModuleKey, id: string, p
            phone = $4,
            email = $5,
            status = COALESCE($6, status),
+           password_hash = COALESCE($7, password_hash),
            updated_at = NOW()
        WHERE id = $1`,
       [
@@ -337,6 +349,7 @@ export async function updateAdminRecord(moduleKey: AdminModuleKey, id: string, p
         payload.phone ? String(payload.phone) : null,
         payload.email ? String(payload.email) : null,
         payload.status ? String(payload.status) : null,
+        nextPasswordHash,
       ]
     );
     if (Array.isArray(payload.roles)) await setAdminUserRoles(id, payload.roles.map(String), actorId);

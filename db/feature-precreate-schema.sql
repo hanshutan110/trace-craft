@@ -463,6 +463,10 @@ INSERT INTO admin_users (id, username, password_hash, display_name, status, crea
 VALUES ('admin-root', 'admin', 'password_login_disabled_until_admin_auth_ready', 'TraceCraft Admin', 'active', NULL)
 ON CONFLICT (username) DO NOTHING;
 
+INSERT INTO admin_user_roles (id, admin_user_id, admin_role_id, assigned_by)
+VALUES ('admin-root-role-super', 'admin-root', 'role-admin', NULL)
+ON CONFLICT (admin_user_id, admin_role_id) DO NOTHING;
+
 INSERT INTO route_templates (id, template_code, title, title_en, category, shape_type, distance_km, preview_payload, generation_payload, is_featured, sort_order)
 VALUES
   ('tpl-heart', 'heart', '爱心路线', 'Heart Route', 'base', 'heart', 4.20, '{"color":"rose"}'::jsonb, '{"shapeType":"heart"}'::jsonb, TRUE, 10),

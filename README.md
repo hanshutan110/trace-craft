@@ -28,9 +28,7 @@ TraceCraft/
 │   └── tsconfig.json
 ├── admin/                    # 独立管理后台（Vite + React + TS + Ant Design，读写 PostgreSQL）
 ├── db/                       # 数据库设计文档（PostgreSQL schema、API 设计）
-├── docs/                     # 项目文档、UI 设计稿
-├── .eslintrc.cjs             # ESLint 配置（JS/TS/TSX）
-└── .github/workflows/        # CI
+└── docs/                     # 项目文档、UI 设计稿
 ```
 
 ## 快速启动
@@ -73,10 +71,10 @@ npm run dev
 
 默认 API：`http://localhost:3001/api`
 
-本地 MVP 登录：
+本地管理后台登录：
 
 - 用户名：`admin`
-- 密码：`backend/.env` 中的 `TRACECRAFT_ADMIN_PASSWORD`，未配置时默认 `admin123`
+- 旧种子账号本地登录需同时配置 `TRACECRAFT_ALLOW_ADMIN_PASSWORD_FALLBACK=1` 和 `TRACECRAFT_ADMIN_PASSWORD`
 
 > 管理后台依赖后端和 PostgreSQL；数据库需已有 `admin-root/admin` 种子用户。
 
@@ -108,15 +106,15 @@ npm run dev
 | 数据库 | PostgreSQL（唯一持久化存储，不再使用 state.json / 内存文件兜底） |
 | 地图 | 高德（国内）/ Google Maps（国际），预留百度、腾讯 |
 | 国际化 | 内置 i18n（中/英双语）|
-| 代码规范 | ESLint（`.eslintrc.cjs`），支持 JS/TS/TSX |
+| 质量检查 | TypeScript typecheck + Vite/tsc build |
 
 ## API 接口（V1）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/maps/config` | 获取地图 provider 配置 |
-| `POST` | `/api/auth/quick-login` | 微信/支付宝快捷注册登录（MVP 开发直通） |
-| `POST` | `/api/auth/phone-login` | 手机号快捷登录（测试验证码 `8888`） |
+| `POST` | `/api/auth/quick-login` | 微信/支付宝快捷注册登录（仅 `TRACECRAFT_ALLOW_DEV_AUTH=1` 时可用） |
+| `POST` | `/api/auth/phone-login` | 手机号快捷登录（仅开发开关开启，并使用 `TRACECRAFT_DEV_SMS_CODE`） |
 | `GET` | `/api/me` | 获取当前用户资料、绑定来源、统计和设置 |
 | `PUT` | `/api/me/settings` | 保存当前用户设置到 `users.metadata.settings` |
 | `POST` | `/api/routes/from-template` | 基础模板生成路线点并返回风险信息 |
@@ -145,7 +143,7 @@ npm run dev
 | `POST` | `/api/community/follows/{userId}` | 关注/取消关注 |
 | `GET` | `/api/notifications` | 获取消息通知 |
 | `POST` | `/api/notifications/read` | 标记消息已读 |
-| `POST` | `/api/admin/auth/login` | 管理后台 MVP 登录 |
+| `POST` | `/api/admin/auth/login` | 管理后台登录，写入 HttpOnly Cookie |
 | `GET` | `/api/admin/auth/me` | 获取当前管理员信息 |
 | `GET` | `/api/admin/{module}` | 后台用户、内容、模板列表，支持分页/筛选 |
 | `POST/PUT/DELETE` | `/api/admin/{module}` | 后台用户、内容、模板写操作 |
@@ -162,10 +160,13 @@ npm run dev
 
 ## 安全与边界说明
 
-- **API Key**：不在前端明文保存，统一在后端 `.env` 中配置；`/v1/maps/config` 仅返回密钥是否已配置的状态，不暴露密钥内容。
+- **API Key**：不在前端明文保存，统一在后端 `.env` 中配置；`/api/maps/config` 仅返回密钥是否已配置的状态，不暴露密钥内容。
+- **鉴权**：用户端与管理端 token 均为服务端 HMAC 签名 token，并通过 HttpOnly Cookie 作为主登录态；用户接口不再接受 `x-user-id`、body/query `userId` 等身份回退。
+- **开发登录**：快捷登录和测试短信码必须显式配置 `TRACECRAFT_ALLOW_DEV_AUTH=1`；正式环境不要开启。
+- **CORS**：默认只允许 `http://localhost:3000`、`http://localhost:3002`，可通过 `TRACECRAFT_CORS_ORIGINS` 配置。
 - **坐标体系**：服务端内部统一 WGS84，按 provider 输出对应坐标参考系（高德用 GCJ-02、百度用 BD-09 等）。
-- **路线风险**：开始导航前必须经过路线预览确认；V1 后端优先用高德 Web 服务步行规划做片段抽样，并结合 GPS 精度、起点距离、距离偏差做风险分级。百度 Key 已预留为后续 fallback。
-- **敏感信息**：`.env`、日志文件、`package-lock.json` 等均在 `.gitignore` 中排除，不会被提交。
+- **路线风险**：开始导航前必须经过路线预览确认；V1 后端优先用高德 Web 服务步行规划做片段抽样，并结合 GPS 精度、起点距离、距离偏差做风险分级。无法验证道路可跑性时默认高风险阻断，可在本地用 `TRACECRAFT_ALLOW_UNVERIFIED_ROUTES=1` 临时放开。
+- **敏感信息**：`.env`、日志文件和密钥文件会被 `.gitignore` 排除；`package-lock.json` 应保留用于可复现安装。
 
 ## 后台管理（admin/）
 
@@ -184,20 +185,18 @@ npm run dev
 # 访问 http://localhost:3002
 ```
 
-说明：后台已接 MVP 登录态，管理接口需要 `Authorization: Bearer <admin_token>`；删除操作采用软处理（用户禁用、内容归档、模板停用）。正式上线前仍需替换为真实密码哈希、会话刷新和权限矩阵。
+说明：后台接口主链路使用 HttpOnly Cookie 登录态；服务端仍兼容 `Authorization: Bearer <admin_token>`。管理端已有基础角色权限拦截，删除操作采用软处理（用户禁用、内容归档、模板停用）。后续仍可补会话刷新和更细粒度权限矩阵。
 
 ## 数据库设计（db/）
 
 `db/` 目录包含数据库相关文档：
 
-- `admin-schema.sql` — 最小可行后台 PostgreSQL 建表（含角色、用户、内容、模板、社区审核）
 - `feature-precreate-schema.sql` — MVP 完整 PostgreSQL schema（核心链路 + 后续页面表 + 种子数据）
-- `admin-api-design.md` — 管理 API 清单（登录鉴权、CRUD、社区管理）
-- `maintenance_checklist.md` — 上线前检查、修复 SQL、回滚建议
+- `README.md` — 数据库执行状态、后台 API、上线前检查、修复 SQL、回滚建议
 
 ## 下一步计划
 
-1. 接入真实微信/支付宝授权 SDK，替换 MVP 开发直通授权码
+1. 接入真实微信/支付宝授权 SDK，替换当前仅显式开发开关可用的快捷登录
 2. 头像、分享图、路线封面接本地文件服务或 OSS
 3. 后台管理补真实密码哈希、会话刷新和权限矩阵
 4. 社区审核流接后台管理界面
