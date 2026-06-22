@@ -2,7 +2,7 @@
 
 **版本**：V2.0
 **适用范围**：TraceCraft 单仓项目（backend + frontend + admin + shared + docs）
-**更新时间**：2026-06-18
+**更新时间**：2026-06-22
 
 ## 1. 目的
 
@@ -123,7 +123,60 @@
 3. 标注下周高优先级两项
 4. 列出阻塞项及处理建议
 
-## 11. 最新进度表（2026-06-18，P0 安全中间件 + P2 功能增强集成）
+## 11. 最新进度表（2026-06-22，前端屏幕组件拆分与路由重构）
+
+### 本次同步目标（前端屏幕组件拆分与路由重构）
+
+1. 将 6 个大型屏幕容器文件（1000+ 行）中的 25 个屏幕组件拆分为独立文件
+2. 更新 `AppScreenRouter.tsx` 路由，改为按屏幕粒度懒加载
+3. 减少单文件体积，提升代码可维护性和构建性能
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 组件拆分 | 6 个容器文件提取 25 个独立屏幕组件至 `screens/` 目录 | 已完成 | 容器文件从 5000+ 行缩减为薄层 re-export |
+| 路由重构 | `AppScreenRouter.tsx` 改为逐屏幕 lazy import | 已完成 | `Promise.all` 并行加载同域屏幕 |
+| 工具函数 | 提取 4 个共享工具文件至 `screens/` 目录 | 已完成 | `community-utils`/`discovery-utils`/`profile-settings-utils`/`trace-journey-utils` |
+| 构建验证 | `npx tsc --noEmit` 零新增错误 | 已完成 | TypeScript 编译通过 |
+
+### 新增文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `screens/OnboardingScreen.tsx` | 引导页 |
+| `screens/LoginScreen.tsx` | 登录页 |
+| `screens/MapNavigationScreen.tsx` | 地图导航 |
+| `screens/ParamAdjustScreen.tsx` | 参数调节 |
+| `screens/RoutePreviewScreen.tsx` | 路线预览 |
+| `screens/TraceEditorScreen.tsx` | 轨迹编辑器 |
+| `screens/ProfileScreen.tsx` | 个人中心 |
+| `screens/SettingsScreen.tsx` | 设置 |
+| `screens/SplashScreen.tsx` | 启动页 |
+| `screens/MyTracesScreen.tsx` | 我的轨迹 |
+| `screens/TraceDetailScreen.tsx` | 轨迹详情 |
+| `screens/RunHistoryScreen.tsx` | 跑步历史 |
+| `screens/RunDetailScreen.tsx` | 跑步详情 |
+| `screens/FavoritesScreen.tsx` | 收藏 |
+| `screens/SearchScreen.tsx` | 搜索 |
+| `screens/SearchResultScreen.tsx` | 搜索结果 |
+| `screens/SquareScreen.tsx` | 社区广场 |
+| `screens/PostDetailScreen.tsx` | 帖子详情 |
+| `screens/NotificationsScreen.tsx` | 通知 |
+| `screens/TemplateDetailScreen.tsx` | 模板详情 |
+| `screens/TraceShareScreen.tsx` | 轨迹分享 |
+| `screens/community-utils.tsx` | 社区共享工具 |
+| `screens/discovery-utils.tsx` | 发现共享工具 |
+| `screens/profile-settings-utils.tsx` | 个人设置共享工具 |
+| `screens/trace-journey-utils.tsx` | 轨迹旅程共享工具 |
+
+### 已验证证据
+
+| 验证项 | 结果 |
+| --- | --- |
+| `frontend npx tsc --noEmit` | 通过（零新增错误） |
+
+## 12. 历史进度表（2026-06-18，P0 安全中间件 + P2 功能增强集成）
 
 ### 本次同步目标（第三方工具评估与集成）
 
@@ -213,7 +266,7 @@ Redis 不可用时的自动降级策略：
 | 前端 | `ProfileAndSettings.tsx` 引用 6 个未实现的 API 函数 | 内测前 | 中 |
 | 前端 | `NavigationAndEditor.tsx` 引用 `pauseSession`/`resumeSession` 未实现 | 内测前 | 中 |
 
-## 12. 历史进度表（2026-06-18，开发服务端口重新分配）
+## 13. 历史进度表（2026-06-18，开发服务端口重新分配）
 
 ### 本次同步目标（开发服务端口重新分配）
 
@@ -240,7 +293,7 @@ Redis 不可用时的自动降级策略：
 | 后端 (Express) | 3001 | 3017 |
 | 管理后台 (Vite) | 3002 | 3018 |
 
-## 13. 历史进度表（2026-06-18，全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
+## 14. 历史进度表（2026-06-18，全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
 
 ### 本次同步目标
 
@@ -284,7 +337,7 @@ Redis 不可用时的自动降级策略：
 | `admin npx tsc --noEmit` | 通过（2 个预存配置错误，非本次引入） |
 | 新增编译错误 | 0 |
 
-## 14. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
+## 15. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
 
 ### 本次同步目标（管理后台 React + Ant Design 改造）
 
@@ -326,7 +379,7 @@ Redis 不可用时的自动降级策略：
 | 删除策略 | 后台 `DELETE` 从物理删除调整为软删除或二次确认策略 | 内测前 | 中 |
 | 社区审核 | 社区帖子审核、举报工单接入后台页面 | 内测前 | 中 |
 
-## 15. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
+## 16. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
 
 ### 本次同步目标（数据库接入 + 用户数据页真实化 + 后续表结构预建）
 
@@ -417,7 +470,7 @@ Redis 不可用时的自动降级策略：
 - 技术决策：暂不接 OSS；图片上传仅在请求处理中临时读取，业务持久化统一进入 PostgreSQL，不再使用 `state.json` 文件态存储。
 - 下一步建议：优先补真实第三方授权、文件存储、后台管理员鉴权和社区审核操作。
 
-## 16. 历史进度表（2026-06-16，路线预览地图真实化）
+## 17. 历史进度表（2026-06-16，路线预览地图真实化）
 
 ### 本次同步目标（路线预览地图真实化 + UX 增强）
 
@@ -458,7 +511,7 @@ Redis 不可用时的自动降级策略：
 - 技术决策：选用 Leaflet（轻量、免费、无需 API Key）而非 AMap JS SDK，降低接入成本
 - 下次同步建议：数据库连通后执行 `admin-schema.sql` 建表，验证 PostgresStorage 全链路
 
-## 17. 历史进度表（2026-06-10，前端代码审查与优化）
+## 18. 历史进度表（2026-06-10，前端代码审查与优化）
 
 ### 本次同步目标（前端代码审查与优化）
 

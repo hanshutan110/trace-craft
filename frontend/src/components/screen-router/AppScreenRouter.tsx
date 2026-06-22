@@ -18,17 +18,24 @@ import { ErrorBoundary } from '../ErrorBoundary';
 
 // 核心屏幕即时加载（首页、引导、登录）
 import { HomeScreen } from '../HomeAndLibrary';
-import { OnboardingScreen, LoginScreen } from '../AuthScreens';
+// 引导页和登录页已拆分至 screens/ 目录下的独立文件
+import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { LoginScreen } from '../screens/LoginScreen';
 
 // 二级屏幕按功能域懒加载，减少首屏体积
-// 懒加载路由组件：导航/参数调节/编辑器
+// 懒加载路由组件：导航/参数调节/编辑器（已拆分至 screens/ 目录独立文件）
 const NavigationAndEditor = lazy(() =>
-  import('../NavigationAndEditor').then((m) => ({
+  Promise.all([
+    import('../screens/MapNavigationScreen'),
+    import('../screens/ParamAdjustScreen'),
+    import('../screens/RoutePreviewScreen'),
+    import('../screens/TraceEditorScreen'),
+  ]).then(([nav, param, preview, editor]) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'nav') return <m.MapNavigationScreen {...(props as unknown as React.ComponentProps<typeof m.MapNavigationScreen>)} />;
-      if (screen === 'param_adjust') return <m.ParamAdjustScreen {...(props as unknown as React.ComponentProps<typeof m.ParamAdjustScreen>)} />;
-      if (screen === 'route_preview') return <m.RoutePreviewScreen {...(props as unknown as React.ComponentProps<typeof m.RoutePreviewScreen>)} />;
-      if (screen === 'editor') return <m.TraceEditorScreen {...(props as unknown as React.ComponentProps<typeof m.TraceEditorScreen>)} />;
+      if (screen === 'nav') return <nav.MapNavigationScreen {...(props as unknown as React.ComponentProps<typeof nav.MapNavigationScreen>)} />;
+      if (screen === 'param_adjust') return <param.ParamAdjustScreen {...(props as unknown as React.ComponentProps<typeof param.ParamAdjustScreen>)} />;
+      if (screen === 'route_preview') return <preview.RoutePreviewScreen {...(props as unknown as React.ComponentProps<typeof preview.RoutePreviewScreen>)} />;
+      if (screen === 'editor') return <editor.TraceEditorScreen {...(props as unknown as React.ComponentProps<typeof editor.TraceEditorScreen>)} />;
       return null;
     },
   })),
@@ -56,52 +63,71 @@ const LazyHomeExtra = lazy(() =>
   })),
 );
 
-// 懒加载路由组件：个人中心/设置
+// 懒加载路由组件：个人中心/设置（已拆分至 screens/ 目录独立文件）
 const LazyProfileAndSettings = lazy(() =>
-  import('../ProfileAndSettings').then((m) => ({
+  Promise.all([
+    import('../screens/ProfileScreen'),
+    import('../screens/SettingsScreen'),
+  ]).then(([profile, settings]) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'profile') return <m.ProfileScreen {...(props as unknown as React.ComponentProps<typeof m.ProfileScreen>)} />;
-      if (screen === 'settings') return <m.SettingsScreen {...(props as unknown as React.ComponentProps<typeof m.SettingsScreen>)} />;
+      if (screen === 'profile') return <profile.ProfileScreen {...(props as unknown as React.ComponentProps<typeof profile.ProfileScreen>)} />;
+      if (screen === 'settings') return <settings.SettingsScreen {...(props as unknown as React.ComponentProps<typeof settings.SettingsScreen>)} />;
       return null;
     },
   })),
 );
 
-// 懒加载路由组件：轨迹旅程（启动页/我的轨迹/详情/历史）
+// 懒加载路由组件：轨迹旅程（已拆分至 screens/ 目录独立文件）
 const LazyTraceJourney = lazy(() =>
-  import('../TraceJourneyScreens').then((m) => ({
+  Promise.all([
+    import('../screens/SplashScreen'),
+    import('../screens/MyTracesScreen'),
+    import('../screens/TraceDetailScreen'),
+    import('../screens/RunHistoryScreen'),
+    import('../screens/RunDetailScreen'),
+  ]).then(([splash, traces, detail, history, runDetail]) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'splash') return <m.SplashScreen {...(props as unknown as React.ComponentProps<typeof m.SplashScreen>)} />;
-      if (screen === 'my_traces') return <m.MyTracesScreen {...(props as unknown as React.ComponentProps<typeof m.MyTracesScreen>)} />;
-      if (screen === 'trace_detail') return <m.TraceDetailScreen {...(props as unknown as React.ComponentProps<typeof m.TraceDetailScreen>)} />;
-      if (screen === 'run_history') return <m.RunHistoryScreen {...(props as unknown as React.ComponentProps<typeof m.RunHistoryScreen>)} />;
-      if (screen === 'run_detail') return <m.RunDetailScreen {...(props as unknown as React.ComponentProps<typeof m.RunDetailScreen>)} />;
+      if (screen === 'splash') return <splash.SplashScreen {...(props as unknown as React.ComponentProps<typeof splash.SplashScreen>)} />;
+      if (screen === 'my_traces') return <traces.MyTracesScreen {...(props as unknown as React.ComponentProps<typeof traces.MyTracesScreen>)} />;
+      if (screen === 'trace_detail') return <detail.TraceDetailScreen {...(props as unknown as React.ComponentProps<typeof detail.TraceDetailScreen>)} />;
+      if (screen === 'run_history') return <history.RunHistoryScreen {...(props as unknown as React.ComponentProps<typeof history.RunHistoryScreen>)} />;
+      if (screen === 'run_detail') return <runDetail.RunDetailScreen {...(props as unknown as React.ComponentProps<typeof runDetail.RunDetailScreen>)} />;
       return null;
     },
   })),
 );
 
-// 懒加载路由组件：发现页（收藏/模板详情/搜索）
+// 懒加载路由组件：发现页（已拆分至 screens/ 目录独立文件）
 const LazyDiscovery = lazy(() =>
-  import('../DiscoveryScreens').then((m) => ({
+  Promise.all([
+    import('../screens/FavoritesScreen'),
+    import('../screens/TemplateDetailScreen'),
+    import('../screens/SearchScreen'),
+    import('../screens/SearchResultScreen'),
+  ]).then(([fav, tpl, search, result]) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'favorites') return <m.FavoritesScreen {...(props as unknown as React.ComponentProps<typeof m.FavoritesScreen>)} />;
-      if (screen === 'template_detail') return <m.TemplateDetailScreen {...(props as unknown as React.ComponentProps<typeof m.TemplateDetailScreen>)} />;
-      if (screen === 'search') return <m.SearchScreen {...(props as unknown as React.ComponentProps<typeof m.SearchScreen>)} />;
-      if (screen === 'search_result') return <m.SearchResultScreen {...(props as unknown as React.ComponentProps<typeof m.SearchResultScreen>)} />;
+      if (screen === 'favorites') return <fav.FavoritesScreen {...(props as unknown as React.ComponentProps<typeof fav.FavoritesScreen>)} />;
+      if (screen === 'template_detail') return <tpl.TemplateDetailScreen {...(props as unknown as React.ComponentProps<typeof tpl.TemplateDetailScreen>)} />;
+      if (screen === 'search') return <search.SearchScreen {...(props as unknown as React.ComponentProps<typeof search.SearchScreen>)} />;
+      if (screen === 'search_result') return <result.SearchResultScreen {...(props as unknown as React.ComponentProps<typeof result.SearchResultScreen>)} />;
       return null;
     },
   })),
 );
 
-// 懒加载路由组件：社区页（分享/广场/消息）
+// 懒加载路由组件：社区页（已拆分至 screens/ 目录独立文件）
 const LazyCommunity = lazy(() =>
-  import('../CommunityScreens').then((m) => ({
+  Promise.all([
+    import('../screens/TraceShareScreen'),
+    import('../screens/SquareScreen'),
+    import('../screens/PostDetailScreen'),
+    import('../screens/NotificationsScreen'),
+  ]).then(([share, square, post, notif]) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
-      if (screen === 'trace_share') return <m.TraceShareScreen {...(props as unknown as React.ComponentProps<typeof m.TraceShareScreen>)} />;
-      if (screen === 'square') return <m.SquareScreen {...(props as unknown as React.ComponentProps<typeof m.SquareScreen>)} />;
-      if (screen === 'post_detail') return <m.PostDetailScreen {...(props as unknown as React.ComponentProps<typeof m.PostDetailScreen>)} />;
-      if (screen === 'notifications') return <m.NotificationsScreen {...(props as unknown as React.ComponentProps<typeof m.NotificationsScreen>)} />;
+      if (screen === 'trace_share') return <share.TraceShareScreen {...(props as unknown as React.ComponentProps<typeof share.TraceShareScreen>)} />;
+      if (screen === 'square') return <square.SquareScreen {...(props as unknown as React.ComponentProps<typeof square.SquareScreen>)} />;
+      if (screen === 'post_detail') return <post.PostDetailScreen {...(props as unknown as React.ComponentProps<typeof post.PostDetailScreen>)} />;
+      if (screen === 'notifications') return <notif.NotificationsScreen {...(props as unknown as React.ComponentProps<typeof notif.NotificationsScreen>)} />;
       return null;
     },
   })),
