@@ -217,3 +217,73 @@ export async function listRunHistory(userId: string, limit: number): Promise<Rec
     route: row.route || null,
   }));
 }
+
+/**
+ * 账号注销（软删除）
+ *
+ * 将用户数据标记为已删除，清理关联数据：
+ *   - 清除认证身份、推送 Token
+ *   - 清除路线、会话、社区内容
+ *   - 清除收藏、反馈、搜索历史
+ *   - 撤销所有 Token
+ *
+ * 30 天后由定时任务硬删除
+ */
+export async function deactivateAccount(userId: string): Promise<{ deactivated: boolean; cleanedTables: string[] }> {
+  await ensurePostgres();
+  const cleanedTables: string[] = [];
+  const client = await pgPool!.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 标记用户为已删除
+    await client.query(
+      `UPDATE users SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{deactivatedAt}', to_jsonb(NOW())) WHERE id = $1`,
+      [userId]
+    );
+    cleanedTables.push('users');
+
+    // 清除认证身份
+    const authResult = await client.query(`DELETE FROM auth_identities WHERE user_id = $1`, [userId]);
+    if (authResult.rowCount) cleanedTables.push('auth_identities');
+
+    // 清除推送 Token
+    await client.query(`DELETE FROM user_push_tokens WHERE user_id = $1`, [userId]);
+    cleanedTables.push('user_push_tokens');
+
+    // 软删除路线
+    await client.query(`UPDATE routes SET status = 'deleted', updated_at = NOW() WHERE user_id = $1 AND status = 'active'`, [userId]);
+    cleanedTables.push('routes');
+
+    // 结束进行中的会话
+    await client.query(
+      `UPDATE run_sessions SET status = 'finished', finished_at = NOW(), updated_at = NOW() WHERE user_id = $1 AND status IN ('created', 'running', 'paused')`,
+      [userId]
+    );
+    cleanedTables.push('run_sessions');
+
+    // 软删除社区帖子
+    await client.query(`UPDATE community_posts SET status = 'deleted', updated_at = NOW() WHERE user_id = $1`, [userId]);
+    cleanedTables.push('community_posts');
+
+    // 清除收藏、关注、反馈、搜索历史
+    await client.query(`DELETE FROM user_favorites WHERE user_id = $1`, [userId]);
+    await client.query(`DELETE FROM user_follows WHERE follower_id = $1 OR following_id = $1`, [userId]);
+    await client.query(`DELETE FROM user_feedback WHERE user_id = $1`, [userId]);
+    await client.query(`DELETE FROM user_search_history WHERE user_id = $1`, [userId]);
+    await client.query(`DELETE FROM community_reactions WHERE user_id = $1`, [userId]);
+    cleanedTables.push('user_favorites', 'user_follows', 'user_feedback', 'user_search_history', 'community_reactions');
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // 清除缓存
+  await cacheDelete(`profile:${userId}`);
+
+  return { deactivated: true, cleanedTables };
+}

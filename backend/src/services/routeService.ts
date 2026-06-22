@@ -57,6 +57,15 @@ export type { GeoPoint } from '../utils/geo';
 // 重新导出地图配置函数，保持向后兼容
 export { normalizeProvider, normalizeLocale, getMapConfig, seedWgs84ToProvider, getLocaleMeta, splitList };
 
+/** 图片轮廓缓存：避免重复处理相同图片（LRU 简易实现，最多缓存 32 个） */
+const CONTOUR_CACHE_MAX = 32;
+const contourCache = new Map<string, Array<{ x: number; y: number }>>();
+
+/** 计算图片 buffer 的 MD5 摘要，作为缓存 key */
+function bufferHash(buffer: Buffer): string {
+  return crypto.createHash('md5').update(buffer).digest('hex');
+}
+
 // ===== 常量与配置 =====
 
 /** 导航会话状态枚举 */
@@ -172,8 +181,30 @@ function alignFirstPointToStart(points: GeoPoint[], start: GeoPoint | null): Geo
   }));
 }
 
-/** 从图片提取轮廓：缩放到 96px、亮度阈值分割、极坐标采样边界点 */
+/** 从图片提取轮廓：缩放到 96px、亮度阈值分割、极坐标采样边界点（带缓存） */
 async function extractImageContourUnitPoints(buffer: Buffer): Promise<Array<{ x: number; y: number }>> {
+  const hash = bufferHash(buffer);
+  const cached = contourCache.get(hash);
+  if (cached) {
+    // LRU 刷新：删除再插入以移动到末尾
+    contourCache.delete(hash);
+    contourCache.set(hash, cached);
+    return cached;
+  }
+
+  const result = await extractImageContourUnitPointsRaw(buffer);
+
+  // 缓存并淘汰旧条目
+  if (contourCache.size >= CONTOUR_CACHE_MAX) {
+    const oldest = contourCache.keys().next().value;
+    if (oldest) contourCache.delete(oldest);
+  }
+  contourCache.set(hash, result);
+  return result;
+}
+
+/** 图片轮廓提取原始实现（无缓存） */
+async function extractImageContourUnitPointsRaw(buffer: Buffer): Promise<Array<{ x: number; y: number }>> {
   const image = await sharp(buffer, { limitInputPixels: 16_000_000 })
     .rotate()
     .resize({ width: 96, height: 96, fit: 'inside', withoutEnlargement: true })
@@ -544,7 +575,7 @@ async function getAmapWalkingDistance(from: GeoPoint, to: GeoPoint): Promise<num
   }
 }
 
-/** 通过高德步行规划校验路线是否可跑（采样多段比对绕行比） */
+/** 通过高德步行规划校验路线是否可跑（采样多段并行比对绕行比） */
 async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> {
   if (process.env.TRACECRAFT_ALLOW_UNVERIFIED_ROUTES === '1') return [];
   if (normalizeProvider(route.providerHint) !== 'amap') {
@@ -563,12 +594,18 @@ async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> 
   }
   const segments: RouteRiskSegment[] = [];
   const samples = sampleAmapWalkingSegments(route.points);
+
+  // 并行发起所有高德步行规划请求，显著提升校验速度
+  const distances = await Promise.all(
+    samples.map((sample) => getAmapWalkingDistance(sample.from, sample.to))
+  );
+
   let checked = 0;
-  for (const sample of samples) {
-    const directDistance = pointDistanceMeters(sample.from, sample.to);
-    const walkingDistance = await getAmapWalkingDistance(sample.from, sample.to);
-    if (walkingDistance === null) continue;
+  samples.forEach((sample, index) => {
+    const walkingDistance = distances[index];
+    if (walkingDistance === null) return;
     checked += 1;
+    const directDistance = pointDistanceMeters(sample.from, sample.to);
     const detourRatio = walkingDistance / Math.max(1, directDistance);
     if (detourRatio > 4 && walkingDistance - directDistance > 500) {
       segments.push({
@@ -587,7 +624,8 @@ async function assessAmapWalkability(route: Route): Promise<RouteRiskSegment[]> 
         to: sample.to,
       });
     }
-  }
+  });
+
   if (samples.length > 0 && checked === 0) {
     segments.push({
       type: 'amap_walk_unavailable',

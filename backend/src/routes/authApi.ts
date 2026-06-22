@@ -9,6 +9,7 @@
  *   - POST /auth/logout         登出
  */
 import express, { type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { cookieOptions, errorPayload, readUserToken, successPayload } from './common';
 import { parseQuickAuthProvider, quickLogin } from '../services/authService';
 import {
@@ -29,6 +30,33 @@ import { normalizePhone, sendSmsCode, verifySmsCode } from '../services/smsServi
 import { verifyOAuthCode } from '../services/oauthService';
 
 const router = express.Router();
+
+/** 登录端点限流：每个 IP 在 15 分钟内最多 10 次登录尝试 */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { ok: false, code: 'login_rate_limit', error: '登录尝试过于频繁，请 15 分钟后再试', status: 429 },
+});
+
+/** 短信发送端点限流：每个 IP 在 1 小时内最多 5 次短信发送 */
+const smsLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { ok: false, code: 'sms_rate_limit', error: '短信发送过于频繁，请 1 小时后再试', status: 429 },
+});
+
+/** Token 刷新端点限流：每个 IP 在 15 分钟内最多 30 次 */
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { ok: false, code: 'refresh_rate_limit', error: '刷新请求过于频繁', status: 429 },
+});
 
 /** 标准化设备 ID（截断最大 128 字符） */
 function normalizeDeviceId(value: unknown): string {
@@ -72,7 +100,7 @@ function clearAuthCookies(res: Response): void {
   res.clearCookie('tc_user_refresh_token', options);
 }
 
-router.post('/auth/quick-login', async (req: Request, res: Response) => {
+router.post('/auth/quick-login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const provider = parseQuickAuthProvider(req.body?.provider);
     if (!provider || provider === 'phone') {
@@ -110,7 +138,7 @@ router.post('/auth/quick-login', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/auth/sms-code', async (req: Request, res: Response) => {
+router.post('/auth/sms-code', smsLimiter, async (req: Request, res: Response) => {
   try {
     const phone = normalizePhone(req.body?.phone);
     if (phone.length !== 11) {
@@ -138,7 +166,7 @@ router.post('/auth/sms-code', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/auth/phone-login', async (req: Request, res: Response) => {
+router.post('/auth/phone-login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const phone = normalizePhone(req.body?.phone);
     const smsCode = typeof req.body?.smsCode === 'string' ? req.body.smsCode.trim() : '';
@@ -173,7 +201,7 @@ router.post('/auth/phone-login', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/auth/refresh', async (req: Request, res: Response) => {
+router.post('/auth/refresh', refreshLimiter, async (req: Request, res: Response) => {
   try {
     const refreshToken = readUserRefreshToken(req);
     const refreshPayload = refreshToken ? verifyUserRefreshToken(refreshToken) : null;

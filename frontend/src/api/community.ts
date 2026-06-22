@@ -111,10 +111,30 @@ export async function toggleFollowUser(userId: string): Promise<boolean> {
 
 // ===== 通知 =====
 
-/** 查询通知列表（默认全部，可按类型过滤） */
-export async function listNotifications(type: string = 'all'): Promise<NotificationItem[]> {
-  const data = await apiGet<{ notifications?: NotificationItem[] }>(`/notifications?type=${encodeURIComponent(type)}`);
-  return data.notifications || [];
+/** 通知分页结果 */
+export interface NotificationPage {
+  notifications: NotificationItem[];
+  page: number;
+  limit: number;
+  hasMore: boolean;
+  [key: string]: unknown;
+}
+
+/** 查询通知列表（支持分页，默认第 1 页每页 20 条） */
+export async function listNotifications(
+  type: string = 'all',
+  page: number = 1,
+  limit: number = 20
+): Promise<NotificationPage> {
+  const data = await apiGet<NotificationPage & { ok?: boolean }>(
+    `/notifications?type=${encodeURIComponent(type)}&page=${page}&limit=${limit}`
+  );
+  return {
+    notifications: data.notifications || [],
+    page: data.page || 1,
+    limit: data.limit || 20,
+    hasMore: data.hasMore || false,
+  };
 }
 
 /** 标记通知已读（传 id 标记单条，不传标记全部） */

@@ -36,6 +36,7 @@ import { getPgPoolStats } from './services/postgres-storage';
 import { runMigrations } from './services/migrationService';
 import { logger } from './services/logger';
 import { requestLogger } from './middleware/requestLogger';
+import { csrfProtection, generateCsrfToken, setCsrfCookie } from './middleware/csrf';
 
 const app = express();
 
@@ -127,6 +128,16 @@ app.get('/api/maps/config', applyIfMatch, async (req: Request, res: Response) =>
     traceId: req.traceId,
   }));
 });
+
+// CSRF Token 获取端点（前端启动时调用一次，拿到 Token 放入请求头）
+app.get('/api/csrf-token', (req: Request, res: Response) => {
+  const token = generateCsrfToken();
+  setCsrfCookie(res, token);
+  res.json(successPayload({ csrfToken: token }));
+});
+
+// 对 /api 路由启用 CSRF 校验（GET/HEAD/OPTIONS 以及 multipart 跳过）
+app.use('/api', csrfProtection);
 
 // ===== 路由模块 =====
 app.use('/api', authApi);

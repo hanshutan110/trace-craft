@@ -1,28 +1,9 @@
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
 import { pushNotification } from './wsService';
+import { requireDb, ensureUser, parseJson, toIso, normalizePage, normalizeLimit } from './common-utils';
+import { getNotificationTexts } from './notification-i18n';
 import type { CommunityCommentItem, CommunityPostItem, NotificationItem } from '../../../shared/community';
-
-function requireDb(): void {
-  if (!pgPool) throw new Error('postgres_not_configured');
-}
-
-async function ensureUser(userId: string): Promise<void> {
-  await pgPool!.query(`INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, [userId]);
-}
-
-function toIso(value: unknown): string {
-  return value ? new Date(value as string | Date).toISOString() : new Date().toISOString();
-}
-
-function parseJson<T>(value: T): T {
-  if (typeof value !== 'string') return value;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return value;
-  }
-}
 
 export interface CommunityPostListOptions {
   tab?: string;
@@ -72,13 +53,7 @@ function mapComment(row: Record<string, unknown>): CommunityCommentItem {
   };
 }
 
-function normalizePage(value: number | undefined): number {
-  return Number.isFinite(value) ? Math.max(1, Math.floor(Number(value))) : 1;
-}
-
-function normalizeLimit(value: number | undefined): number {
-  return Number.isFinite(value) ? Math.max(1, Math.min(50, Math.floor(Number(value)))) : 20;
-}
+// normalizePage / normalizeLimit 已迁移到 common-utils.ts
 
 export async function createPost(userId: string, body: Record<string, unknown>): Promise<CommunityPostItem> {
   requireDb();
@@ -216,17 +191,18 @@ export async function addComment(userId: string, postId: string, content: string
     const ownerId = postRows.rows[0]?.user_id;
     if (ownerId && ownerId !== userId) {
       const notificationId = newId('notice');
+      const i18n = getNotificationTexts();
       await client.query(
         `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
-         VALUES ($1, $2, $3, 'comment', '收到新评论', $4, 'post', $5)`,
-        [notificationId, ownerId, userId, content, postId]
+         VALUES ($1, $2, $3, 'comment', $4, $5, 'post', $6)`,
+        [notificationId, ownerId, userId, i18n.comment.title, i18n.comment.body(content), postId]
       );
       // 实时推送通知
       pushNotification(ownerId, {
         id: notificationId,
         type: 'comment',
-        title: '收到新评论',
-        body: content,
+        title: i18n.comment.title,
+        body: i18n.comment.body(content),
         targetType: 'post',
         targetId: postId,
         actorUserId: userId,
@@ -281,17 +257,18 @@ export async function togglePostLike(userId: string, postId: string): Promise<{ 
         const ownerId = postRows.rows[0]?.user_id;
         if (ownerId && ownerId !== userId) {
           const notificationId = newId('notice');
+          const i18n = getNotificationTexts();
           await client.query(
             `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
-             VALUES ($1, $2, $3, 'like', '收到新点赞', '有人点赞了你的作品', 'post', $4)`,
-            [notificationId, ownerId, userId, postId]
+             VALUES ($1, $2, $3, 'like', $4, $5, 'post', $6)`,
+            [notificationId, ownerId, userId, i18n.like.title, i18n.like.body, postId]
           );
           // 实时推送通知
           pushNotification(ownerId, {
             id: notificationId,
             type: 'like',
-            title: '收到新点赞',
-            body: '有人点赞了你的作品',
+            title: i18n.like.title,
+            body: i18n.like.body,
             targetType: 'post',
             targetId: postId,
             actorUserId: userId,
@@ -335,17 +312,18 @@ export async function toggleFollow(userId: string, followingId: string): Promise
     );
     if (inserted.rows[0]) {
       const notificationId = newId('notice');
+      const i18n = getNotificationTexts();
       await client.query(
         `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
-         VALUES ($1, $2, $3, 'follow', '新增关注', '有人关注了你', 'user', $3)`,
-        [notificationId, followingId, userId]
+         VALUES ($1, $2, $3, 'follow', $4, $5, 'user', $3)`,
+        [notificationId, followingId, userId, i18n.follow.title, i18n.follow.body]
       );
       // 实时推送通知
       pushNotification(followingId, {
         id: notificationId,
         type: 'follow',
-        title: '新增关注',
-        body: '有人关注了你',
+        title: i18n.follow.title,
+        body: i18n.follow.body,
         targetType: 'user',
         targetId: userId,
         actorUserId: userId,
@@ -362,31 +340,45 @@ export async function toggleFollow(userId: string, followingId: string): Promise
   }
 }
 
-export async function listNotifications(userId: string, type: string = 'all'): Promise<NotificationItem[]> {
+export async function listNotifications(
+  userId: string,
+  type: string = 'all',
+  options: { page?: number; limit?: number } = {}
+): Promise<{ notifications: NotificationItem[]; page: number; limit: number; hasMore: boolean }> {
   requireDb();
   await ensureUser(userId);
+  const page = normalizePage(options.page);
+  const limit = normalizeLimit(options.limit || 20);
+  const offset = (page - 1) * limit;
   const params: unknown[] = [userId];
   const where = ['user_id = $1'];
   if (type !== 'all') {
     params.push(type === 'sys' ? 'system' : type);
     where.push(`type = $${params.length}`);
   }
+  params.push(limit + 1, offset);
   const result = await pgPool!.query(
-    `SELECT * FROM notifications WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT 80`,
+    `SELECT * FROM notifications WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
-  return result.rows.map((row) => ({
-    id: String(row.id),
-    type: String(row.type),
-    title: String(row.title),
-    body: String(row.body || ''),
-    targetType: row.target_type ? String(row.target_type) : null,
-    targetId: row.target_id ? String(row.target_id) : null,
-    actorUserId: row.actor_user_id ? String(row.actor_user_id) : null,
-    isRead: Boolean(row.is_read),
-    createdAt: toIso(row.created_at),
-    metadata: parseJson(row.metadata || {}) as Record<string, unknown>,
-  }));
+  const rows = result.rows.slice(0, limit);
+  return {
+    notifications: rows.map((row) => ({
+      id: String(row.id),
+      type: String(row.type),
+      title: String(row.title),
+      body: String(row.body || ''),
+      targetType: row.target_type ? String(row.target_type) : null,
+      targetId: row.target_id ? String(row.target_id) : null,
+      actorUserId: row.actor_user_id ? String(row.actor_user_id) : null,
+      isRead: Boolean(row.is_read),
+      createdAt: toIso(row.created_at),
+      metadata: parseJson(row.metadata || {}) as Record<string, unknown>,
+    })),
+    page,
+    limit,
+    hasMore: result.rows.length > limit,
+  };
 }
 
 export async function markNotificationsRead(userId: string, notificationId?: string): Promise<void> {

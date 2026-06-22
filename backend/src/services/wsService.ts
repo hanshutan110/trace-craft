@@ -111,6 +111,21 @@ export function initWebSocket(httpServer: HttpServer): SocketIOServer {
       }
     });
 
+    // 位置分享房间：加入/离开
+    socket.on('share:join', (sessionId: string) => {
+      if (typeof sessionId === 'string' && sessionId.trim()) {
+        socket.join(`share:${sessionId.trim()}`);
+        logger.info('share_room_joined', { userId, socketId: socket.id, sessionId });
+      }
+    });
+
+    socket.on('share:leave', (sessionId: string) => {
+      if (typeof sessionId === 'string' && sessionId.trim()) {
+        socket.leave(`share:${sessionId.trim()}`);
+        logger.info('share_room_left', { userId, socketId: socket.id, sessionId });
+      }
+    });
+
     // 断开连接
     socket.on('disconnect', () => {
       socketUserMap.delete(socket.id);
@@ -151,20 +166,53 @@ export function pushNotification(userId: string, notification: NotificationEvent
 /**
  * 广播跑步位置更新给关注者
  *
- * 当前实现：推送到 session 对应的用户房间
- * 后续可扩展为推送到关注者的 "正在跑步" 频道
+ * 推送到两个目标：
+ *   1. 用户专属房间（user:{userId}）
+ *   2. 位置分享房间（share:{sessionId}），供关注者实时观看
  */
 export function broadcastLocationUpdate(userId: string, event: LocationSyncEvent): void {
   if (!io) return;
   io.to(`user:${userId}`).emit('location:update', event);
+  io.to(`share:${event.sessionId}`).emit('location:update', event);
 }
 
 /**
  * 推送跑步会话状态变更（开始/暂停/恢复/结束）
+ *
+ * 同时推送到用户房间和分享房间
  */
 export function broadcastSessionEvent(userId: string, eventType: string, data: Record<string, unknown>): void {
   if (!io) return;
   io.to(`user:${userId}`).emit(`session:${eventType}`, data);
+  if (data.sessionId) {
+    io.to(`share:${data.sessionId}`).emit(`session:${eventType}`, data);
+  }
+}
+
+/**
+ * 加入位置分享房间
+ *
+ * 关注者通过此函数加入跑步者的分享房间，实时接收位置更新
+ */
+export function joinShareRoom(socketId: string, sessionId: string): void {
+  if (!io) return;
+  const socket = io.sockets.sockets.get(socketId);
+  if (socket) {
+    socket.join(`share:${sessionId}`);
+    logger.info('share_room_joined', { socketId, sessionId });
+  }
+}
+
+/**
+ * 离开位置分享房间
+ */
+export function leaveShareRoom(socketId: string, sessionId: string): void {
+  if (!io) return;
+  const socket = io.sockets.sockets.get(socketId);
+  if (socket) {
+    socket.leave(`share:${sessionId}`);
+    logger.info('share_room_left', { socketId, sessionId });
+  }
 }
 
 // ===== 状态查询 =====

@@ -15,7 +15,7 @@
 import express, { type Request, type Response } from 'express';
 import multer from 'multer';
 import { asPositiveInt, errorPayload, requireAuth, successPayload } from './common';
-import { getUserProfile, listRunHistory, submitUserFeedback, updateUserProfile, updateUserSettings } from '../services/profileService';
+import { getUserProfile, listRunHistory, submitUserFeedback, updateUserProfile, updateUserSettings, deactivateAccount } from '../services/profileService';
 import { allowedAssetMimeTypes, assetMaxBytes, clearUserGeneratedCache, listUserAssets, saveUserImageAsset } from '../services/assetService';
 import { createShareCard, createUserQrCard } from '../services/shareService';
 import { enqueueShareCard, enqueueQrCard, getJobStatus } from '../services/queueService';
@@ -235,6 +235,24 @@ router.get('/run-history', requireAuth, async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('run_history_failed', error, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('list run history failed', 'run_history_failed', 500));
+  }
+});
+
+/**
+ * 账号注销（软删除）
+ * DELETE /me
+ *
+ * 清理用户所有关联数据，标记为已删除
+ * 注销后需要前端清除登录状态并跳转登录页
+ */
+router.delete('/me', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await deactivateAccount(req.userId as string);
+    logger.info('account_deactivated', { traceId: req.traceId, userId: req.userId, cleanedTables: result.cleanedTables });
+    res.json(successPayload({ ...result, traceId: req.traceId }));
+  } catch (error) {
+    logger.error('account_deactivation_failed', error, { traceId: req.traceId, userId: req.userId });
+    res.status(500).json(errorPayload('account deactivation failed', 'account_deactivation_failed', 500));
   }
 });
 

@@ -44,32 +44,19 @@ function normalizeSubject(params: QuickLoginParams): string {
   return crypto.createHash('sha256').update(`${params.provider}:${seed}`).digest('hex');
 }
 
-async function ensureAuthSchema(): Promise<void> {
-  await pgPool!.query(`
-    CREATE TABLE IF NOT EXISTS auth_identities (
-      id TEXT PRIMARY KEY,
-      provider TEXT NOT NULL,
-      provider_subject TEXT NOT NULL,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      display_name TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(provider, provider_subject)
-    )
-  `);
-  await pgPool!.query(`CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities(user_id)`);
-}
-
 export function parseQuickAuthProvider(value: unknown): QuickAuthProvider | null {
   return normalizeProvider(value);
 }
 
+/**
+ * 快捷登录（OAuth / 手机号）
+ * auth_identities 表结构由 db/migrations/005 统一维护，此处不再内联建表。
+ */
 export async function quickLogin(params: QuickLoginParams): Promise<QuickLoginResult> {
   await initStorage();
   if (!pgPool) {
     throw new Error('postgres_auth_required');
   }
-  await ensureAuthSchema();
 
   const subject = normalizeSubject(params);
   if (!subject) {

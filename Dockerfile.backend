@@ -1,0 +1,31 @@
+# TraceCraft 后端 Dockerfile
+# 多阶段构建：依赖安装 → TypeScript 编译 → 精简运行镜像
+
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --omit=dev
+
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci
+COPY backend/tsconfig.json ./
+COPY backend/src ./src
+COPY shared ../shared
+RUN npx tsc
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup -g 1001 -S nodejs && adduser -S tracecraft -u 1001
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY db/migrations ./db/migrations
+COPY backend/package.json ./
+
+USER tracecraft
+EXPOSE 3017
+
+CMD ["node", "dist/index.js"]

@@ -90,3 +90,26 @@ export function onRealtime<K extends keyof RealtimeEventMap>(event: K, handler: 
     if (current.size === 0) listeners.delete(event);
   };
 }
+
+// ===== 实时位置分享 =====
+
+/**
+ * 加入位置分享房间
+ *
+ * 关注者调用此函数加入跑步者的分享房间，实时接收位置更新
+ */
+export function joinShareRoom(sessionId: string): void {
+  socket?.emit('share:join', sessionId);
+}
+
+/**
+ * 离开位置分享房间
+ */
+export function leaveShareRoom(sessionId: string): void {
+  socket?.emit('share:leave', sessionId);
+}
+
+/** 检查实时连接是否在线 */
+export function isRealtimeConnected(): boolean {
+  return socket?.connected ?? false;
+}

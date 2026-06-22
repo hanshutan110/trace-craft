@@ -13,6 +13,7 @@ import { GeneratedRoute, ScreenId } from './types';
 import { AppViewport } from './components/AppViewport';
 import { I18nProvider } from './i18n';
 import { ToastProvider } from './components/common/Toast';
+import { AppProvider } from './context/AppContext';
 import { createImageRoute, createTemplateRoute, startRoute } from './api/routes';
 import { getTemplate } from './api/discovery';
 import { clearAuthSession, hasAuthSession } from './api/auth';
@@ -20,6 +21,7 @@ import { miniToast } from './utils';
 import { connectRealtime, disconnectRealtime, onRealtime } from './services/realtime';
 import { initPushNotifications, resetPushNotifications } from './services/pushNotifications';
 import { useScreenNavigation } from './hooks/useScreenNavigation';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
 
 // localStorage 持久化键名（移至组件外部，避免每次渲染重新创建）
 const STORAGE_KEYS = {
@@ -241,6 +243,8 @@ export default function App() {
   return (
     <I18nProvider>
       <ToastProvider>
+        <AppProvider navigateToScreen={navigateToScreen} setActiveNavbarTab={setActiveNavbarTab}>
+        <OfflineIndicator />
         <div
         id="main_wrapper"
         className="min-h-[100dvh] bg-[#0F172A] text-slate-100 font-sans antialiased"
@@ -271,6 +275,7 @@ export default function App() {
           onStartGeneratedRoute={handleStartGeneratedRoute}
         />
       </div>
+      </AppProvider>
       </ToastProvider>
     </I18nProvider>
   );

@@ -123,7 +123,66 @@
 3. 标注下周高优先级两项
 4. 列出阻塞项及处理建议
 
-## 11. 最新进度表（2026-06-22，前端屏幕组件拆分与路由重构）
+## 11. 最新进度表（2026-06-22，全栈安全加固与基础设施完善）
+
+### 本次同步目标（全栈安全加固与基础设施完善）
+
+1. 后端新增 CSRF 防护中间件（Double-Submit Cookie）
+2. 后端认证接口增加端点级限流（登录/短信/刷新）
+3. 前端 API 客户端增强：CSRF Token 自动携带、请求超时、网络重试、Token 刷新并发锁
+4. 后端重复工具函数提取为 `common-utils.ts`，通知文案提取为 `notification-i18n.ts`
+5. WebSocket 新增位置分享房间（实时观赛）
+6. 前端全局状态 AppContext + 离线指示器 + 离线存储增强
+7. Docker 部署配置（Dockerfile + docker-compose + CI 工作流）
+8. 数据库迁移 005：集中创建认证/社区/资产表结构
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 安全 | CSRF 防护中间件（Double-Submit Cookie 模式） | 已完成 | GET/HEAD/OPTIONS/multipart 跳过 |
+| 安全 | 登录/短信/刷新端点级限流 | 已完成 | 15min/10次、1h/5次、15min/30次 |
+| 后端 | `common-utils.ts` 提取公共工具函数 | 已完成 | requireDb/ensureUser/parseJson/toIso/normalizePage/normalizeLimit |
+| 后端 | `notification-i18n.ts` 通知文案国际化 | 已完成 | 支持 zh-CN/en-US |
+| 后端 | 社区/发现/个人/路线服务重构 | 已完成 | 统一引用 common-utils，消除重复代码 |
+| 后端 | WebSocket 位置分享房间 | 已完成 | share:join/share:leave + broadcastLocationUpdate 广播到分享房间 |
+| 前端 | API 客户端增强：CSRF Token + 超时(15s) + 重试(2次) + 刷新锁 | 已完成 | 并发 401 仅触发一次 refresh |
+| 前端 | `AppContext` 全局状态管理 | 已完成 | 认证/路线/UI 状态集中管理 |
+| 前端 | `OfflineIndicator` 离线指示器 | 已完成 | 断网红色提示条，恢复后 1.5s 自动消失 |
+| 前端 | `offlineStore` 增强：删除/清空/网络状态 Hook | 已完成 | deleteOfflineValue/clearOfflineStore/useOnline |
+| 前端 | `realtime.ts` 位置分享客户端集成 | 已完成 | share:join/share:leave 事件 |
+| DevOps | `.github/workflows/ci.yml` CI 工作流 | 已完成 | typecheck + test + Docker build |
+| DevOps | `Dockerfile.backend` 多阶段构建 | 已完成 | node:20-alpine，非 root 用户运行 |
+| DevOps | `docker-compose.yml` 编排配置 | 已完成 | PostgreSQL 16 + Redis 7 + Backend |
+| 数据库 | `005_auth_community_assets.sql` 迁移 | 已完成 | 集中创建 17 张表 + 索引 |
+| 测试 | 3 个新增测试文件 | 已完成 | common-utils/csrf/notification-i18n，全量 30 测试通过 |
+
+### 新增文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `backend/src/middleware/csrf.ts` | CSRF 防护中间件（Double-Submit Cookie） |
+| `backend/src/services/common-utils.ts` | 公共工具函数（从多个服务提取） |
+| `backend/src/services/notification-i18n.ts` | 通知文案国际化（zh-CN/en-US） |
+| `backend/tests/common-utils.test.ts` | 公共工具单元测试（11 个用例） |
+| `backend/tests/csrf.test.ts` | CSRF 中间件单元测试（2 个用例） |
+| `backend/tests/notification-i18n.test.ts` | 通知国际化单元测试（6 个用例） |
+| `db/migrations/005_auth_community_assets.sql` | 数据库迁移：集中建表 + 索引 |
+| `frontend/src/components/common/OfflineIndicator.tsx` | 离线指示器组件 |
+| `frontend/src/context/AppContext.tsx` | 全局应用状态 Context |
+| `.github/workflows/ci.yml` | GitHub Actions CI 工作流 |
+| `Dockerfile.backend` | 后端多阶段 Docker 构建 |
+| `docker-compose.yml` | 开发/部署编排配置 |
+
+### 已验证证据
+
+| 验证项 | 结果 |
+| --- | --- |
+| `backend npx tsc --noEmit` | 通过（零新增错误） |
+| `frontend npx tsc --noEmit` | 通过（零新增错误） |
+| `backend npm test` | 30 测试全部通过（0 失败） |
+
+## 12. 历史进度表（2026-06-22，前端屏幕组件拆分与路由重构）
 
 ### 本次同步目标（前端屏幕组件拆分与路由重构）
 
@@ -176,7 +235,7 @@
 | --- | --- |
 | `frontend npx tsc --noEmit` | 通过（零新增错误） |
 
-## 12. 历史进度表（2026-06-18，P0 安全中间件 + P2 功能增强集成）
+## 13. 历史进度表（2026-06-18，P0 安全中间件 + P2 功能增强集成）
 
 ### 本次同步目标（第三方工具评估与集成）
 
@@ -266,7 +325,7 @@ Redis 不可用时的自动降级策略：
 | 前端 | `ProfileAndSettings.tsx` 引用 6 个未实现的 API 函数 | 内测前 | 中 |
 | 前端 | `NavigationAndEditor.tsx` 引用 `pauseSession`/`resumeSession` 未实现 | 内测前 | 中 |
 
-## 13. 历史进度表（2026-06-18，开发服务端口重新分配）
+## 14. 历史进度表（2026-06-18，开发服务端口重新分配）
 
 ### 本次同步目标（开发服务端口重新分配）
 
@@ -293,7 +352,7 @@ Redis 不可用时的自动降级策略：
 | 后端 (Express) | 3001 | 3017 |
 | 管理后台 (Vite) | 3002 | 3018 |
 
-## 14. 历史进度表（2026-06-18，全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
+## 15. 历史进度表（2026-06-18，全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
 
 ### 本次同步目标
 
@@ -337,7 +396,7 @@ Redis 不可用时的自动降级策略：
 | `admin npx tsc --noEmit` | 通过（2 个预存配置错误，非本次引入） |
 | 新增编译错误 | 0 |
 
-## 15. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
+## 16. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
 
 ### 本次同步目标（管理后台 React + Ant Design 改造）
 
@@ -379,7 +438,7 @@ Redis 不可用时的自动降级策略：
 | 删除策略 | 后台 `DELETE` 从物理删除调整为软删除或二次确认策略 | 内测前 | 中 |
 | 社区审核 | 社区帖子审核、举报工单接入后台页面 | 内测前 | 中 |
 
-## 16. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
+## 17. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
 
 ### 本次同步目标（数据库接入 + 用户数据页真实化 + 后续表结构预建）
 
@@ -470,7 +529,7 @@ Redis 不可用时的自动降级策略：
 - 技术决策：暂不接 OSS；图片上传仅在请求处理中临时读取，业务持久化统一进入 PostgreSQL，不再使用 `state.json` 文件态存储。
 - 下一步建议：优先补真实第三方授权、文件存储、后台管理员鉴权和社区审核操作。
 
-## 17. 历史进度表（2026-06-16，路线预览地图真实化）
+## 18. 历史进度表（2026-06-16，路线预览地图真实化）
 
 ### 本次同步目标（路线预览地图真实化 + UX 增强）
 
@@ -511,7 +570,7 @@ Redis 不可用时的自动降级策略：
 - 技术决策：选用 Leaflet（轻量、免费、无需 API Key）而非 AMap JS SDK，降低接入成本
 - 下次同步建议：数据库连通后执行 `admin-schema.sql` 建表，验证 PostgresStorage 全链路
 
-## 18. 历史进度表（2026-06-10，前端代码审查与优化）
+## 19. 历史进度表（2026-06-10，前端代码审查与优化）
 
 ### 本次同步目标（前端代码审查与优化）
 

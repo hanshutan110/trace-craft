@@ -72,13 +72,13 @@ function adminKeyring(): Map<string, string> {
   return keys;
 }
 
-/** 获取用户访问 Token 的 TTL（毫秒） */
+/** 获取用户访问 Token 的 TTL（毫秒），默认 2 小时短效 */
 export function userTokenTtlMs(): number {
-  const ttlHours = Math.max(1, Number(process.env.TRACECRAFT_USER_TOKEN_TTL_HOURS || 24 * 30));
+  const ttlHours = Math.max(1, Number(process.env.TRACECRAFT_USER_TOKEN_TTL_HOURS || 2));
   return ttlHours * 60 * 60 * 1000;
 }
 
-/** 获取用户刷新 Token 的 TTL（毫秒） */
+/** 获取用户刷新 Token 的 TTL（毫秒），默认 30 天长效 */
 export function userRefreshTokenTtlMs(): number {
   const ttlHours = Math.max(1, Number(process.env.TRACECRAFT_USER_REFRESH_TOKEN_TTL_HOURS || 24 * 30));
   return ttlHours * 60 * 60 * 1000;

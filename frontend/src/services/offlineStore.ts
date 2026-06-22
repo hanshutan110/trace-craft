@@ -3,7 +3,14 @@
  *
  * 缓存路线/历史等业务数据，支持离线访问
  * 不缓存敏感 token，仅存储可序列化的 JSON 数据
+ *
+ * 新增能力：
+ *   - deleteOfflineValue：删除指定缓存条目
+ *   - clearOfflineStore：清空所有缓存
+ *   - isOnline / useOnline：网络状态检测 Hook
  */
+
+import { useEffect, useState } from 'react';
 
 /** 离线存储条目包装（含时间戳） */
 interface OfflineEntry<T> {
@@ -69,4 +76,50 @@ export async function getOfflineValue<T>(key: string): Promise<T | null> {
     console.warn('[offline] failed to read cached value', key, error);
     return null;
   }
+}
+
+/** 删除指定缓存条目 */
+export async function deleteOfflineValue(key: string): Promise<void> {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return;
+  try {
+    await withStore('readwrite', (store) => store.delete(key));
+  } catch (error) {
+    console.warn('[offline] failed to delete cached value', key, error);
+  }
+}
+
+/** 清空所有离线缓存 */
+export async function clearOfflineStore(): Promise<void> {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return;
+  try {
+    await withStore('readwrite', (store) => store.clear());
+  } catch (error) {
+    console.warn('[offline] failed to clear store', error);
+  }
+}
+
+// ===== 网络状态检测 =====
+
+/** 当前是否在线（SSR 安全） */
+export function isOnline(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  return navigator.onLine !== false;
+}
+
+/** React Hook：监听在线/离线状态变化 */
+export function useOnline(): boolean {
+  const [online, setOnline] = useState(() => isOnline());
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return online;
 }

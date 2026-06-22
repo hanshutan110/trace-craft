@@ -183,8 +183,10 @@ router.post('/community/follows/:followingId', requireAuth, async (req: Request,
 router.get('/notifications', requireAuth, async (req: Request, res: Response) => {
   try {
     const type = typeof req.query.type === 'string' ? req.query.type : 'all';
-    const notifications = await listNotifications(req.userId!, type);
-    res.json(successPayload({ notifications }));
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await listNotifications(req.userId!, type, { page, limit });
+    res.json(successPayload({ notifications: result.notifications, page: result.page, limit: result.limit, hasMore: result.hasMore }));
   } catch (err) {
     logger.error('notifications_list_failed', err, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('list notifications failed', 'notifications_failed', 500));
@@ -199,6 +201,28 @@ router.post('/notifications/read', requireAuth, async (req: Request, res: Respon
   } catch (err) {
     logger.error('notifications_read_failed', err, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('mark notifications read failed', 'notifications_read_failed', 500));
+  }
+});
+
+/**
+ * 批量标记通知已读
+ * POST /notifications/batch-read
+ * body: { ids: string[] }
+ */
+router.post('/notifications/batch-read', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((id: unknown) => typeof id === 'string') : [];
+    if (ids.length === 0) {
+      return res.status(400).json(errorPayload('notification ids required', 'ids_required', 400));
+    }
+    // 逐条标记已读（避免单次 UPDATE 过多行）
+    for (const id of ids.slice(0, 100)) {
+      await markNotificationsRead(req.userId!, id);
+    }
+    res.json(successPayload({ read: true, count: Math.min(ids.length, 100) }));
+  } catch (err) {
+    logger.error('notifications_batch_read_failed', err, { traceId: req.traceId, userId: req.userId });
+    res.status(500).json(errorPayload('batch mark read failed', 'notifications_batch_read_failed', 500));
   }
 });
 

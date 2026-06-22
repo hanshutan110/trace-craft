@@ -35,9 +35,9 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listNotifications(activeTab)
-      .then((items) => {
-        if (!cancelled) setMsgList(items);
+    listNotifications(activeTab, 1, 50)
+      .then((result) => {
+        if (!cancelled) setMsgList(result.notifications);
       })
       .catch(() => {
         if (!cancelled) setMsgList([]);

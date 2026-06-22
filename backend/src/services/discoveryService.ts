@@ -1,27 +1,9 @@
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
 import { getCachedSearchResults, setCachedSearchResults } from './cacheService';
+import { requireDb, ensureUser, parseJson, normalizeLimit } from './common-utils';
 
-function requireDb(): void {
-  if (!pgPool) {
-    throw new Error('postgres_not_configured');
-  }
-}
-
-function normalizeLimit(value: unknown, fallback: number = 30, max: number = 100): number {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(1, Math.min(max, Math.floor(num)));
-}
-
-function parseJson<T>(value: T): T {
-  if (typeof value !== 'string') return value;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return value;
-  }
-}
+// normalizeLimit 和 requireDb 已统一迁移到 common-utils.ts
 
 function searchTerms(keyword: string): string[] {
   const normalized = keyword.toLowerCase();
@@ -40,12 +22,7 @@ function searchTerms(keyword: string): string[] {
   return Array.from(new Set(terms.map((term) => `%${term.toLowerCase()}%`)));
 }
 
-async function ensureUser(userId: string): Promise<void> {
-  await pgPool!.query(
-    `INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`,
-    [userId]
-  );
-}
+// ensureUser 已统一迁移到 common-utils.ts
 
 export interface RouteTemplateItem {
   id: string;
@@ -149,7 +126,7 @@ export async function listTemplates(query: { category?: unknown; featured?: unkn
   if (query.featured === '1' || query.featured === 'true') {
     where.push('is_featured = TRUE');
   }
-  params.push(normalizeLimit(query.limit, 50));
+  params.push(normalizeLimit(query.limit, 50, 100));
   const rows = await pgPool!.query(
     `SELECT * FROM route_templates
      WHERE ${where.join(' AND ')}

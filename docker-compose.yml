@@ -1,0 +1,81 @@
+# TraceCraft 开发/部署 Docker Compose 配置
+#
+# 服务：
+#   - backend：后端 API 服务（Express + TypeScript）
+#   - postgres：PostgreSQL 16 数据库
+#   - redis：Redis 缓存/消息队列
+#
+# 使用方式：
+#   docker compose up -d           # 启动所有服务
+#   docker compose up backend      # 仅启动后端
+#   docker compose logs -f backend # 查看日志
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tracecraft
+      POSTGRES_USER: tracecraft
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracecraft_dev_pass}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tracecraft']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: 3017
+      NODE_ENV: production
+      TRACECRAFT_AUTO_MIGRATE: '1'
+      # 数据库连接
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: tracecraft
+      POSTGRES_USER: tracecraft
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tracecraft_dev_pass}
+      # Redis 连接
+      REDIS_URL: redis://redis:6379
+      # 应用密钥（生产环境请务必替换）
+      TRACECRAFT_USER_TOKEN_SECRET: ${TRACECRAFT_USER_TOKEN_SECRET:-change-me-user-token-secret-32chars}
+      TRACECRAFT_USER_REFRESH_TOKEN_SECRET: ${TRACECRAFT_USER_REFRESH_TOKEN_SECRET:-change-me-refresh-secret-32chars}
+      TRACECRAFT_ADMIN_TOKEN_SECRET: ${TRACECRAFT_ADMIN_TOKEN_SECRET:-change-me-admin-secret-32chars}
+      # 地图 API Keys
+      AMAP_KEY: ${AMAP_KEY:-}
+      GOOGLE_MAPS_KEY: ${GOOGLE_MAPS_KEY:-}
+      BAIDU_MAP_KEY: ${BAIDU_MAP_KEY:-}
+      # CORS
+      TRACECRAFT_CORS_ORIGINS: ${TRACECRAFT_CORS_ORIGINS:-http://localhost:3016}
+    ports:
+      - '${BACKEND_PORT:-3017}:3017'
+
+volumes:
+  pgdata:

@@ -218,7 +218,7 @@ export class PostgresStorage implements IStorage {
     }
   }
 
-  /** 创建索引 + 补充历史迁移字段 */
+  /** 创建核心索引 + 补充历史迁移字段（业务表索引已迁移到 db/migrations/005） */
   private async ensureIndexes(): Promise<void> {
     const sqls = [
       `CREATE INDEX IF NOT EXISTS idx_routes_user_created ON routes(user_id, updated_at DESC)`,
@@ -230,16 +230,6 @@ export class PostgresStorage implements IStorage {
       `ALTER TABLE routes ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`,
       `ALTER TABLE run_sessions ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`,
       `ALTER TABLE run_sessions ADD COLUMN IF NOT EXISTS idempotency_key TEXT`,
-      // 用户收藏查询索引
-      `CREATE INDEX IF NOT EXISTS idx_user_favorites_user_created ON user_favorites(user_id, created_at DESC)`,
-      // 通知查询索引
-      `CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created ON notifications(user_id, is_read, created_at DESC)`,
-      // 社区帖子 Feed 查询索引
-      `CREATE INDEX IF NOT EXISTS idx_community_posts_feed ON community_posts(status, review_status, published_at DESC NULLS LAST)`,
-      // 社区举报查询索引
-      `CREATE INDEX IF NOT EXISTS idx_community_reports_status ON community_reports(status, created_at DESC)`,
-      // 用户反馈查询索引
-      `CREATE INDEX IF NOT EXISTS idx_user_feedback_status ON user_feedback(status, created_at DESC)`,
     ];
     for (const sql of sqls) {
       await pgPool!.query(sql);

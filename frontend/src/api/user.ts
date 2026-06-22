@@ -136,3 +136,14 @@ export async function registerPushToken(payload: {
   const data = await apiPost<{ token?: Record<string, unknown> }>('/me/push-token', payload);
   return data.token || {};
 }
+
+/**
+ * 账号注销（软删除）
+ *
+ * 清理用户所有关联数据，标记为已删除
+ * 注销后需清除前端登录状态并跳转登录页
+ */
+export async function deactivateAccount(): Promise<{ deactivated: boolean; cleanedTables: string[] }> {
+  const payload = await apiDelete<{ deactivated?: boolean; cleanedTables?: string[] }>('/me');
+  return { deactivated: payload.deactivated ?? true, cleanedTables: payload.cleanedTables ?? [] };
+}
