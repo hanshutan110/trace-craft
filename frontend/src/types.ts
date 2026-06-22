@@ -53,7 +53,10 @@ export type ScreenId =
   | 'trace_share'   // 23. 轨迹分享预览页
   | 'square'        // 24. 公开广场/社区页
   | 'post_detail'   // 25. 作品详情页（社区）
-  | 'notifications'; // 26. 消息通知页
+  | 'notifications'  // 26. 消息通知页
+  | 'privacy_policy' // 27. 隐私政策
+  | 'user_agreement' // 28. 用户协议
+  | 'permission_notice'; // 29. 权限使用说明
 
 /** 预设图形类型 */
 export type ShapeType = 'circle' | 'triangle' | 'square' | 'star' | 'heart' | 'hexagon' | 'plus' | 'cat';

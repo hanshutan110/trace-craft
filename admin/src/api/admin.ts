@@ -29,6 +29,8 @@ import type {
 const API_BASE = (import.meta.env.VITE_ADMIN_API_BASE_URL || 'http://localhost:3017/api').replace(/\/$/, '');
 
 const TOKEN_KEY = 'tracecraft_admin_session';
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+let csrfToken: string | null = null;
 
 /** API 响应载荷结构（泛型 T 为业务数据类型） */
 interface ApiPayload<T> {
@@ -92,18 +94,44 @@ function buildQuery(params: Partial<ListParams>): string {
   return query ? `?${query}` : '';
 }
 
+/** 从 Cookie 中读取后端下发的 CSRF Token */
+function readCsrfCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)tc_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** 非安全方法调用前确保 CSRF Token 可用 */
+async function ensureCsrfToken(): Promise<string | null> {
+  if (csrfToken) return csrfToken;
+  csrfToken = readCsrfCookie();
+  if (csrfToken) return csrfToken;
+  const response = await fetch(`${API_BASE}/csrf-token`, { credentials: 'include' });
+  if (response.ok) {
+    csrfToken = readCsrfCookie();
+  }
+  return csrfToken;
+}
+
 /** 统一请求封装：自动附加 credentials，解析 JSON 响应，失败时抛出错误 */
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method || 'GET').toUpperCase();
+  if (!SAFE_METHODS.has(method)) {
+    await ensureCsrfToken();
+  }
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
       ...(init.body ? {'Content-Type': 'application/json'} : {}),
+      ...(csrfToken && !SAFE_METHODS.has(method) ? {'X-CSRF-Token': csrfToken} : {}),
       ...init.headers,
     },
   });
   const payload = (await response.json()) as ApiPayload<T>;
   if (!response.ok || !payload.ok) {
+    if (payload.code === 'csrf_validation_failed') {
+      csrfToken = null;
+    }
     throw new Error(payload.error || payload.code || 'admin_api_failed');
   }
   return payload as T;

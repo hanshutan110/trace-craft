@@ -97,6 +97,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
     }
   };
 
+  const openLegalDocument = (screen: 'privacy_policy' | 'user_agreement' | 'permission_notice') => {
+    try {
+      sessionStorage.setItem('tracecraft_legal_return_screen', 'settings');
+    } catch {
+      // Ignore sessionStorage failures.
+    }
+    onNavigate(screen);
+  };
+
   return (
     <div className="flex flex-col min-h-full bg-[linear-gradient(180deg,#f7fbff_0%,#ffffff_24%,#eef7ff_100%)] text-slate-800 select-none relative">
 
@@ -339,7 +348,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
 
             {/* Setting 9: Privacy policy */}
             <div 
-              onClick={() => showToast(text('用户协议已阅。您可通过账号注销及退出随时清除痕迹。', 'Terms reviewed. You can clear traces anytime by logging out or deleting your account.'))}
+              onClick={() => openLegalDocument('privacy_policy')}
               className="h-[56px] px-4 flex items-center justify-between active:bg-slate-50 cursor-pointer transition-colors"
             >
               <div className="flex items-center space-x-3">
@@ -351,12 +360,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
 
             {/* Setting 10: Service agreement */}
             <div 
-              onClick={() => showToast(text('服务协议说明。请规范在合法国画网格道路以及合法的户外路段运动', 'Service terms: please run on legal routes and public outdoor roads'))}
+              onClick={() => openLegalDocument('user_agreement')}
               className="h-[56px] px-4 flex items-center justify-between active:bg-slate-50 cursor-pointer transition-colors"
             >
               <div className="flex items-center space-x-3">
                 <FileText size={18} className="text-[#4FACFE] stroke-[2.3]" />
                 <span className="text-[15px] font-medium text-slate-700">{t('settings.service_protocol', '用户协议')}</span>
+              </div>
+              <ChevronRight size={16} className="text-slate-300" />
+            </div>
+
+            {/* Setting 11: Permission notice */}
+            <div
+              onClick={() => openLegalDocument('permission_notice')}
+              className="h-[56px] px-4 flex items-center justify-between active:bg-slate-50 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <Smartphone size={18} className="text-[#4FACFE] stroke-[2.3]" />
+                <span className="text-[15px] font-medium text-slate-700">{text('权限使用说明', 'Permission Notice')}</span>
               </div>
               <ChevronRight size={16} className="text-slate-300" />
             </div>

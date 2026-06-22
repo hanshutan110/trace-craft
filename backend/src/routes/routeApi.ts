@@ -6,7 +6,6 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
-import rateLimit from 'express-rate-limit';
 import {
   createRouteFromImage,
   createRouteFromTemplate,
@@ -26,13 +25,14 @@ import { getRouteRecord } from '../services/storage';
 import { cleanupUploadedFile, readUploadedFile, tempUploadStorage } from '../utils/uploadTemp';
 import { logger } from '../services/logger';
 import { validateBody, schemas } from '../middleware/validate';
+import { createRedisAwareRateLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 const IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 /** 图片上传/路线生成端点限流：每个 IP 在 10 分钟内最多 15 次（CPU 密集型操作需要保护） */
-const routeGenerationLimiter = rateLimit({
+const routeGenerationLimiter = createRedisAwareRateLimiter({
   windowMs: 10 * 60 * 1000,
   max: 15,
   standardHeaders: 'draft-8',

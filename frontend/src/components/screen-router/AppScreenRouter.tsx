@@ -68,10 +68,12 @@ const LazyProfileAndSettings = lazy(() =>
   Promise.all([
     import('../screens/ProfileScreen'),
     import('../screens/SettingsScreen'),
-  ]).then(([profile, settings]) => ({
+    import('../screens/LegalDocumentScreen'),
+  ]).then(([profile, settings, legal]) => ({
     default: ({ screen, props }: { screen: string; props: Record<string, unknown> }) => {
       if (screen === 'profile') return <profile.ProfileScreen {...(props as unknown as React.ComponentProps<typeof profile.ProfileScreen>)} />;
       if (screen === 'settings') return <settings.SettingsScreen {...(props as unknown as React.ComponentProps<typeof settings.SettingsScreen>)} />;
+      if (screen === 'privacy_policy' || screen === 'user_agreement' || screen === 'permission_notice') return <legal.LegalDocumentScreen screen={screen as ScreenId} {...(props as unknown as Omit<React.ComponentProps<typeof legal.LegalDocumentScreen>, 'screen'>)} />;
       return null;
     },
   })),
@@ -260,7 +262,7 @@ export const AppScreenRouter: React.FC<AppScreenRouterProps> = ({
             />
           )}
 
-          {(activeScreen === 'profile' || activeScreen === 'settings') && (
+          {(activeScreen === 'profile' || activeScreen === 'settings' || activeScreen === 'privacy_policy' || activeScreen === 'user_agreement' || activeScreen === 'permission_notice') && (
             <LazyProfileAndSettings
               screen={activeScreen}
               props={{

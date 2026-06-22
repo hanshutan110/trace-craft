@@ -9,7 +9,6 @@
  *   - POST /auth/logout         登出
  */
 import express, { type Request, type Response } from 'express';
-import rateLimit from 'express-rate-limit';
 import { cookieOptions, errorPayload, readUserToken, successPayload } from './common';
 import { parseQuickAuthProvider, quickLogin } from '../services/authService';
 import {
@@ -29,11 +28,12 @@ import {
 import { sendSmsCode, verifySmsCode } from '../services/smsService';
 import { verifyOAuthCode } from '../services/oauthService';
 import { validateBody, schemas } from '../middleware/validate';
+import { createRedisAwareRateLimiter } from '../middleware/rateLimit';
 
 const router = express.Router();
 
 /** 登录端点限流：每个 IP 在 15 分钟内最多 10 次登录尝试 */
-const loginLimiter = rateLimit({
+const loginLimiter = createRedisAwareRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 10,
   standardHeaders: 'draft-8',
@@ -42,7 +42,7 @@ const loginLimiter = rateLimit({
 });
 
 /** 短信发送端点限流：每个 IP 在 1 小时内最多 5 次短信发送 */
-const smsLimiter = rateLimit({
+const smsLimiter = createRedisAwareRateLimiter({
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: 'draft-8',
@@ -51,7 +51,7 @@ const smsLimiter = rateLimit({
 });
 
 /** Token 刷新端点限流：每个 IP 在 15 分钟内最多 30 次 */
-const refreshLimiter = rateLimit({
+const refreshLimiter = createRedisAwareRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 30,
   standardHeaders: 'draft-8',

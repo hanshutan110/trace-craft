@@ -6,7 +6,6 @@
  *   - 前端在请求头 X-CSRF-Token 中回传该值
  *   - 服务端比对 Cookie 和 Header 中的值，一致则放行
  *   - 安全方法（GET/HEAD/OPTIONS）跳过校验
- *   - 文件上传（multipart）跳过校验（multer 先于 CSRF 解析）
  */
 import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
@@ -35,11 +34,6 @@ export function setCsrfCookie(res: Response, token?: string): void {
 /** CSRF 校验中间件 */
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
   if (SAFE_METHODS.has(req.method)) {
-    return next();
-  }
-  // multipart 文件上传跳过（multer 已先行解析）
-  const contentType = req.headers['content-type'] || '';
-  if (contentType.includes('multipart/form-data')) {
     return next();
   }
   const cookieToken = readCookie(req.headers.cookie, CSRF_COOKIE);

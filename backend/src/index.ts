@@ -16,12 +16,10 @@ import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import rateLimit from 'express-rate-limit';
-import { RedisStore } from 'rate-limit-redis';
 import { getMapConfigCached } from './services/map-config';
 import { initStorage, storageMode } from './services/storage';
 import { buildTraceId, parseUserIdAsync, successPayload, applyIfMatch } from './routes/common';
-import { initRedis, isRedisConnected, getRedisClient, closeRedis } from './services/redisService';
+import { initRedis, isRedisConnected, closeRedis } from './services/redisService';
 import { initQueues, closeQueues } from './services/queueService';
 import { initWebSocket, closeWebSocket, getOnlineSocketCount } from './services/wsService';
 import authApi from './routes/authApi';
@@ -38,6 +36,7 @@ import { logger } from './services/logger';
 import { requestLogger } from './middleware/requestLogger';
 import { csrfProtection, generateCsrfToken, setCsrfCookie } from './middleware/csrf';
 import { assertEnvOrExit } from './services/envCheck';
+import { createRedisAwareRateLimiter } from './middleware/rateLimit';
 
 const app = express();
 
@@ -90,21 +89,17 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
-// 全局限流：每个 IP 在 15 分钟窗口内最多 200 次请求
-// Redis 可用时使用 RedisStore（分布式），否则回退到内存存储
-const globalLimiter = rateLimit({
+// 全局限流：每个 IP 在 15 分钟窗口内最多 200 次请求。
+// Redis 可用时使用 RedisStore（分布式），否则回退到内存存储。
+app.use(createRedisAwareRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  store: getRedisClient()
-    ? new RedisStore({ sendCommand: (...args: string[]) => getRedisClient()!.call(...args as [string, ...string[]]) as any })
-    : undefined,
   message: { ok: false, code: 'rate_limit_exceeded', error: '请求过于频繁，请稍后再试', status: 429 },
   // 跳过健康检查和静态资源
   skip: (req) => req.path === '/health' || req.path.startsWith('/uploads') || req.path.startsWith('/ws'),
-});
-app.use(globalLimiter);
+}));
 
 app.use('/uploads', express.static(path.resolve(uploadRoot()), {
   fallthrough: false,

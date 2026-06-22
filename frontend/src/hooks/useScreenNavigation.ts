@@ -25,7 +25,7 @@ function navbarTabForScreen(screen: ScreenId): NavbarTab | null {
   if (screen === 'my_traces' || screen === 'trace_detail' || screen === 'run_history' || screen === 'run_detail') {
     return 'traces';
   }
-  if (screen === 'profile' || screen === 'settings') {
+  if (screen === 'profile' || screen === 'settings' || screen === 'privacy_policy' || screen === 'user_agreement' || screen === 'permission_notice') {
     return 'profile';
   }
   return null;
