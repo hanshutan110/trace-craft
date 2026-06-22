@@ -22,6 +22,7 @@ import {
   setFavorite,
 } from '../services/discoveryService';
 import { logger } from '../services/logger';
+import { validateBody, validateQuery, schemas } from '../middleware/validate';
 
 const router = Router();
 
@@ -71,14 +72,10 @@ router.get('/favorites', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.post('/favorites', requireAuth, async (req: Request, res: Response) => {
+router.post('/favorites', requireAuth, validateBody(schemas.setFavorite), async (req: Request, res: Response) => {
   try {
-    const targetType = typeof req.body?.targetType === 'string' ? req.body.targetType : '';
-    const targetId = typeof req.body?.targetId === 'string' ? req.body.targetId : '';
-    if (!targetType || !targetId) {
-      return res.status(400).json(errorPayload('targetType and targetId required', 'invalid_favorite', 400));
-    }
-    await setFavorite(req.userId!, targetType, targetId);
+    const body = (req.validated?.body || req.body) as { targetType: string; targetId: string };
+    await setFavorite(req.userId!, body.targetType, body.targetId);
     return res.json(successPayload({ favorited: true }));
   } catch (err) {
     logger.error('favorite_set_failed', err, { traceId: req.traceId, userId: req.userId });
@@ -108,11 +105,10 @@ router.get('/search/hints', requireAuth, async (req: Request, res: Response) => 
   }
 });
 
-router.get('/search', requireAuth, async (req: Request, res: Response) => {
+router.get('/search', requireAuth, validateQuery(schemas.searchQuery), async (req: Request, res: Response) => {
   try {
-    const q = typeof req.query.q === 'string' ? req.query.q : '';
-    const scope = typeof req.query.scope === 'string' ? req.query.scope : 'all';
-    const results = await searchAll(req.userId!, q, scope, req.query.limit);
+    const query = (req.validated?.query || req.query) as { q: string; scope: string; limit: number };
+    const results = await searchAll(req.userId!, query.q, query.scope, query.limit);
     res.json(successPayload({ results }));
   } catch (err) {
     logger.error('search_list_failed', err, { traceId: req.traceId, userId: req.userId });

@@ -25,6 +25,7 @@ import {
 import { getRouteRecord } from '../services/storage';
 import { cleanupUploadedFile, readUploadedFile, tempUploadStorage } from '../utils/uploadTemp';
 import { logger } from '../services/logger';
+import { validateBody, schemas } from '../middleware/validate';
 
 const router = Router();
 const IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
@@ -130,19 +131,19 @@ router.post('/routes', requireAuth, routeGenerationLimiter, uploadImage, async (
 });
 
 // 基础模板生成路线
-router.post('/routes/from-template', requireAuth, routeGenerationLimiter, async (req: Request, res: Response) => {
+router.post('/routes/from-template', requireAuth, routeGenerationLimiter, validateBody(schemas.createTemplateRoute), async (req: Request, res: Response) => {
   try {
-    const body = req.body || {};
+    const body = (req.validated?.body || req.body) as { shapeType: string; templateId?: string | null; templateCode?: string | null; provider?: string; locale?: string; targetKm?: number; startPoint: unknown; currentAccuracy?: number | null };
     const route = await createRouteFromTemplate({
       userId: req.userId ?? null,
-      shapeType: typeof body.shapeType === 'string' ? body.shapeType : 'star',
-      templateId: typeof body.templateId === 'string' ? body.templateId : null,
-      templateCode: typeof body.templateCode === 'string' ? body.templateCode : null,
+      shapeType: body.shapeType,
+      templateId: body.templateId ?? null,
+      templateCode: body.templateCode ?? null,
       provider: body.provider,
       locale: body.locale,
       targetKm: Number(body.targetKm),
       startPoint: body.startPoint,
-      currentAccuracy: toOptionalNumber(body.currentAccuracy),
+      currentAccuracy: body.currentAccuracy ?? null,
     });
     res.json(successPayload({
       route,
@@ -179,15 +180,11 @@ router.get('/routes/:routeId', requireAuth, async (req: Request, res: Response) 
 });
 
 // 调整路线距离
-router.put('/routes/:routeId/adjust', requireAuth, async (req: Request, res: Response) => {
+router.put('/routes/:routeId/adjust', requireAuth, validateBody(schemas.adjustRoute), async (req: Request, res: Response) => {
   try {
     const routeId = req.params.routeId as string;
-    const targetKm = Number(req.body.targetKm);
-    if (!Number.isFinite(targetKm) || targetKm < 1 || targetKm > 50) {
-      res.status(400).json(errorPayload('invalid target distance', 'invalid_target_distance', 400));
-      return;
-    }
-    const route = await adjustRouteDistance(routeId, targetKm, req.userId ?? null);
+    const body = (req.validated?.body || req.body) as { targetKm: number };
+    const route = await adjustRouteDistance(routeId, body.targetKm, req.userId ?? null);
     if (!route) {
       res.status(404).json(errorPayload('route not found or invalid target', 'route_not_found', 404));
       return;
@@ -211,11 +208,11 @@ router.put('/routes/:routeId/adjust', requireAuth, async (req: Request, res: Res
 });
 
 // 重映射路线起终点
-router.put('/routes/:routeId/rebase', requireAuth, async (req: Request, res: Response) => {
+router.put('/routes/:routeId/rebase', requireAuth, validateBody(schemas.rebaseRoute), async (req: Request, res: Response) => {
   try {
     const { routeId } = req.params as { routeId: string };
-    const { startPoint, endPoint, strategy } = req.body || {};
-    const route = await rebaseRoute(routeId, startPoint, endPoint, strategy, req.userId ?? null);
+    const body = (req.validated?.body || req.body) as { startPoint?: { lat: number; lng: number } | null; endPoint?: { lat: number; lng: number } | null; strategy?: string };
+    const route = await rebaseRoute(routeId, body.startPoint ?? null, body.endPoint ?? null, body.strategy, req.userId ?? null);
     if (!route) {
       res.status(404).json(errorPayload('route not found', 'route_not_found', 404));
       return;

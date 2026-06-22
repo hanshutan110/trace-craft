@@ -27,6 +27,7 @@ import { ScreenId } from '../../types';
 import { useI18n } from '../../i18n';
 import { useToast } from '../common/Toast';
 import { clearUserCache, getCurrentUserProfile, updateUserSettings, type UserProfile, type UserSettings } from '../../api/user';
+import { getAvailableProviders, setMapProvider, getDefaultMapProvider, getProviderLabel } from '../../api/mapConfig';
 import { providerLabel } from './profile-settings-utils';
 
 /* ==========================================
@@ -51,7 +52,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
 
   const [showLanguageSheet, setShowLanguageSheet] = useState(false);
   const [showMapSheet, setShowMapSheet] = useState(false);
+  const [showProviderSheet, setShowProviderSheet] = useState(false);
   const [showThicknessSheet, setShowThicknessSheet] = useState(false);
+  const [currentProvider, setCurrentProvider] = useState<string>('amap');
+  const [availableProviders, setAvailableProviders] = useState<Array<{ key: string; label: string; hasApiKey: boolean }>>([]);
 
   useEffect(() => {
     getCurrentUserProfile()
@@ -64,6 +68,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
         setLineWeightThickness(nextProfile.settings.lineWeight);
       })
       .catch(() => showToast(text('设置数据加载失败', 'Failed to load settings')));
+    // 加载当前地图服务商和可用列表
+    getDefaultMapProvider().then((provider) => setCurrentProvider(provider));
+    getAvailableProviders().then((providers) => setAvailableProviders(providers));
   }, [showToast, text]);
 
   const persistSettings = (patch: Partial<UserSettings>) => {
@@ -248,6 +255,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
               <div className="flex items-center space-x-1.5 text-slate-400">
                 <span className="text-[14px] font-semibold text-slate-500 font-sans">
                   {mapStyleStyle === 'light' ? t('settings.light', '浅色') : t('settings.dark', '卫星')}
+                </span>
+                <ChevronRight size={16} />
+              </div>
+            </div>
+
+            {/* Setting 5.5: Map Provider */}
+            <div
+              id="set_map_provider"
+              onClick={() => setShowProviderSheet(true)}
+              className="h-[56px] px-4 flex items-center justify-between active:bg-slate-50 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <Globe size={18} className="text-[#4FACFE] stroke-[2.3]" />
+                <span className="text-[15px] font-medium text-slate-700">{text('地图服务商', 'Map Provider')}</span>
+              </div>
+              <div className="flex items-center space-x-1.5 text-slate-400">
+                <span className="text-[14px] font-semibold text-slate-500">
+                  {getProviderLabel(currentProvider as 'amap' | 'google' | 'baidu') || currentProvider}
                 </span>
                 <ChevronRight size={16} />
               </div>
@@ -446,6 +471,36 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
             </button>
             <button 
               onClick={() => setShowThicknessSheet(false)}
+              className="py-2 bg-slate-100 text-slate-500 font-bold rounded-xl text-xs text-center"
+            >
+              {t('settings.cancel', '取消')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Map Provider Choice Drawer Sheet */}
+      {showProviderSheet && (
+        <div className="absolute inset-0 bg-black/45 backdrop-blur-xs flex items-end justify-center z-40">
+          <div className="w-full bg-white rounded-t-[28px] p-5 shadow-2xl flex flex-col space-y-3.5 max-h-[50%] animate-slide-up">
+            <h3 className="text-sm font-black text-slate-800 text-center pb-2 border-b">{text('切换地图服务商', 'Switch Map Provider')}</h3>
+            {availableProviders.map((provider) => (
+              <button
+                key={provider.key}
+                onClick={() => {
+                  setMapProvider(provider.key as 'amap' | 'google' | 'baidu');
+                  setCurrentProvider(provider.key);
+                  setShowProviderSheet(false);
+                  showToast(text(`已切换到${provider.label}`, `Switched to ${provider.label}`));
+                }}
+                className={`py-3 rounded-xl font-bold text-xs flex justify-between px-4 ${currentProvider === provider.key ? 'bg-[#4FACFE]/10 text-[#4FACFE]' : 'bg-slate-50 text-slate-700'}`}
+              >
+                <span>{provider.label}{!provider.hasApiKey && ' (未配置)'}</span>
+                {currentProvider === provider.key && <span>✓</span>}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowProviderSheet(false)}
               className="py-2 bg-slate-100 text-slate-500 font-bold rounded-xl text-xs text-center"
             >
               {t('settings.cancel', '取消')}

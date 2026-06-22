@@ -12,6 +12,7 @@ import { pgPool } from './postgres-storage';
 import { saveGeneratedImageAsset, type UserAsset } from './assetService';
 import { getUserProfile } from './profileService';
 import { newId } from '../utils/id';
+import { logger } from './logger';
 import type { GeoPoint, Session } from '../../../shared/types';
 
 /** 分享海报生成结果 */
@@ -220,7 +221,8 @@ export async function createUserQrCard(userId: string): Promise<QrCardResult> {
     badge: String(profile.badge || 'Runner'),
     totalDistanceKm: Number(stats?.totalDistanceKm || 0),
   });
-  const image = await sharp(Buffer.from(svg)).webp({ quality: 90 }).toBuffer();
+  const fallbackSvg = generateFallbackPosterSvg('QR Card', 0);
+  const image = await safeGenerateWebp(svg, fallbackSvg);
   const asset = await saveGeneratedImageAsset({
     userId,
     assetType: 'qr_card',
@@ -230,6 +232,33 @@ export async function createUserQrCard(userId: string): Promise<QrCardResult> {
     metadata: { userId, width: 900, height: 1200 },
   });
   return { asset };
+}
+
+/** 生成降级占位海报（当 Sharp 处理失败时使用） */
+function generateFallbackPosterSvg(title: string, distanceM: number): string {
+  const km = (distanceM / 1000).toFixed(2);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+    <rect width="900" height="1200" fill="#0F172A"/>
+    <text x="450" y="500" font-size="48" font-weight="bold" fill="#fff" text-anchor="middle" font-family="sans-serif">TraceCraft</text>
+    <text x="450" y="580" font-size="36" fill="#94a3b8" text-anchor="middle" font-family="sans-serif">${escapeXml(title)}</text>
+    <text x="450" y="680" font-size="72" font-weight="bold" fill="#4FACFE" text-anchor="middle" font-family="sans-serif">${km} km</text>
+    <text x="450" y="730" font-size="24" fill="#64748b" text-anchor="middle" font-family="sans-serif">分享海报生成中，请稍后重试</text>
+  </svg>`;
+}
+
+/** 尝试用 Sharp 生成 WebP，失败时降级为简单 SVG 转 WebP */
+async function safeGenerateWebp(svg: string, fallbackSvg: string): Promise<Buffer> {
+  try {
+    return await sharp(Buffer.from(svg)).webp({ quality: 90 }).toBuffer();
+  } catch (err) {
+    logger.warn('share_poster_sharp_failed', { message: (err as Error).message });
+    try {
+      return await sharp(Buffer.from(fallbackSvg)).webp({ quality: 80 }).toBuffer();
+    } catch {
+      // 最终降级：返回原始 SVG buffer（前端可直接渲染 SVG）
+      return Buffer.from(fallbackSvg);
+    }
+  }
 }
 
 /** 生成跑步成绩分享海报（SVG → WebP → 记录分享行为） */
@@ -264,7 +293,8 @@ export async function createShareCard(userId: string, params: {
     avgDeviationM,
     points: actualPath,
   });
-  const image = await sharp(Buffer.from(svg)).webp({ quality: 90 }).toBuffer();
+  const fallbackSvg = generateFallbackPosterSvg(route.source?.filename || 'Creative Run', distanceM);
+  const image = await safeGenerateWebp(svg, fallbackSvg);
   const asset = await saveGeneratedImageAsset({
     userId,
     assetType: 'share_poster',

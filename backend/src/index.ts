@@ -44,9 +44,29 @@ const app = express();
 // ===== 全局中间件 =====
 
 // 安全响应头（XSS、Clickjacking、MIME 嗅探等防护）
-// 开发环境放宽 CSP 以避免前端 HMR 被拦截
+// 生产环境配置显式 CSP，允许 Leaflet 瓦片和 Socket.IO 连接
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  contentSecurityPolicy: process.env.NODE_ENV === 'production'
+    ? {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: [
+            "'self'",
+            'data:',
+            'https://*.tile.openstreetmap.org',
+            'https://*.basemaps.cartocdn.com',
+            'https://*.amap.com',
+            'https://*.googleapis.com',
+          ],
+          connectSrc: ["'self'", 'wss:', 'https:'],
+          fontSrc: ["'self'", 'data:'],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      }
+    : false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
@@ -200,6 +220,15 @@ const port = process.env.PORT || 3017;
       websocketPath: '/ws',
     });
   });
+
+  // 数据库连接池定期监控：每 30 秒检查一次，接近耗尽时告警
+  const PG_POOL_ALERT_THRESHOLD = Math.max(2, Number(process.env.PG_POOL_MAX || 8) * 0.8);
+  setInterval(() => {
+    const stats = getPgPoolStats();
+    if (stats.waiting > 0 || stats.total >= PG_POOL_ALERT_THRESHOLD) {
+      logger.warn('pg_pool_near_capacity', { ...stats, threshold: PG_POOL_ALERT_THRESHOLD });
+    }
+  }, 30_000).unref();
 
   // 优雅关闭：依次关闭 Socket.IO → BullMQ → Redis → HTTP
   const shutdown = async (signal: string) => {

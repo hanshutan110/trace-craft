@@ -135,6 +135,48 @@ export const phoneLoginSchema = z.object({
   deviceId: z.string().max(128).optional(),
 });
 
+// ===== 社区 API Schema =====
+
+/** 发布社区帖子 */
+export const createPostSchema = z.object({
+  content: z.string().min(1, '帖子内容不能为空').max(2000, '帖子内容不能超过 2000 字'),
+  routeId: z.string().optional().nullable(),
+  images: z.array(z.string().max(500)).max(9, '最多 9 张图片').optional(),
+  tags: z.array(z.string().max(50)).max(10).optional(),
+});
+
+/** 发布评论 */
+export const addCommentSchema = z.object({
+  content: z.string().min(1, '评论内容不能为空').max(500, '评论内容不能超过 500 字'),
+  parentCommentId: z.string().optional().nullable(),
+});
+
+/** 举报帖子 */
+export const reportPostSchema = z.object({
+  reason: z.string().min(1, '举报理由不能为空').max(500),
+  category: z.enum(['spam', 'abuse', 'porn', 'ad', 'other']).optional(),
+});
+
+/** 批量标记通知已读 */
+export const batchReadNotificationsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, '至少需要一个通知 ID').max(100, '最多 100 条'),
+});
+
+// ===== 发现页 API Schema =====
+
+/** 收藏/取消收藏 */
+export const setFavoriteSchema = z.object({
+  targetType: z.enum(['template', 'route', 'post'], { message: '不支持的收藏类型' }),
+  targetId: z.string().min(1, 'targetId 不能为空'),
+});
+
+/** 搜索查询参数 */
+export const searchQuerySchema = z.object({
+  q: z.string().min(1, '搜索关键词不能为空').max(100),
+  scope: z.enum(['all', 'templates', 'routes', 'posts', 'users']).optional().default('all'),
+  limit: z.coerce.number().min(1).max(50).optional().default(20),
+});
+
 /** 导出所有 schema 供路由使用 */
 export const schemas = {
   createTemplateRoute: createTemplateRouteSchema,
@@ -146,4 +188,10 @@ export const schemas = {
   quickLogin: quickLoginSchema,
   smsCode: smsCodeSchema,
   phoneLogin: phoneLoginSchema,
+  createPost: createPostSchema,
+  addComment: addCommentSchema,
+  reportPost: reportPostSchema,
+  batchReadNotifications: batchReadNotificationsSchema,
+  setFavorite: setFavoriteSchema,
+  searchQuery: searchQuerySchema,
 };

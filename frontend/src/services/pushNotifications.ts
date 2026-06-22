@@ -43,6 +43,14 @@ export async function initPushNotifications(): Promise<void> {
   initialized = true;
 
   if (!Capacitor.isNativePlatform()) {
+    // Web 环境：先请求通知权限，再注册实时监听
+    if ('Notification' in window && Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        // 用户拒绝或浏览器不支持时静默降级
+      }
+    }
     realtimeFallback = onRealtime('notification', (notification) => {
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(notification.title, { body: notification.body || '' });

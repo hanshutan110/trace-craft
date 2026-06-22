@@ -30,6 +30,7 @@ import {
 import { logger } from '../services/logger';
 import { allowedAssetMimeTypes, assetMaxBytes, saveUserImageAsset } from '../services/assetService';
 import { cleanupUploadedFile, readUploadedFile, tempUploadStorage } from '../utils/uploadTemp';
+import { validateBody, schemas } from '../middleware/validate';
 
 const router = Router();
 const mediaUpload = multer({
@@ -74,9 +75,10 @@ router.get('/community/posts', requireAuth, async (req: Request, res: Response) 
   }
 });
 
-router.post('/community/posts', requireAuth, async (req: Request, res: Response) => {
+router.post('/community/posts', requireAuth, validateBody(schemas.createPost), async (req: Request, res: Response) => {
   try {
-    const post = await createPost(req.userId!, req.body || {});
+    const body = (req.validated?.body || req.body) as Record<string, unknown>;
+    const post = await createPost(req.userId!, body);
     res.json(successPayload({ post }));
   } catch (err) {
     logger.error('community_post_create_failed', err, { traceId: req.traceId, userId: req.userId });
@@ -129,15 +131,11 @@ router.get('/community/posts/:postId', requireAuth, async (req: Request, res: Re
   }
 });
 
-router.post('/community/posts/:postId/comments', requireAuth, async (req: Request, res: Response) => {
+router.post('/community/posts/:postId/comments', requireAuth, validateBody(schemas.addComment), async (req: Request, res: Response) => {
   try {
-    const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
-    if (!content) {
-      return res.status(400).json(errorPayload('comment content required', 'comment_required', 400));
-    }
-    const parentCommentId = typeof req.body?.parentCommentId === 'string' && req.body.parentCommentId.trim()
-      ? req.body.parentCommentId.trim()
-      : null;
+    const body = (req.validated?.body || req.body) as { content: string; parentCommentId?: string | null };
+    const content = body.content.trim();
+    const parentCommentId = body.parentCommentId?.trim() || null;
     const comment = await addComment(req.userId!, String(req.params.postId), content, parentCommentId);
     return res.json(successPayload({ comment }));
   } catch (err) {
@@ -158,9 +156,10 @@ router.post('/community/posts/:postId/like', requireAuth, async (req: Request, r
   }
 });
 
-router.post('/community/posts/:postId/report', requireAuth, async (req: Request, res: Response) => {
+router.post('/community/posts/:postId/report', requireAuth, validateBody(schemas.reportPost), async (req: Request, res: Response) => {
   try {
-    const report = await reportPost(req.userId!, String(req.params.postId), req.body || {});
+    const body = (req.validated?.body || req.body) as Record<string, unknown>;
+    const report = await reportPost(req.userId!, String(req.params.postId), body);
     return res.json(successPayload({ report }));
   } catch (err) {
     const message = err instanceof Error ? err.message : 'report_post_failed';
@@ -209,14 +208,11 @@ router.post('/notifications/read', requireAuth, async (req: Request, res: Respon
  * POST /notifications/batch-read
  * body: { ids: string[] }
  */
-router.post('/notifications/batch-read', requireAuth, async (req: Request, res: Response) => {
+router.post('/notifications/batch-read', requireAuth, validateBody(schemas.batchReadNotifications), async (req: Request, res: Response) => {
   try {
-    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((id: unknown) => typeof id === 'string') : [];
-    if (ids.length === 0) {
-      return res.status(400).json(errorPayload('notification ids required', 'ids_required', 400));
-    }
-    // 逐条标记已读（避免单次 UPDATE 过多行）
-    for (const id of ids.slice(0, 100)) {
+    const body = (req.validated?.body || req.body) as { ids: string[] };
+    const ids = body.ids.slice(0, 100);
+    for (const id of ids) {
       await markNotificationsRead(req.userId!, id);
     }
     res.json(successPayload({ read: true, count: Math.min(ids.length, 100) }));

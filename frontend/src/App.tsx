@@ -22,6 +22,7 @@ import { connectRealtime, disconnectRealtime, onRealtime } from './services/real
 import { initPushNotifications, resetPushNotifications } from './services/pushNotifications';
 import { useScreenNavigation } from './hooks/useScreenNavigation';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // localStorage 持久化键名（移至组件外部，避免每次渲染重新创建）
 const STORAGE_KEYS = {
@@ -242,6 +243,7 @@ export default function App() {
 
   return (
     <I18nProvider>
+      <ErrorBoundary>
       <ToastProvider>
         <AppProvider navigateToScreen={navigateToScreen} setActiveNavbarTab={setActiveNavbarTab}>
         <OfflineIndicator />
@@ -277,6 +279,7 @@ export default function App() {
       </div>
       </AppProvider>
       </ToastProvider>
+      </ErrorBoundary>
     </I18nProvider>
   );
 }
