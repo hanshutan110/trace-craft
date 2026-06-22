@@ -103,7 +103,88 @@ async function saveWebhookAsset(relativePath: string, buffer: Buffer, mimeType: 
   return { url: publicUrl, provider: typeof payload.provider === 'string' ? payload.provider : 'webhook' };
 }
 
+// ===== S3 兼容存储 Provider（AWS S3 / 阿里云 OSS / MinIO） =====
+
+/** AWS Signature V4 签名 */
+function awsSigV4(
+  method: string,
+  host: string,
+  path: string,
+  queryString: string,
+  payload: Buffer,
+  headers: Record<string, string>,
+  region: string,
+  service: string,
+  accessKeyId: string,
+  secretAccessKey: string,
+  timestamp: Date,
+): { authorization: string; signedHeaders: string } {
+  const dateStamp = timestamp.toISOString().slice(0, 10).replace(/-/g, '');
+  const amzDate = timestamp.toISOString().replace(/[:-]/g, '').replace(/\..*Z$/, 'Z');
+  const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');
+  const allHeaders: Record<string, string> = { ...headers, 'x-amz-date': amzDate, 'x-amz-content-sha256': payloadHash, host };
+  const signedHeaderKeys = Object.keys(allHeaders).map((k) => k.toLowerCase()).sort();
+  const signedHeaders = signedHeaderKeys.join(';');
+  const canonicalHeaders = signedHeaderKeys.map((k) => `${k}:${allHeaders[k] || allHeaders[k.toLowerCase()] || ''}\n`).join('');
+  const canonicalRequest = `${method.toUpperCase()}\n${path}\n${queryString}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash('sha256').update(canonicalRequest).digest('hex')}`;
+  const kDate = crypto.createHmac('sha256', `AWS4${secretAccessKey}`).update(dateStamp).digest();
+  const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
+  const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+  const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  return { authorization, signedHeaders };
+}
+
+/** 通过 S3 兼容 API 上传文件 */
+async function saveS3Asset(relativePath: string, buffer: Buffer, mimeType: string): Promise<{ url: string; provider: string }> {
+  const endpoint = process.env.S3_ENDPOINT || '';
+  const bucket = process.env.S3_BUCKET || '';
+  const region = process.env.S3_REGION || 'us-east-1';
+  const accessKeyId = process.env.S3_ACCESS_KEY_ID || '';
+  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY || '';
+  const publicBaseUrl = process.env.S3_PUBLIC_BASE_URL || '';
+  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) {
+    throw new Error('asset_s3_not_configured');
+  }
+  const urlObj = new URL(endpoint);
+  const host = urlObj.host;
+  const objectKey = `${bucket}/${relativePath}`;
+  const s3Path = `/${objectKey}`;
+  const timestamp = new Date();
+  const headers: Record<string, string> = {
+    'content-type': mimeType,
+    'content-length': String(buffer.length),
+  };
+  const { authorization } = awsSigV4('PUT', host, s3Path, '', buffer, headers, region, 's3', accessKeyId, secretAccessKey, timestamp);
+  const response = await fetch(`${endpoint}${s3Path}`, {
+    method: 'PUT',
+    headers: {
+      ...headers,
+      'x-amz-date': timestamp.toISOString().replace(/[:-]/g, '').replace(/\..*Z$/, 'Z'),
+      'x-amz-content-sha256': crypto.createHash('sha256').update(buffer).digest('hex'),
+      'Authorization': authorization,
+    },
+    body: buffer,
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'unknown');
+    logger.error('asset_s3_upload_failed', new Error(errText), { status: response.status });
+    throw new Error('asset_storage_failed');
+  }
+  const publicUrl = publicBaseUrl
+    ? `${publicBaseUrl.replace(/\/$/, '')}/${relativePath}`
+    : `${endpoint.replace(/\/$/, '')}/${objectKey}`;
+  return { url: publicUrl, provider: 's3' };
+}
+
 async function saveAssetObject(relativePath: string, buffer: Buffer, mimeType: string): Promise<{ url: string; provider: string }> {
+  if (ASSET_STORAGE_PROVIDER === 's3') {
+    return saveS3Asset(relativePath, buffer, mimeType);
+  }
   if (ASSET_STORAGE_PROVIDER === 'webhook') {
     return saveWebhookAsset(relativePath, buffer, mimeType);
   }

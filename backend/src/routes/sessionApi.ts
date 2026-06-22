@@ -18,19 +18,19 @@ import {
   requireAuth,
   successPayload,
   errorPayload,
-  normalizeLocationBody,
-  parseJsonField,
 } from './common';
 import { logger } from '../services/logger';
+import { validateBody, schemas } from '../middleware/validate';
 
 const router = Router();
 
 // 开始跑步会话
-router.post('/routes/:routeId/start', requireAuth, async (req: Request, res: Response) => {
+router.post('/routes/:routeId/start', requireAuth, validateBody(schemas.startSession), async (req: Request, res: Response) => {
   try {
     const { routeId } = req.params as { routeId: string };
-    const provider = parseJsonField(req.body?.provider);
-    const riskConfirmed = req.body?.riskConfirmed === true || req.body?.riskConfirmed === 'true';
+    const body = (req.validated?.body || req.body) as { provider?: string; riskConfirmed?: boolean };
+    const provider = body.provider;
+    const riskConfirmed = body.riskConfirmed === true;
     const sessionBundle = await startRunSession(routeId, req.userId ?? null, provider, req.idempotencyKey, riskConfirmed);
     if (!sessionBundle) {
       res.status(404).json(errorPayload('route not found', 'route_not_found', 404));
@@ -108,11 +108,13 @@ router.post('/sessions/:sessionId/resume', requireAuth, async (req: Request, res
 });
 
 // 上报实时位置点
-router.post('/sessions/:sessionId/location', requireAuth, async (req: Request, res: Response) => {
+router.post('/sessions/:sessionId/location', requireAuth, validateBody(schemas.reportLocation), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params as { sessionId: string };
-    const point = normalizeLocationBody(req.body || {});
-    const updated = await appendLocation(sessionId, point as GeoPoint, req.userId ?? null);
+    const body = (req.validated?.body || req.body) as { lat: number; lng: number; accuracy?: number | null; ts?: number };
+    const point: GeoPoint = { lat: body.lat, lng: body.lng, ts: body.ts ?? Date.now() };
+    const accuracy = body.accuracy ?? null;
+    const updated = await appendLocation(sessionId, { ...point, accuracy } as GeoPoint, req.userId ?? null);
     if (!updated) {
       res.status(404).json(errorPayload('session not found', 'session_not_found', 404));
       return;
@@ -142,10 +144,10 @@ router.post('/sessions/:sessionId/location', requireAuth, async (req: Request, r
 });
 
 // 结束跑步会话
-router.post('/sessions/:sessionId/finish', requireAuth, async (req: Request, res: Response) => {
+router.post('/sessions/:sessionId/finish', requireAuth, validateBody(schemas.finishSession), async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params as { sessionId: string };
-    const body = req.body || {};
+    const body = (req.validated?.body || req.body) as { actualPath?: GeoPoint[] };
     const actualPath = Array.isArray(body.actualPath) ? body.actualPath : [];
     const result = await finishRunSession(sessionId, actualPath, req.userId ?? null);
     if (!result) {

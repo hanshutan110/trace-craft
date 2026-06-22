@@ -123,7 +123,54 @@
 3. 标注下周高优先级两项
 4. 列出阻塞项及处理建议
 
-## 11. 最新进度表（2026-06-23，TypeScript 严格模式增强与代码清理）
+## 11. 最新进度表（2026-06-23，第三方服务商接入与生产就绪增强）
+
+### 本次同步目标（第三方服务商接入与生产就绪增强）
+
+1. 短信服务多 Provider 接入：阿里云 + 腾讯云 + Webhook
+2. OAuth 多 Provider 接入：微信 + 支付宝 + Webhook
+3. S3 兼容存储接入（AWS S3 / 阿里云 OSS / MinIO）
+4. Zod 请求体验证中间件 + 路由级 Schema 接入
+5. Winston 结构化日志替换 + 环境变量启动校验
+6. 前端地图配置增强 + 导航屏幕优化
+
+### 本次交付结果
+
+| 模块 | 事项 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 短信 | `smsService.ts` 多 Provider：aliyun / tencent / webhook | 已完成 | 阿里云 SMS API + 腾讯云 SMS API 原生集成 |
+| OAuth | `oauthService.ts` 多 Provider：wechat / alipay / webhook | 已完成 | 微信 OAuth2 + 支付宝 OAuth2 原生集成 |
+| 存储 | `assetService.ts` S3 兼容存储（AWS SigV4 签名） | 已完成 | 支持 AWS S3 / 阿里 OSS / MinIO |
+| 验证 | `validate.ts` Zod 请求体验证中间件 | 已完成 | 400 + 字段级错误详情 |
+| 验证 | 路由 Schema：9 个核心接口接入 Zod 校验 | 已完成 | routeApi / sessionApi / authApi |
+| 日志 | `logger.ts` 自定义 logger → Winston | 已完成 | 保持相同 API 接口，零侵入替换 |
+| 环境 | `envCheck.ts` 启动时环境变量校验 | 已完成 | 生产环境缺失必需变量时阻止启动 |
+| 前端 | `mapConfig.ts` 地图配置增强 | 已完成 | |
+| 前端 | `MapNavigationScreen.tsx` 导航屏幕优化 | 已完成 | |
+| 类型 | `shared/types.ts` Route/Session 类型清理 | 已完成 | 移除通配索引签名，新增 `isFavorite`/`timeSec` |
+| DevOps | `docker-compose.yml` 环境变量配置增强 | 已完成 | |
+| DevOps | `.github/workflows/ci.yml` 工作流更新 | 已完成 | |
+| 依赖 | 新增 `zod` + `winston` | 已完成 | |
+| 配置 | `.env.example` 新增多 Provider 配置模板 | 已完成 | 阿里云/腾讯云/微信/支付宝/S3 |
+
+### 新增文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `backend/src/middleware/validate.ts` | Zod 请求体验证中间件 + 9 个 Schema 定义 |
+| `backend/src/services/envCheck.ts` | 环境变量启动校验（生产环境强检查） |
+| `backend/tests/validate.test.ts` | Zod Schema 单元测试（16 个用例） |
+| `backend/tests/envCheck.test.ts` | 环境变量校验测试（6 个用例） |
+
+### 已验证证据
+
+| 验证项 | 结果 |
+| --- | --- |
+| `backend npx tsc --noEmit` | 通过（零错误） |
+| `frontend npx tsc --noEmit` | 通过（零错误） |
+| `backend npm test` | 57 测试全部通过（0 失败） |
+
+## 12. 历史进度表（2026-06-23，TypeScript 严格模式增强与代码清理）
 
 ### 本次同步目标（TypeScript 严格模式增强与代码清理）
 
@@ -153,7 +200,7 @@
 | `backend npx tsc --noEmit`（含 noUnusedLocals + noUnusedParameters） | 通过（零错误） |
 | `frontend npx tsc --noEmit`（含 noUnusedLocals + noUnusedParameters） | 通过（零错误） |
 
-## 12. 历史进度表（2026-06-22，全栈安全加固与基础设施完善）
+## 13. 历史进度表（2026-06-22，全栈安全加固与基础设施完善）
 
 ### 本次同步目标（全栈安全加固与基础设施完善）
 
@@ -212,7 +259,7 @@
 | `frontend npx tsc --noEmit` | 通过（零新增错误） |
 | `backend npm test` | 30 测试全部通过（0 失败） |
 
-## 13. 历史进度表（2026-06-22，前端屏幕组件拆分与路由重构）
+## 14. 历史进度表（2026-06-22，前端屏幕组件拆分与路由重构）
 
 ### 本次同步目标（前端屏幕组件拆分与路由重构）
 
@@ -265,7 +312,7 @@
 | --- | --- |
 | `frontend npx tsc --noEmit` | 通过（零新增错误） |
 
-## 14. 历史进度表（2026-06-18，P0 安全中间件 + P2 功能增强集成）
+## 15. 历史进度表（2026-06-18，P0 安全中间件 + P2 功能增强集成）
 
 ### 本次同步目标（第三方工具评估与集成）
 
@@ -355,7 +402,7 @@ Redis 不可用时的自动降级策略：
 | 前端 | `ProfileAndSettings.tsx` 引用 6 个未实现的 API 函数 | 内测前 | 中 |
 | 前端 | `NavigationAndEditor.tsx` 引用 `pauseSession`/`resumeSession` 未实现 | 内测前 | 中 |
 
-## 15. 历史进度表（2026-06-18，开发服务端口重新分配）
+## 16. 历史进度表（2026-06-18，开发服务端口重新分配）
 
 ### 本次同步目标（开发服务端口重新分配）
 
@@ -382,7 +429,7 @@ Redis 不可用时的自动降级策略：
 | 后端 (Express) | 3001 | 3017 |
 | 管理后台 (Vite) | 3002 | 3018 |
 
-## 16. 历史进度表（2026-06-18，全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
+## 17. 历史进度表（2026-06-18，全栈代码质量优化 + 未使用代码清理 + 中文注释增强）
 
 ### 本次同步目标
 
@@ -426,7 +473,7 @@ Redis 不可用时的自动降级策略：
 | `admin npx tsc --noEmit` | 通过（2 个预存配置错误，非本次引入） |
 | 新增编译错误 | 0 |
 
-## 17. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
+## 18. 历史进度表（2026-06-17，管理后台 React + Ant Design 改造）
 
 ### 本次同步目标（管理后台 React + Ant Design 改造）
 
@@ -468,7 +515,7 @@ Redis 不可用时的自动降级策略：
 | 删除策略 | 后台 `DELETE` 从物理删除调整为软删除或二次确认策略 | 内测前 | 中 |
 | 社区审核 | 社区帖子审核、举报工单接入后台页面 | 内测前 | 中 |
 
-## 18. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
+## 19. 历史进度表（2026-06-17，数据库接入 + 用户数据页真实化）
 
 ### 本次同步目标（数据库接入 + 用户数据页真实化 + 后续表结构预建）
 
@@ -559,7 +606,7 @@ Redis 不可用时的自动降级策略：
 - 技术决策：暂不接 OSS；图片上传仅在请求处理中临时读取，业务持久化统一进入 PostgreSQL，不再使用 `state.json` 文件态存储。
 - 下一步建议：优先补真实第三方授权、文件存储、后台管理员鉴权和社区审核操作。
 
-## 19. 历史进度表（2026-06-16，路线预览地图真实化）
+## 20. 历史进度表（2026-06-16，路线预览地图真实化）
 
 ### 本次同步目标（路线预览地图真实化 + UX 增强）
 
@@ -600,7 +647,7 @@ Redis 不可用时的自动降级策略：
 - 技术决策：选用 Leaflet（轻量、免费、无需 API Key）而非 AMap JS SDK，降低接入成本
 - 下次同步建议：数据库连通后执行 `admin-schema.sql` 建表，验证 PostgresStorage 全链路
 
-## 20. 历史进度表（2026-06-10，前端代码审查与优化）
+## 21. 历史进度表（2026-06-10，前端代码审查与优化）
 
 ### 本次同步目标（前端代码审查与优化）
 

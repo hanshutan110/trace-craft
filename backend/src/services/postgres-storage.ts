@@ -262,7 +262,7 @@ export class PostgresStorage implements IStorage {
       createdAt: toPgTimestamp(row.created_at) ? row.created_at.toISOString() : nowTimestamp(),
       updatedAt: toPgTimestamp(row.updated_at) ? row.updated_at.toISOString() : nowTimestamp(),
       lastStateAt: toPgTimestamp(row.last_state_at) ? row.last_state_at!.toISOString() : '',
-      metadata: row.metadata as SessionMetadata,
+      metadata: row.metadata as unknown as SessionMetadata,
       locationSample: row.location_sample || [],
       actualPath: row.actual_path || [],
       metrics: row.metrics || {},

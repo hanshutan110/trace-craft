@@ -32,7 +32,7 @@ jobs:
 
   # ===== 前端检查 =====
   frontend-check:
-    name: Frontend Typecheck
+    name: Frontend Typecheck & Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -46,6 +46,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run build
 
   # ===== Docker 构建 =====
   docker-build:

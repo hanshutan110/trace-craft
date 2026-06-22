@@ -10,8 +10,6 @@
 #   docker compose up backend      # 仅启动后端
 #   docker compose logs -f backend # 查看日志
 
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -76,6 +74,12 @@ services:
       TRACECRAFT_CORS_ORIGINS: ${TRACECRAFT_CORS_ORIGINS:-http://localhost:3016}
     ports:
       - '${BACKEND_PORT:-3017}:3017'
+    healthcheck:
+      test: ['CMD-SHELL', 'node -e "fetch(\"http://localhost:3017/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
 volumes:
   pgdata:

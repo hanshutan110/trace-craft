@@ -37,6 +37,7 @@ import { runMigrations } from './services/migrationService';
 import { logger } from './services/logger';
 import { requestLogger } from './middleware/requestLogger';
 import { csrfProtection, generateCsrfToken, setCsrfCookie } from './middleware/csrf';
+import { assertEnvOrExit } from './services/envCheck';
 
 const app = express();
 
@@ -168,6 +169,9 @@ app.use((err: unknown, _req: Request, res: Response, _next: import('express').Ne
 const port = process.env.PORT || 3017;
 
 (async () => {
+  // 启动前校验环境变量（生产环境缺失必需变量时阻止启动）
+  assertEnvOrExit();
+
   // 初始化 Redis（可选，失败时降级）
   await initRedis();
 

@@ -2,15 +2,15 @@
  * MapNavigationScreen - 地图导航界面
  *
  * 从原 NavigationAndEditor.tsx 拆分而来。
- * 功能：模拟矢量地图画布 + 实时导航控制面板
- * - SVG 模拟地图显示路线轨迹与已完成路径
+ * 功能：Leaflet 真实地图 + 实时导航控制面板
+ * - Leaflet 地图显示路线轨迹与已完成路径
  * - 顶部毛玻璃信息栏（剩余距离 / 偏差）
  * - 底部控制栏（暂停/停止/语音切换）
  * - 实时位置上报与状态同步
  *
  * @source 拆分自 components/NavigationAndEditor.tsx
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Volume2, 
   VolumeX, 
@@ -18,7 +18,8 @@ import {
   Play, 
   Square as StopIcon
 } from 'lucide-react';
-import { GeneratedRoute, GeoPoint, ScreenId, SessionState } from '../../types';
+import L from 'leaflet';
+import { GeneratedRoute, ScreenId, SessionState } from '../../types';
 import { useI18n } from '../../i18n';
 import { finishSession, getCurrentPoint, getSessionState, pauseSession, reportLocation, resumeSession } from '../../api/routes';
 
@@ -42,6 +43,108 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [navError, setNavError] = useState<string | null>(null);
   const [sessionActionLoading, setSessionActionLoading] = useState(false);
+  
+  // Leaflet 地图实例和图层引用
+  const mapRef = useRef<L.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const routeLayerRef = useRef<L.Polyline | null>(null);
+  const completedLayerRef = useRef<L.Polyline | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+
+  // 初始化 Leaflet 地图
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const locale = typeof navigator !== 'undefined' ? navigator.language : 'zh-CN';
+    const tileUrl = locale.startsWith('zh')
+      ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+
+    const map = L.map(containerRef.current, {
+      zoomControl: false,
+      scrollWheelZoom: false,
+      attributionControl: false,
+    }).setView([39.9087, 116.3975], 15);
+
+    L.tileLayer(tileUrl, {
+      maxZoom: 19,
+    }).addTo(map);
+
+    mapRef.current = map;
+
+    // 监听容器尺寸变化
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // 更新路线轨迹和当前位置
+  const updateMapLayers = useCallback((route: GeneratedRoute | null | undefined, state: SessionState | null) => {
+    const map = mapRef.current;
+    if (!map || !route?.points?.length) return;
+
+    const latlngs: L.LatLngExpression[] = route.points.map((p) => [p.lat, p.lng]);
+
+    // 路线总轨迹（橙色）
+    if (routeLayerRef.current) {
+      routeLayerRef.current.setLatLngs(latlngs);
+    } else {
+      routeLayerRef.current = L.polyline(latlngs, {
+        color: '#FF6B35',
+        weight: 4,
+        opacity: 0.8,
+      }).addTo(map);
+    }
+
+    // 已完成路径（绿色）
+    const progress = state?.progressPct ?? 0;
+    const completedCount = Math.max(1, Math.ceil((progress / 100) * latlngs.length));
+    const completedLatLngs = latlngs.slice(0, completedCount);
+    if (completedLayerRef.current) {
+      completedLayerRef.current.setLatLngs(completedLatLngs);
+    } else {
+      completedLayerRef.current = L.polyline(completedLatLngs, {
+        color: '#10B981',
+        weight: 4,
+        opacity: 0.9,
+      }).addTo(map);
+    }
+
+    // 当前位置标记
+    const lastPos = state?.lastPosition || route.points[0];
+    const latlng: L.LatLngExpression = [lastPos.lat, lastPos.lng];
+    if (markerRef.current) {
+      markerRef.current.setLatLng(latlng);
+    } else {
+      const icon = L.divIcon({
+        className: 'nav-tracker',
+        html: '<div style="width:16px;height:16px;background:#1E40AF;border:3px solid #fff;border-radius:50%;box-shadow:0 0 8px rgba(59,130,246,0.6);"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+      markerRef.current = L.marker(latlng, { icon }).addTo(map);
+    }
+
+    // 自适应路线范围
+    if (route.bounds) {
+      const bounds = L.latLngBounds(
+        [route.bounds.minLat, route.bounds.minLng],
+        [route.bounds.maxLat, route.bounds.maxLng],
+      );
+      map.fitBounds(bounds, { padding: [40, 40] });
+    }
+  }, []);
+
+  useEffect(() => {
+    updateMapLayers(generatedRoute, sessionState);
+  }, [generatedRoute, sessionState, updateMapLayers]);
   
   useEffect(() => {
     if (!isPlaying) return;
@@ -106,35 +209,11 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const routePoints = generatedRoute?.points || [];
   const progressPct = sessionState?.progressPct ?? 0;
   const progress = Math.max(0, Math.min(1, progressPct / 100));
   const deviation = sessionState?.deviationM ?? 0;
   const plannedKm = (generatedRoute?.meta?.distanceM || 0) / 1000;
   const remainingKm = Math.max(0, plannedKm * (1 - progress));
-
-  const projected = useMemo(() => {
-    const fallback = [
-      { x: 125, y: 50 }, { x: 147, y: 100 }, { x: 200, y: 104 }, { x: 160, y: 138 }, { x: 173, y: 190 },
-      { x: 125, y: 160 }, { x: 77, y: 190 }, { x: 90, y: 138 }, { x: 50, y: 104 }, { x: 103, y: 100 },
-    ];
-    if (!routePoints.length) return { path: fallback, tracker: fallback[0] };
-    const minLat = Math.min(...routePoints.map((point) => point.lat));
-    const maxLat = Math.max(...routePoints.map((point) => point.lat));
-    const minLng = Math.min(...routePoints.map((point) => point.lng));
-    const maxLng = Math.max(...routePoints.map((point) => point.lng));
-    const latSpan = Math.max(0.000001, maxLat - minLat);
-    const lngSpan = Math.max(0.000001, maxLng - minLng);
-    const project = (point: GeoPoint) => ({
-      x: 32 + ((point.lng - minLng) / lngSpan) * 186,
-      y: 246 - ((point.lat - minLat) / latSpan) * 196,
-    });
-    const path = routePoints.map(project);
-    const last = sessionState?.lastPosition ? project(sessionState.lastPosition) : path[Math.min(path.length - 1, Math.floor(progress * (path.length - 1)))];
-    return { path, tracker: last };
-  }, [progress, routePoints, sessionState?.lastPosition]);
-
-  const completedPath = projected.path.slice(0, Math.max(1, Math.ceil(progress * projected.path.length)));
 
   const handleToggleSession = async () => {
     if (!activeSessionId) {
@@ -170,67 +249,11 @@ export const MapNavigationScreen: React.FC<MapNavigationScreenProps> = ({
     };
   };
 
-  const tracker = projected.tracker;
-
   return (
     <div className="flex flex-col h-full bg-slate-100 relative select-none overflow-hidden">
       
-      {/* 2.1 SIMULATED VECTOR MAP CANVAS */}
-      <div className="absolute inset-0 z-0">
-        <svg viewBox="0 0 250 400" className="w-full h-full object-cover">
-          {/* Waterway background stream */}
-          <rect width="250" height="400" fill="#EAF3FA" />
-          
-          {/* Parks & Forest zones */}
-          <path d="M 0,0 L 80,0 L 100,50 L 50,120 L 0,60 Z" fill="#E6F2ED" opacity="0.8" />
-          <path d="M 180,300 L 250,280 L 250,400 L 140,400 Z" fill="#E6F2ED" opacity="0.8" />
-          
-          {/* Secondary streets grey lines */}
-          <path d="M -10,120 Q 120,130 260,110" fill="none" stroke="#FFFFFF" strokeWidth="6" />
-          <path d="M -10,120 Q 120,130 260,110" fill="none" stroke="#E1E5EB" strokeWidth="2.5" />
-
-          <path d="M 100,-10 L 110,410" fill="none" stroke="#FFFFFF" strokeWidth="5" />
-          <path d="M 100,-10 L 110,410" fill="none" stroke="#E1E5EB" strokeWidth="2" />
-          
-          <path d="M 30,220 C 130,220 200,180 260,250" fill="none" stroke="#FFFFFF" strokeWidth="6" />
-          <path d="M 30,220 C 130,220 200,180 260,250" fill="none" stroke="#E1E5EB" strokeWidth="2.5" />
-
-          {/* Target Star glowing trajectory path */}
-          <polyline
-            points={projected.path.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none"
-            stroke="#FF6B35"
-            strokeWidth="4"
-            strokeLinejoin="round"
-            className="drop-shadow-[0_0_4px_rgba(255,107,53,0.6)]"
-          />
-          
-          {/* Already ran paths (in green) */}
-          <polyline
-            points={completedPath.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none"
-            stroke="#10B981"
-            strokeWidth="4"
-            strokeLinejoin="round"
-          />
-
-          {/* Glowing Animated blue running tracking circular point */}
-          <g transform={`translate(${tracker.x}, ${tracker.y})`}>
-            {/* Pulsing expand wave */}
-            <circle r="12" fill="#3B82F6" opacity="0.25" className="animate-ping" style={{ animationDuration: '2s' }} />
-            <circle r="6" fill="#FFFFFF" />
-            <circle r="4" fill="#1E40AF" />
-          </g>
-
-          {/* Tiny Directional arrows on map */}
-          <g transform="translate(180, 80) rotate(15)">
-            <path d="M -4,0 L 4,0 M 1,-3 L 4,0 L 1,3" fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
-          </g>
-          <g transform="translate(70, 160) rotate(210)">
-            <path d="M -4,0 L 4,0 M 1,-3 L 4,0 L 1,3" fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
-          </g>
-        </svg>
-      </div>
+      {/* Leaflet 真实地图 */}
+      <div ref={containerRef} className="absolute inset-0 z-0" />
 
       {/* 2.2 TOP FROSTED BLUR BAR */}
       <div className="absolute top-4 left-4 right-4 z-10 bg-white/70 backdrop-blur-md border border-white/20 rounded-2xl py-3 px-4 flex items-center justify-between shadow-xs">

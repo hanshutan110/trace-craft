@@ -6,6 +6,7 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import {
   createRouteFromImage,
   createRouteFromTemplate,
@@ -28,6 +29,15 @@ import { logger } from '../services/logger';
 const router = Router();
 const IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+/** 图片上传/路线生成端点限流：每个 IP 在 10 分钟内最多 15 次（CPU 密集型操作需要保护） */
+const routeGenerationLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 15,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { ok: false, code: 'route_generation_rate_limit', error: '路线生成过于频繁，请稍后再试', status: 429 },
+});
 
 const upload = multer({
   storage: tempUploadStorage('routes'),
@@ -72,7 +82,7 @@ function hasAllowedImageSignature(buffer: Buffer): boolean {
 }
 
 // 核心接口：上传图片生成路线
-router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Response) => {
+router.post('/routes', requireAuth, routeGenerationLimiter, uploadImage, async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       res.status(400).json(errorPayload('missing image file', 'missing_image', 400));
@@ -120,7 +130,7 @@ router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Respo
 });
 
 // 基础模板生成路线
-router.post('/routes/from-template', requireAuth, async (req: Request, res: Response) => {
+router.post('/routes/from-template', requireAuth, routeGenerationLimiter, async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const route = await createRouteFromTemplate({

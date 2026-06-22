@@ -26,8 +26,9 @@ import {
   verifyUserRefreshToken,
   verifyUserToken,
 } from '../services/token';
-import { normalizePhone, sendSmsCode, verifySmsCode } from '../services/smsService';
+import { sendSmsCode, verifySmsCode } from '../services/smsService';
 import { verifyOAuthCode } from '../services/oauthService';
+import { validateBody, schemas } from '../middleware/validate';
 
 const router = express.Router();
 
@@ -138,12 +139,10 @@ router.post('/auth/quick-login', loginLimiter, async (req: Request, res: Respons
   }
 });
 
-router.post('/auth/sms-code', smsLimiter, async (req: Request, res: Response) => {
+router.post('/auth/sms-code', smsLimiter, validateBody(schemas.smsCode), async (req: Request, res: Response) => {
   try {
-    const phone = normalizePhone(req.body?.phone);
-    if (phone.length !== 11) {
-      return res.status(400).json(errorPayload('invalid phone number', 'invalid_phone', 400));
-    }
+    const body = (req.validated?.body || req.body) as { phone: string };
+    const phone = body.phone;
     const result = await sendSmsCode(phone);
     return res.json(successPayload({
       traceId: req.traceId,
@@ -166,15 +165,12 @@ router.post('/auth/sms-code', smsLimiter, async (req: Request, res: Response) =>
   }
 });
 
-router.post('/auth/phone-login', loginLimiter, async (req: Request, res: Response) => {
+router.post('/auth/phone-login', loginLimiter, validateBody(schemas.phoneLogin), async (req: Request, res: Response) => {
   try {
-    const phone = normalizePhone(req.body?.phone);
-    const smsCode = typeof req.body?.smsCode === 'string' ? req.body.smsCode.trim() : '';
-    const deviceId = normalizeDeviceId(req.body?.deviceId);
-
-    if (phone.length !== 11) {
-      return res.status(400).json(errorPayload('invalid phone number', 'invalid_phone', 400));
-    }
+    const body = (req.validated?.body || req.body) as { phone: string; smsCode: string; deviceId?: string };
+    const phone = body.phone;
+    const smsCode = body.smsCode.trim();
+    const deviceId = body.deviceId || phone;
     if (!verifySmsCode(phone, smsCode)) {
       return res.status(400).json(errorPayload('invalid sms code', 'invalid_sms_code', 400));
     }

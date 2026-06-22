@@ -114,9 +114,10 @@ export interface Route {
   startPointStatus?: RouteStartPointStatus;
   confirmRequired?: boolean;
   riskSummary?: string;
+  isFavorite?: boolean;
+  isFavorited?: boolean;
   createdAt: string;
   updatedAt: string;
-  [key: string]: unknown;
 }
 
 /** 路线版本快照（存储层使用） */
@@ -145,7 +146,6 @@ export interface SessionMetadata {
   idempotencyKey: string | null;
   routeVersion: number;
   provider: string;
-  [key: string]: unknown;
 }
 
 /** 会话统计指标 */
@@ -157,7 +157,7 @@ export interface SessionMetrics {
   pointCount?: number;
   finishCause?: string;
   finishedAt?: string;
-  [key: string]: unknown;
+  timeSec?: number;
 }
 
 /** 跑步会话数据结构（存储层 + API 层共用） */
