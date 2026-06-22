@@ -10,6 +10,8 @@ export type {
   AdminListParams as ListParams,
   AdminModule,
   AdminModuleItem as ModuleItem,
+  AdminOverview,
+  AdminOverviewTodo,
   AdminProfile,
   AdminUser,
   RoleItem,
@@ -19,6 +21,7 @@ import type {
   AdminListParams as ListParams,
   AdminModule,
   AdminModuleItem as ModuleItem,
+  AdminOverview,
   AdminProfile,
   RoleItem,
 } from '../../../shared/admin';
@@ -39,6 +42,13 @@ interface ApiPayload<T> {
   limit?: number;
   token?: string;
   admin?: AdminProfile;
+  overview?: AdminOverview;
+  cleanup?: {
+    queued: boolean;
+    jobId?: string;
+    type: string;
+    removed?: number;
+  };
   error?: string;
   code?: string;
 }
@@ -119,6 +129,13 @@ export async function getMe(): Promise<AdminProfile> {
   return payload.admin;
 }
 
+/** 获取后台总览统计 */
+export async function getOverview(): Promise<AdminOverview> {
+  const payload = await request<ApiPayload<never>>('/admin/overview');
+  if (!payload.overview) throw new Error('admin_overview_failed');
+  return payload.overview;
+}
+
 /** 获取角色库列表 */
 export async function listRoles(): Promise<RoleItem[]> {
   const payload = await request<ApiPayload<RoleItem>>('/admin/roleLibrary');
@@ -169,4 +186,19 @@ export async function removeRecord(module: AdminModule, id: string): Promise<boo
     method: 'DELETE',
   });
   return Boolean(payload.removed);
+}
+
+/** 手动触发数据清理；有 Redis 队列时返回 jobId，否则同步返回 removed */
+export async function runMaintenanceCleanup(type: 'location_events' | 'audit_logs', olderThanDays?: number): Promise<{
+  queued: boolean;
+  jobId?: string;
+  type: string;
+  removed?: number;
+}> {
+  const payload = await request<ApiPayload<never>>('/admin/maintenance/cleanup', {
+    method: 'POST',
+    body: JSON.stringify({ type, olderThanDays }),
+  });
+  if (!payload.cleanup) throw new Error('admin_cleanup_failed');
+  return payload.cleanup;
 }

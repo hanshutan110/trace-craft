@@ -39,7 +39,18 @@ export async function apiRequest<T extends ApiPayload>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetchWithCredentials(path, init);
+  if (response.status === 401 && !path.startsWith('/auth/')) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      return parseApiResponse<T>(await fetchWithCredentials(path, init));
+    }
+  }
+  return parseApiResponse<T>(response);
+}
+
+function fetchWithCredentials(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
@@ -47,7 +58,20 @@ export async function apiRequest<T extends ApiPayload>(
       ...init.headers,
     },
   });
-  return parseApiResponse<T>(response);
+}
+
+async function refreshSession(): Promise<boolean> {
+  try {
+    const response = await fetchWithCredentials('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) return false;
+    const payload = (await response.json()) as ApiPayload;
+    return payload.ok !== false;
+  } catch {
+    return false;
+  }
 }
 
 /** GET 请求快捷方法 */

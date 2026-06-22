@@ -6,6 +6,8 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- ===== 0. 核心用户 / 路线 / 跑步会话 =====
 -- 对应后端 PostgresStorage 自动创建的主链路表。
 
@@ -24,6 +26,28 @@ CREATE TABLE IF NOT EXISTS auth_identities (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(provider, provider_subject)
+);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS auth_revoked_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
+  token_hash TEXT PRIMARY KEY,
+  token_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  provider TEXT,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS routes (
@@ -378,6 +402,19 @@ CREATE TABLE IF NOT EXISTS notifications (
   CONSTRAINT chk_notifications_type CHECK (type IN ('like', 'comment', 'follow', 'system'))
 );
 
+CREATE TABLE IF NOT EXISTS user_push_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  device_id TEXT,
+  push_token TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'capacitor',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(provider, push_token)
+);
+
 CREATE TABLE IF NOT EXISTS route_share_records (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -400,7 +437,7 @@ CREATE TABLE IF NOT EXISTS user_assets (
   storage_provider TEXT NOT NULL DEFAULT 'local',
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT chk_user_assets_type CHECK (asset_type IN ('avatar', 'share_poster', 'route_preview', 'qr_card'))
+  CONSTRAINT chk_user_assets_type CHECK (asset_type IN ('avatar', 'share_poster', 'route_preview', 'qr_card', 'community_media'))
 );
 
 CREATE TABLE IF NOT EXISTS user_feedback (
@@ -419,7 +456,13 @@ CREATE TABLE IF NOT EXISTS user_feedback (
 -- ===== 索引 =====
 
 CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_revoked_tokens_expires_at ON auth_revoked_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_user ON auth_refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at ON auth_refresh_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_routes_user_created ON routes(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_routes_payload_id_trgm ON routes USING GIN (LOWER(payload->>'id') gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_routes_payload_filename_trgm ON routes USING GIN (LOWER(COALESCE(payload->'source'->>'filename', '')) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_routes_payload_shape_trgm ON routes USING GIN (LOWER(COALESCE(payload->>'shapeType', '')) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_updated ON run_sessions(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON run_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_events_session_seq ON run_location_events(session_id, seq);
@@ -446,6 +489,7 @@ CREATE INDEX IF NOT EXISTS idx_community_reactions_target ON community_reactions
 CREATE INDEX IF NOT EXISTS idx_community_reports_status ON community_reports(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_follows_following ON user_follows(following_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_push_tokens_user_active ON user_push_tokens(user_id, is_active, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_route_share_records_user ON route_share_records(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_assets_user_type ON user_assets(user_id, asset_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_feedback_status ON user_feedback(status, created_at DESC);

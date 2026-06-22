@@ -39,6 +39,7 @@ export type {
 
 import { PostgresStorage, getConnectionString } from './postgres-storage';
 import { normalizePoint } from './geo-utils';
+import { cacheDelete, getCacheValue, setCacheValue } from './cacheService';
 
 // ===== 存储实例管理 =====
 
@@ -90,19 +91,36 @@ export const upsertRouteRecord = async (route: Route, ctx: RouteContext): Promis
   const repo = await getStorage();
   const result = await repo.createRoute(route, ctx);
   if (!result) throw new Error('route_upsert_denied');
+  await cacheDelete(`route:${route.id}:public`);
+  if (result.userId) {
+    await cacheDelete(`route:${route.id}:user:${result.userId}`);
+    await cacheDelete(`profile:${result.userId}`);
+  }
   return result;
 };
 
 /** 查询路线记录（按 ID 查询，可选用户权限校验） */
 export const getRouteRecord = async (routeId: string, userId: string | null): Promise<Route | null> => {
   const repo = await getStorage();
-  return repo.getRoute(routeId, userId);
+  const cacheKey = userId ? `route:${routeId}:user:${userId}` : `route:${routeId}:public`;
+  const cached = await getCacheValue<Route>(cacheKey);
+  if (cached) return cached;
+  const route = await repo.getRoute(routeId, userId);
+  // Redis 缓存 null 会掩盖后续创建同 ID 路线；只缓存命中结果。
+  if (route) {
+    await setCacheValue(cacheKey, route, 120);
+  }
+  return route;
 };
 
 /** 创建会话记录（幂等：重复插入时返回已有记录） */
 export const createSessionRecord = async (session: Session): Promise<Session> => {
   const repo = await getStorage();
-  return repo.createSession(session);
+  const result = await repo.createSession(session);
+  if (result.userId) {
+    await cacheDelete(`profile:${result.userId}`);
+  }
+  return result;
 };
 
 /** 查询会话记录（按 ID 查询，可选用户权限校验） */
@@ -118,7 +136,11 @@ export const updateSessionRecord = async (
   userId: string | null
 ): Promise<Session | null> => {
   const repo = await getStorage();
-  return repo.updateSession(sessionId, payload, userId);
+  const result = await repo.updateSession(sessionId, payload, userId);
+  if (result?.userId) {
+    await cacheDelete(`profile:${result.userId}`);
+  }
+  return result;
 };
 
 /** 追加上报位置点到会话轨迹（写入 run_location_events + 更新环形缓冲） */

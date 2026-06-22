@@ -1,10 +1,21 @@
 import crypto from 'crypto';
-import type { AdminListParams, AdminListResult, AdminModuleKey, AdminProfile } from '../../../shared/admin';
+import type {
+  AdminListParams,
+  AdminListResult,
+  AdminModule,
+  AdminModuleKey,
+  AdminOverview,
+  AdminOverviewMetric,
+  AdminOverviewRecentItem,
+  AdminOverviewTodo,
+  AdminProfile,
+} from '../../../shared/admin';
 import { pgPool } from './postgres-storage';
 import { toIso } from '../utils/date';
 import { newId } from '../utils/id';
 import { safeJsonObject } from '../utils/json';
 import { signAdminTokenPayload, verifySignedAdminPayload } from './token';
+import { logger } from './logger';
 
 export type AdminActor = AdminProfile;
 
@@ -125,6 +136,125 @@ export async function canAdminAccess(actor: AdminActor, moduleKey: AdminModuleKe
     const matrix = normalizePermissionMatrix(row.permission_matrix);
     return Array.from(wanted).some((key) => matrix[key] === true);
   });
+}
+
+function canReadModule(readableModules: Set<AdminModule>, moduleKey: AdminModule): boolean {
+  return readableModules.has(moduleKey);
+}
+
+async function countSql(sql: string, params: unknown[] = []): Promise<number> {
+  const result = await pgPool!.query(sql, params);
+  return Number(result.rows[0]?.total || 0);
+}
+
+/**
+ * 管理后台总览：只聚合当前管理员可读模块，避免低权限账号看到隐藏模块规模。
+ */
+export async function getAdminOverview(readableModules: AdminModule[]): Promise<AdminOverview> {
+  requireDb();
+  const readable = new Set(readableModules);
+  const metrics: AdminOverviewMetric[] = [];
+  const todos: AdminOverviewTodo[] = [];
+  const recent: AdminOverviewRecentItem[] = [];
+
+  if (canReadModule(readable, 'users')) {
+    metrics.push({
+      key: 'users',
+      title: '用户数',
+      value: await countSql(`SELECT COUNT(*)::int AS total FROM users`),
+    });
+  }
+
+  if (canReadModule(readable, 'sessions')) {
+    const [total, activeToday] = await Promise.all([
+      countSql(`SELECT COUNT(*)::int AS total FROM run_sessions`),
+      countSql(`SELECT COUNT(*)::int AS total FROM run_sessions WHERE created_at >= CURRENT_DATE`),
+    ]);
+    metrics.push({ key: 'sessions', title: '跑步会话', value: total, trend: `今日 ${activeToday}` });
+  }
+
+  if (canReadModule(readable, 'templates')) {
+    metrics.push({
+      key: 'templates',
+      title: '启用模板',
+      value: await countSql(`SELECT COUNT(*)::int AS total FROM route_templates WHERE is_active = TRUE`),
+    });
+  }
+
+  if (canReadModule(readable, 'communityPosts')) {
+    const [total, pending] = await Promise.all([
+      countSql(`SELECT COUNT(*)::int AS total FROM community_posts`),
+      countSql(`SELECT COUNT(*)::int AS total FROM community_posts WHERE review_status = 'pending'`),
+    ]);
+    metrics.push({ key: 'communityPosts', title: '社区帖子', value: total, trend: `待审 ${pending}` });
+    todos.push({
+      key: 'pending-posts',
+      title: '社区帖子待审核',
+      count: pending,
+      module: 'communityPosts',
+      status: 'pending',
+      priority: pending > 0 ? 'high' : 'low',
+    });
+  }
+
+  if (canReadModule(readable, 'reports')) {
+    const openReports = await countSql(`SELECT COUNT(*)::int AS total FROM community_reports WHERE status = 'open'`);
+    todos.push({
+      key: 'open-reports',
+      title: '举报待处理',
+      count: openReports,
+      module: 'reports',
+      status: 'open',
+      priority: openReports > 0 ? 'high' : 'low',
+    });
+  }
+
+  if (canReadModule(readable, 'feedback')) {
+    const openFeedback = await countSql(`SELECT COUNT(*)::int AS total FROM user_feedback WHERE status <> 'closed'`);
+    todos.push({
+      key: 'open-feedback',
+      title: '用户反馈待跟进',
+      count: openFeedback,
+      module: 'feedback',
+      status: 'open',
+      priority: openFeedback > 0 ? 'medium' : 'low',
+    });
+  }
+
+  if (canReadModule(readable, 'communityPosts')) {
+    const rows = await pgPool!.query(
+      `SELECT id, title, status, created_at
+       FROM community_posts
+       ORDER BY created_at DESC
+       LIMIT 5`,
+    );
+    recent.push(...rows.rows.map((row) => ({
+      id: String(row.id),
+      title: String(row.title || row.id),
+      module: 'communityPosts' as AdminModule,
+      status: String(row.status || ''),
+      createdAt: toIso(row.created_at),
+    })));
+  }
+
+  if (canReadModule(readable, 'feedback')) {
+    const rows = await pgPool!.query(
+      `SELECT id, content, status, created_at
+       FROM user_feedback
+       ORDER BY created_at DESC
+       LIMIT 5`,
+    );
+    recent.push(...rows.rows.map((row) => ({
+      id: String(row.id),
+      title: String(row.content || row.id).slice(0, 60),
+      module: 'feedback' as AdminModule,
+      status: String(row.status || ''),
+      createdAt: toIso(row.created_at),
+    })));
+  }
+
+  recent.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return { metrics, todos, recent: recent.slice(0, 8), generatedAt: new Date().toISOString() };
 }
 
 function hashAdminSessionToken(token: string): string {
@@ -1253,6 +1383,6 @@ async function writeAdminAudit(
       [newId('audit'), actorId, action, targetType, targetId, `/api/admin/${targetType}`, action.toUpperCase(), JSON.stringify(sanitizeAuditDiff(diff))]
     );
   } catch (err) {
-    console.warn('[admin:audit_skipped]', (err as Error).message);
+    logger.warn('admin_audit_skipped', { message: (err as Error).message, targetType, targetId, action });
   }
 }

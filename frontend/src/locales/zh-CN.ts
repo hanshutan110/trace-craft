@@ -64,7 +64,7 @@ const zhCN: TextMap = {
   'auth.sending': '发送中',
   'auth.reget_code': '重新获取',
   'auth.get_code': '获取验证码',
-  'auth.submit_phone_login': '授权并绑定登录（测试直通）',
+  'auth.submit_phone_login': '授权并绑定登录',
   'auth.privacy_title': '轨迹工坊隐私政策说明',
   'auth.agreement_title': '轨迹工坊用户服务协议',
   'auth.updated_at': '更新日期：2026年6月9日',

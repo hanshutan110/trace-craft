@@ -4,6 +4,7 @@ import {
   authenticateAdmin,
   canAdminAccess,
   createAdminRecord,
+  getAdminOverview,
   listAdminModule,
   removeAdminRecord,
   revokeAdminSession,
@@ -12,6 +13,8 @@ import {
   type AdminActor,
 } from '../services/adminService';
 import { ADMIN_MODULES, type AdminModule, type AdminModuleKey } from '../../../shared/admin';
+import { logger } from '../services/logger';
+import { enqueueManualCleanup, runCleanupJob } from '../services/queueService';
 
 const router = Router();
 
@@ -94,7 +97,7 @@ router.post('/admin/auth/login', async (req: Request, res: Response) => {
     res.cookie('tc_admin_token', result.token, cookieOptions(12 * 60 * 60 * 1000));
     return res.json(successPayload({ admin: await attachAdminAccess(result.admin) }));
   } catch (err) {
-    console.error('[admin:login]', err);
+    logger.error('admin_login_failed', err, { traceId: req.traceId });
     return res.status(500).json(errorPayload('admin login failed', 'admin_login_failed', 500));
   }
 });
@@ -121,8 +124,43 @@ router.post('/admin/auth/logout', async (req: Request, res: Response) => {
     });
     return res.json(successPayload({ loggedOut: true }));
   } catch (err) {
-    console.error('[admin:logout]', err);
+    logger.error('admin_logout_failed', err, { traceId: req.traceId });
     return res.status(500).json(errorPayload('admin logout failed', 'admin_logout_failed', 500));
+  }
+});
+
+router.get('/admin/overview', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const actor = currentAdmin(req);
+    if (!actor) {
+      return res.status(401).json(errorPayload('admin not authenticated', 'admin_auth_required', 401));
+    }
+    const admin = await attachAdminAccess(actor);
+    const overview = await getAdminOverview(admin.readableModules);
+    return res.json(successPayload({ overview }));
+  } catch (err) {
+    logger.error('admin_overview_failed', err, { traceId: req.traceId });
+    return res.status(500).json(errorPayload('admin overview failed', 'admin_overview_failed', 500));
+  }
+});
+
+router.post('/admin/maintenance/cleanup', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const actor = currentAdmin(req);
+    if (!actor?.roles.includes('super_admin')) {
+      return res.status(403).json(errorPayload('admin permission denied', 'admin_permission_denied', 403));
+    }
+    const type = req.body?.type === 'audit_logs' ? 'audit_logs' : 'location_events';
+    const olderThanDays = Number.isFinite(Number(req.body?.olderThanDays)) ? Number(req.body.olderThanDays) : undefined;
+    const jobId = await enqueueManualCleanup(type, olderThanDays);
+    if (jobId) {
+      return res.json(successPayload({ cleanup: { queued: true, jobId, type } }));
+    }
+    const result = await runCleanupJob({ type, olderThanDays: olderThanDays || 0 });
+    return res.json(successPayload({ cleanup: { queued: false, type, ...result } }));
+  } catch (err) {
+    logger.error('admin_cleanup_failed', err, { traceId: req.traceId });
+    return res.status(500).json(errorPayload('admin cleanup failed', 'admin_cleanup_failed', 500));
   }
 });
 
@@ -143,7 +181,7 @@ router.get('/admin/:moduleKey', requireAdmin, async (req: Request, res: Response
     });
     return res.json(successPayload({ ...result }));
   } catch (err) {
-    console.error('[admin:list]', err);
+    logger.error('admin_list_failed', err, { traceId: req.traceId, moduleKey: req.params.moduleKey });
     return res.status(400).json(errorPayload('admin list failed', 'admin_list_failed', 400));
   }
 });
@@ -159,7 +197,7 @@ router.post('/admin/:moduleKey', requireAdmin, async (req: Request, res: Respons
     const record = await createAdminRecord(moduleKey, req.body || {}, actor?.id || null);
     return res.json(successPayload({ record }));
   } catch (err) {
-    console.error('[admin:create]', err);
+    logger.error('admin_create_failed', err, { traceId: req.traceId, moduleKey: req.params.moduleKey });
     const status = adminErrorStatus(err, 500);
     const code = adminErrorCode(err, 'admin_create_failed');
     const message = status === 400 || status === 409 ? code : 'admin create failed';
@@ -181,7 +219,7 @@ router.put('/admin/:moduleKey/:id', requireAdmin, async (req: Request, res: Resp
     }
     return res.json(successPayload({ record }));
   } catch (err) {
-    console.error('[admin:update]', err);
+    logger.error('admin_update_failed', err, { traceId: req.traceId, moduleKey: req.params.moduleKey, id: req.params.id });
     const status = adminErrorStatus(err, 500);
     const code = adminErrorCode(err, 'admin_update_failed');
     const message = status === 400 || status === 409 ? code : 'admin update failed';
@@ -200,7 +238,7 @@ router.delete('/admin/:moduleKey/:id', requireAdmin, async (req: Request, res: R
     const removed = await removeAdminRecord(moduleKey, String(req.params.id), actor?.id || null);
     return res.json(successPayload({ removed }));
   } catch (err) {
-    console.error('[admin:remove]', err);
+    logger.error('admin_remove_failed', err, { traceId: req.traceId, moduleKey: req.params.moduleKey, id: req.params.id });
     const status = adminErrorStatus(err, 500);
     const code = adminErrorCode(err, 'admin_remove_failed');
     const message = status === 400 || status === 409 ? code : 'admin remove failed';

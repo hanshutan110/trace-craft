@@ -35,6 +35,14 @@ async function cacheSet(key: string, value: unknown, ttlSeconds: number): Promis
   }
 }
 
+export async function getCacheValue<T>(key: string): Promise<T | null> {
+  return cacheGet<T>(key);
+}
+
+export async function setCacheValue(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  await cacheSet(key, value, ttlSeconds);
+}
+
 /** 删除缓存条目 */
 export async function cacheDelete(key: string): Promise<void> {
   const client = getRedisClient();

@@ -7,8 +7,7 @@
  *   3. 持久化 onboarding/login 状态到 localStorage，重启后恢复
  *   4. 包装 I18nProvider 提供国际化支持
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { App as CapacitorApp } from '@capacitor/app';
+import { useState, useEffect, useCallback } from 'react';
 
 import { GeneratedRoute, ScreenId } from './types';
 import { AppViewport } from './components/AppViewport';
@@ -18,6 +17,9 @@ import { createImageRoute, createTemplateRoute, startRoute } from './api/routes'
 import { getTemplate } from './api/discovery';
 import { clearAuthSession, hasAuthSession } from './api/auth';
 import { miniToast } from './utils';
+import { connectRealtime, disconnectRealtime, onRealtime } from './services/realtime';
+import { initPushNotifications, resetPushNotifications } from './services/pushNotifications';
+import { useScreenNavigation } from './hooks/useScreenNavigation';
 
 // localStorage 持久化键名（移至组件外部，避免每次渲染重新创建）
 const STORAGE_KEYS = {
@@ -27,14 +29,10 @@ const STORAGE_KEYS = {
 
 export default function App() {
 
-  // 当前激活的屏幕 ID
-  const [activeScreen, setActiveScreenState] = useState<ScreenId>('splash');
   // 当前选中的图形模板 ID
   const [selectedShapeId, setSelectedShapeId] = useState<string>('star');
   // 底部弹窗是否打开
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState<boolean>(false);
-  // 底部导航栏当前标签页
-  const [activeNavbarTab, setActiveNavbarTabState] = useState<'home' | 'traces' | 'profile'>('home');
   // 会话是否就绪（初始化完成后置 true）
   const [isSessionReady, setIsSessionReady] = useState<boolean>(false);
   // 是否已完成首次引导
@@ -45,45 +43,17 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isRouteGenerating, setIsRouteGenerating] = useState<boolean>(false);
   const [routeGenerationError, setRouteGenerationError] = useState<string | null>(null);
-  // 记录页面返回栈，给安卓返回键/右滑返回用
-  const screenHistoryRef = useRef<ScreenId[]>([]);
-  const isBottomSheetOpenRef = useRef<boolean>(false);
-
-  const syncNavbarTab = useCallback((screen: ScreenId) => {
-    if (screen === 'home' || screen === 'editor' || screen === 'nav' || screen === 'param_adjust' || screen === 'route_preview' || screen === 'quick_cards' || screen === 'library' || screen === 'success' || screen === 'loading') {
-      setActiveNavbarTabState('home');
-      return;
-    }
-
-    if (screen === 'my_traces' || screen === 'trace_detail' || screen === 'run_history' || screen === 'run_detail') {
-      setActiveNavbarTabState('traces');
-      return;
-    }
-
-    if (screen === 'profile' || screen === 'settings') {
-      setActiveNavbarTabState('profile');
-    }
-  }, []);
-
-  const navigateToScreen = useCallback((screen: ScreenId, options?: { replace?: boolean; resetHistory?: boolean }) => {
-    setActiveScreenState((currentScreen) => {
-      if (options?.resetHistory) {
-        screenHistoryRef.current = [];
-      }
-
-      if (currentScreen === screen) {
-        return currentScreen;
-      }
-
-      if (!options?.replace) {
-        screenHistoryRef.current.push(currentScreen);
-      }
-
-      return screen;
-    });
-
-    syncNavbarTab(screen);
-  }, [syncNavbarTab]);
+  const closeBottomSheet = useCallback(() => setIsBottomSheetOpen(false), []);
+  const {
+    activeScreen,
+    activeNavbarTab,
+    setActiveNavbarTab,
+    navigateToScreen,
+  } = useScreenNavigation({
+    initialScreen: 'splash',
+    isBottomSheetOpen,
+    closeBottomSheet,
+  });
 
   // 从 localStorage 恢复引导和登录状态
   useEffect(() => {
@@ -111,45 +81,23 @@ export default function App() {
   }, [isSessionReady, hasCompletedOnboarding, isLoggedIn]);
 
   useEffect(() => {
-    isBottomSheetOpenRef.current = isBottomSheetOpen;
-  }, [isBottomSheetOpen]);
+    if (!isSessionReady || !isLoggedIn) {
+      disconnectRealtime();
+      resetPushNotifications();
+      return;
+    }
 
-  useEffect(() => {
-    let removeListener: (() => void) | undefined;
-
-    const setupBackButton = async () => {
-      try {
-        const handle = await CapacitorApp.addListener('backButton', () => {
-          if (isBottomSheetOpenRef.current) {
-            setIsBottomSheetOpen(false);
-            return;
-          }
-
-          const history = screenHistoryRef.current;
-          if (history.length > 0) {
-            const previousScreen = history.pop() as ScreenId;
-            setActiveScreenState(previousScreen);
-            syncNavbarTab(previousScreen);
-            return;
-          }
-
-          void CapacitorApp.exitApp();
-        });
-
-        removeListener = () => {
-          void handle.remove();
-        };
-      } catch {
-        // 本地 Web 预览或非 Android 环境下忽略。
-      }
-    };
-
-    void setupBackButton();
-
+    connectRealtime();
+    void initPushNotifications();
+    const offNotification = onRealtime('notification', (notification) => {
+      miniToast(notification.title || '收到新消息');
+    });
     return () => {
-      removeListener?.();
+      offNotification();
+      disconnectRealtime();
+      resetPushNotifications();
     };
-  }, [syncNavbarTab]);
+  }, [isSessionReady, isLoggedIn]);
 
   // 根据登录状态决定跳转目标：已登录→主页，未登录→登录页
   const getPostAuthScreen = (): ScreenId => (isLoggedIn ? 'home' : 'login');
@@ -308,7 +256,7 @@ export default function App() {
             setIsBottomSheetOpen(true);
           }}
           setActiveScreen={navigateToScreen}
-          setActiveNavbarTab={setActiveNavbarTabState}
+          setActiveNavbarTab={setActiveNavbarTab}
           setIsBottomSheetOpen={setIsBottomSheetOpen}
           onNavigateFromOnboarding={handleNavigateFromOnboarding}
           onNavigateFromSplash={handleNavigateFromSplash}

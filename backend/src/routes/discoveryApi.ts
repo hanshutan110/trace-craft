@@ -1,3 +1,14 @@
+/**
+ * 发现页相关 API 路由
+ *
+ * 接口：
+ *   - GET /contents/:type/:key  获取内容（公告/FAQ/帮助等）
+ *   - GET /templates            模板列表
+ *   - GET /templates/:id        模板详情
+ *   - GET/POST/DELETE /favorites 收藏管理
+ *   - GET /search/hints         搜索提示词
+ *   - GET /search               全局搜索
+ */
 import { Router, type Request, type Response } from 'express';
 import { errorPayload, requireAuth, successPayload } from './common';
 import {
@@ -10,6 +21,7 @@ import {
   searchAll,
   setFavorite,
 } from '../services/discoveryService';
+import { logger } from '../services/logger';
 
 const router = Router();
 
@@ -21,7 +33,7 @@ router.get('/contents/:type/:key', async (req: Request, res: Response) => {
     }
     return res.json(successPayload({ content }));
   } catch (err) {
-    console.error('[contents:get]', err);
+    logger.error('content_get_failed', err, { type: req.params.type, key: req.params.key });
     return res.status(500).json(errorPayload('get content failed', 'content_failed', 500));
   }
 });
@@ -31,7 +43,7 @@ router.get('/templates', requireAuth, async (req: Request, res: Response) => {
     const templates = await listTemplates(req.query);
     res.json(successPayload({ templates }));
   } catch (err) {
-    console.error('[templates:list]', err);
+    logger.error('templates_list_failed', err, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('list templates failed', 'templates_failed', 500));
   }
 });
@@ -44,7 +56,7 @@ router.get('/templates/:templateId', requireAuth, async (req: Request, res: Resp
     }
     return res.json(successPayload({ template }));
   } catch (err) {
-    console.error('[templates:get]', err);
+    logger.error('template_get_failed', err, { traceId: req.traceId, templateId: req.params.templateId, userId: req.userId });
     return res.status(500).json(errorPayload('get template failed', 'template_failed', 500));
   }
 });
@@ -54,7 +66,7 @@ router.get('/favorites', requireAuth, async (req: Request, res: Response) => {
     const favorites = await listFavorites(req.userId!);
     res.json(successPayload({ favorites }));
   } catch (err) {
-    console.error('[favorites:list]', err);
+    logger.error('favorites_list_failed', err, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('list favorites failed', 'favorites_failed', 500));
   }
 });
@@ -69,7 +81,7 @@ router.post('/favorites', requireAuth, async (req: Request, res: Response) => {
     await setFavorite(req.userId!, targetType, targetId);
     return res.json(successPayload({ favorited: true }));
   } catch (err) {
-    console.error('[favorites:set]', err);
+    logger.error('favorite_set_failed', err, { traceId: req.traceId, userId: req.userId });
     const message = err instanceof Error ? err.message : 'favorite_set_failed';
     const status = message === 'favorite_target_not_found' ? 404 : message === 'invalid_favorite_target_type' ? 400 : 500;
     return res.status(status).json(errorPayload(status === 500 ? 'set favorite failed' : message, status === 500 ? 'favorite_set_failed' : message, status));
@@ -81,7 +93,7 @@ router.delete('/favorites/:targetType/:targetId', requireAuth, async (req: Reque
     const removed = await removeFavorite(req.userId!, String(req.params.targetType), String(req.params.targetId));
     res.json(successPayload({ favorited: false, removed }));
   } catch (err) {
-    console.error('[favorites:remove]', err);
+    logger.error('favorite_remove_failed', err, { traceId: req.traceId, userId: req.userId, targetType: req.params.targetType, targetId: req.params.targetId });
     res.status(500).json(errorPayload('remove favorite failed', 'favorite_remove_failed', 500));
   }
 });
@@ -91,7 +103,7 @@ router.get('/search/hints', requireAuth, async (req: Request, res: Response) => 
     const hints = await getSearchHints(req.userId!);
     res.json(successPayload({ hints }));
   } catch (err) {
-    console.error('[search:hints]', err);
+    logger.error('search_hints_failed', err, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('get search hints failed', 'search_hints_failed', 500));
   }
 });
@@ -103,7 +115,7 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
     const results = await searchAll(req.userId!, q, scope, req.query.limit);
     res.json(successPayload({ results }));
   } catch (err) {
-    console.error('[search:list]', err);
+    logger.error('search_list_failed', err, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('search failed', 'search_failed', 500));
   }
 });

@@ -3,52 +3,16 @@
  *
  * 提供帖子 CRUD、评论、点赞、关注、通知等功能
  */
-import { apiGet, apiPost } from './client';
+import { apiGet, apiPost, apiRequest } from './client';
+export type { CommunityCommentItem, CommunityPostItem, NotificationItem } from '../../../shared/community';
+import type { CommunityCommentItem, CommunityPostItem, NotificationItem } from '../../../shared/community';
 
-/** 社区帖子条目 */
-export interface CommunityPostItem {
-  id: string;
-  userId: string;
-  author: string;
-  title: string;
-  titleEn: string;
-  content: string;
-  contentEn: string;
-  topicTags: string[];
-  metrics: Record<string, unknown>;
-  mediaPayload: Record<string, unknown>;
-  likeCount: number;
-  commentCount: number;
-  favoriteCount: number;
-  shareCount: number;
-  createdAt: string;
-  publishedAt: string | null;
-  hasLiked: boolean;
-  isFollowing: boolean;
-}
-
-/** 帖子评论条目 */
-export interface CommunityCommentItem {
-  id: string;
-  postId: string;
-  userId: string;
-  author: string;
-  content: string;
-  createdAt: string;
-}
-
-/** 系统通知条目 */
-export interface NotificationItem {
-  id: string;
-  type: string;
-  title: string;
-  body: string;
-  targetType: string | null;
-  targetId: string | null;
-  actorUserId: string | null;
-  isRead: boolean;
-  createdAt: string;
-  metadata: Record<string, unknown>;
+export interface CommunityMediaPayload {
+  assetId: string;
+  url: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
 }
 
 // ===== localStorage 缓存 =====
@@ -87,9 +51,26 @@ export async function createCommunityPost(payload: {
   return data.post;
 }
 
-/** 查询帖子列表（按 tab 过滤：recommend/latest/following） */
-export async function listCommunityPosts(tab: string = 'recommend'): Promise<CommunityPostItem[]> {
-  const data = await apiGet<{ posts?: CommunityPostItem[] }>(`/community/posts?tab=${encodeURIComponent(tab)}`);
+/** 上传社区图片，返回可直接放入 mediaPayload 的媒体信息 */
+export async function uploadCommunityMedia(file: File): Promise<CommunityMediaPayload> {
+  const body = new FormData();
+  body.append('media', file);
+  const data = await apiRequest<{ media?: CommunityMediaPayload }>('/community/media', {
+    method: 'POST',
+    body,
+  });
+  if (!data.media) throw new Error('media_missing');
+  return data.media;
+}
+
+/** 查询帖子列表（按 tab 过滤：recommend/latest/hot/follow） */
+export async function listCommunityPosts(tab: string = 'recommend', page: number = 1, limit: number = 20): Promise<CommunityPostItem[]> {
+  const params = new URLSearchParams({
+    tab,
+    page: String(page),
+    limit: String(limit),
+  });
+  const data = await apiGet<{ posts?: CommunityPostItem[] }>(`/community/posts?${params.toString()}`);
   return data.posts || [];
 }
 
@@ -102,11 +83,11 @@ export async function getCommunityPost(postId: string): Promise<{ post: Communit
   return { post: data.post, comments: data.comments || [] };
 }
 
-/** 发表评论 */
-export async function addCommunityComment(postId: string, content: string): Promise<CommunityCommentItem> {
+/** 发表评论；传 parentCommentId 时作为嵌套回复保存 */
+export async function addCommunityComment(postId: string, content: string, parentCommentId?: string | null): Promise<CommunityCommentItem> {
   const data = await apiPost<{ comment?: CommunityCommentItem }>(
     `/community/posts/${encodeURIComponent(postId)}/comments`,
-    { content },
+    parentCommentId ? { content, parentCommentId } : { content },
   );
   if (!data.comment) throw new Error('comment_missing');
   return data.comment;

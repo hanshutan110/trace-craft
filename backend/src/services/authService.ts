@@ -11,6 +11,8 @@ export interface QuickLoginParams {
   deviceId: string;
   authCode?: string | null;
   phone?: string | null;
+  providerSubject?: string | null;
+  displayName?: string | null;
 }
 
 export interface QuickLoginResult {
@@ -32,6 +34,9 @@ function normalizeProvider(value: unknown): QuickAuthProvider | null {
 }
 
 function normalizeSubject(params: QuickLoginParams): string {
+  if (params.providerSubject) {
+    return String(params.providerSubject).trim();
+  }
   if (params.provider === 'phone' && params.phone) {
     return params.phone.replace(/\D/g, '');
   }
@@ -87,7 +92,7 @@ export async function quickLogin(params: QuickLoginParams): Promise<QuickLoginRe
 
   const userId = newId('user');
   const identityId = newId('auth');
-  const displayName = `${PROVIDER_LABELS[params.provider]}用户`;
+  const displayName = params.displayName?.trim() || `${PROVIDER_LABELS[params.provider]}用户`;
   const metadata = {
     displayName,
     provider: params.provider,

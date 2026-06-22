@@ -1,3 +1,17 @@
+/**
+ * 用户相关 API 路由
+ *
+ * 接口：
+ *   - GET/PUT /me              个人资料/设置
+ *   - GET/POST /me/assets      资产管理
+ *   - DELETE /me/cache         清除用户缓存
+ *   - POST /me/feedback        提交反馈
+ *   - POST/DELETE /me/push-token 推送 Token 管理
+ *   - POST /share/cards        分享卡片生成
+ *   - POST /me/qr-card         个人二维码生成
+ *   - GET /jobs/:queue/:jobId  异步任务状态查询
+ *   - GET /run-history         跑步历史记录
+ */
 import express, { type Request, type Response } from 'express';
 import multer from 'multer';
 import { asPositiveInt, errorPayload, requireAuth, successPayload } from './common';
@@ -5,10 +19,14 @@ import { getUserProfile, listRunHistory, submitUserFeedback, updateUserProfile, 
 import { allowedAssetMimeTypes, assetMaxBytes, clearUserGeneratedCache, listUserAssets, saveUserImageAsset } from '../services/assetService';
 import { createShareCard, createUserQrCard } from '../services/shareService';
 import { enqueueShareCard, enqueueQrCard, getJobStatus } from '../services/queueService';
+import { deactivatePushToken, registerPushToken } from '../services/pushService';
+import { cleanupUploadedFile, readUploadedFile, tempUploadStorage } from '../utils/uploadTemp';
+import { logger } from '../services/logger';
 
 const router = express.Router();
+/** 资产上传中间件配置 */
 const assetUpload = multer({
-  storage: multer.memoryStorage(),
+  storage: tempUploadStorage('assets'),
   limits: { fileSize: assetMaxBytes(), files: 1 },
   fileFilter: (_req, file, cb) => {
     if (allowedAssetMimeTypes().includes(file.mimetype)) {
@@ -19,6 +37,7 @@ const assetUpload = multer({
   },
 });
 
+/** 资产上传错误统一处理 */
 function uploadAsset(req: Request, res: Response, next: express.NextFunction): void {
   assetUpload.single('asset')(req, res, (err: unknown) => {
     if (!err) {
@@ -42,7 +61,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     const profile = await getUserProfile(req.userId as string);
     res.json(successPayload({ profile, traceId: req.traceId }));
   } catch (error) {
-    console.error(error);
+    logger.error('profile_fetch_failed', error, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('fetch profile failed', 'profile_fetch_failed', 500));
   }
 });
@@ -52,7 +71,7 @@ router.put('/me/settings', requireAuth, async (req: Request, res: Response) => {
     const profile = await updateUserSettings(req.userId as string, req.body || {});
     res.json(successPayload({ profile, settings: profile.settings, traceId: req.traceId }));
   } catch (error) {
-    console.error(error);
+    logger.error('settings_update_failed', error, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('update settings failed', 'settings_update_failed', 500));
   }
 });
@@ -64,7 +83,7 @@ router.put('/me/profile', requireAuth, async (req: Request, res: Response) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'profile_update_failed';
     const status = message === 'profile_field_required' ? 400 : 500;
-    console.error(error);
+    logger.error('profile_update_failed', error, { traceId: req.traceId, userId: req.userId });
     res.status(status).json(errorPayload(message, message, status));
   }
 });
@@ -74,7 +93,7 @@ router.get('/me/assets', requireAuth, async (req: Request, res: Response) => {
     const assets = await listUserAssets(req.userId as string, req.query.type);
     res.json(successPayload({ assets, traceId: req.traceId }));
   } catch (error) {
-    console.error(error);
+    logger.error('assets_list_failed', error, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('list assets failed', 'assets_list_failed', 500));
   }
 });
@@ -84,10 +103,11 @@ router.post('/me/assets', requireAuth, uploadAsset, async (req: Request, res: Re
     if (!req.file) {
       return res.status(400).json(errorPayload('missing asset file', 'missing_asset', 400));
     }
+    const buffer = await readUploadedFile(req.file);
     const asset = await saveUserImageAsset({
       userId: req.userId as string,
       assetType: req.body?.assetType || 'avatar',
-      buffer: req.file.buffer,
+      buffer,
       mimeType: req.file.mimetype,
       originalName: req.file.originalname,
     });
@@ -96,8 +116,10 @@ router.post('/me/assets', requireAuth, uploadAsset, async (req: Request, res: Re
   } catch (error) {
     const message = error instanceof Error ? error.message : 'asset_upload_failed';
     const status = ['invalid_asset_type', 'unsupported_asset_type', 'invalid_asset_size', 'invalid_image'].includes(message) ? 400 : 500;
-    console.error(error);
+    logger.error('asset_upload_failed', error, { traceId: req.traceId, userId: req.userId });
     return res.status(status).json(errorPayload(message, message, status));
+  } finally {
+    await cleanupUploadedFile(req.file).catch((error) => logger.warn('upload_cleanup_failed', { message: (error as Error).message }));
   }
 });
 
@@ -106,7 +128,7 @@ router.delete('/me/cache', requireAuth, async (req: Request, res: Response) => {
     const result = await clearUserGeneratedCache(req.userId as string);
     return res.json(successPayload({ cache: result, traceId: req.traceId }));
   } catch (error) {
-    console.error(error);
+    logger.error('cache_clear_failed', error, { traceId: req.traceId, userId: req.userId });
     return res.status(500).json(errorPayload('clear cache failed', 'cache_clear_failed', 500));
   }
 });
@@ -118,8 +140,36 @@ router.post('/me/feedback', requireAuth, async (req: Request, res: Response) => 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'feedback_submit_failed';
     const status = message === 'feedback_content_required' ? 400 : 500;
-    console.error(error);
+    logger.error('feedback_submit_failed', error, { traceId: req.traceId, userId: req.userId });
     return res.status(status).json(errorPayload(message, message, status));
+  }
+});
+
+router.post('/me/push-token', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const token = await registerPushToken(req.userId as string, {
+      token: req.body?.token,
+      platform: req.body?.platform,
+      deviceId: req.body?.deviceId,
+      provider: req.body?.provider,
+    });
+    return res.json(successPayload({ token, traceId: req.traceId }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'push_token_register_failed';
+    const status = message === 'push_token_required' ? 400 : 500;
+    logger.error('push_token_register_failed', error, { traceId: req.traceId, userId: req.userId });
+    return res.status(status).json(errorPayload(message, message, status));
+  }
+});
+
+router.delete('/me/push-token', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const token = typeof req.body?.token === 'string' ? req.body.token : '';
+    const removed = token ? await deactivatePushToken(req.userId as string, token) : false;
+    return res.json(successPayload({ removed, traceId: req.traceId }));
+  } catch (error) {
+    logger.error('push_token_remove_failed', error, { traceId: req.traceId, userId: req.userId });
+    return res.status(500).json(errorPayload('push_token_remove_failed', 'push_token_remove_failed', 500));
   }
 });
 
@@ -141,7 +191,7 @@ router.post('/share/cards', requireAuth, async (req: Request, res: Response) => 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'share_card_failed';
     const status = ['share_route_required', 'route_not_found'].includes(message) ? 400 : 500;
-    console.error(error);
+    logger.error('share_card_failed', error, { traceId: req.traceId, userId: req.userId });
     return res.status(status).json(errorPayload(message, message, status));
   }
 });
@@ -156,7 +206,7 @@ router.post('/me/qr-card', requireAuth, async (req: Request, res: Response) => {
     return res.json(successPayload({ ...result, async: false, traceId: req.traceId }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'qr_card_failed';
-    console.error(error);
+    logger.error('qr_card_failed', error, { traceId: req.traceId, userId: req.userId });
     return res.status(500).json(errorPayload(message, 'qr_card_failed', 500));
   }
 });
@@ -172,7 +222,7 @@ router.get('/jobs/:queueName/:jobId', requireAuth, async (req: Request, res: Res
     const status = await getJobStatus(queueName, jobId);
     return res.json(successPayload({ jobId, queue: queueName, ...status, traceId: req.traceId }));
   } catch (error) {
-    console.error(error);
+    logger.error('job_status_failed', error, { traceId: req.traceId, userId: req.userId, queueName: req.params.queueName, jobId: req.params.jobId });
     return res.status(500).json(errorPayload('job status fetch failed', 'job_status_failed', 500));
   }
 });
@@ -183,7 +233,7 @@ router.get('/run-history', requireAuth, async (req: Request, res: Response) => {
     const runs = await listRunHistory(req.userId as string, limit);
     res.json(successPayload({ runs, traceId: req.traceId }));
   } catch (error) {
-    console.error(error);
+    logger.error('run_history_failed', error, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('list run history failed', 'run_history_failed', 500));
   }
 });

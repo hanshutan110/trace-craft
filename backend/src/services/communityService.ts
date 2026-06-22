@@ -1,6 +1,7 @@
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
 import { pushNotification } from './wsService';
+import type { CommunityCommentItem, CommunityPostItem, NotificationItem } from '../../../shared/community';
 
 function requireDb(): void {
   if (!pgPool) throw new Error('postgres_not_configured');
@@ -23,47 +24,17 @@ function parseJson<T>(value: T): T {
   }
 }
 
-export interface CommunityPostItem {
-  id: string;
-  userId: string;
-  author: string;
-  title: string;
-  titleEn: string;
-  content: string;
-  contentEn: string;
-  topicTags: string[];
-  metrics: Record<string, unknown>;
-  mediaPayload: Record<string, unknown>;
-  likeCount: number;
-  commentCount: number;
-  favoriteCount: number;
-  shareCount: number;
-  createdAt: string;
-  publishedAt: string | null;
-  hasLiked: boolean;
-  isFollowing: boolean;
+export interface CommunityPostListOptions {
+  tab?: string;
+  page?: number;
+  limit?: number;
 }
 
-export interface CommunityCommentItem {
-  id: string;
-  postId: string;
-  userId: string;
-  author: string;
-  content: string;
-  createdAt: string;
-}
-
-export interface NotificationItem {
-  id: string;
-  type: string;
-  title: string;
-  body: string;
-  targetType: string | null;
-  targetId: string | null;
-  actorUserId: string | null;
-  isRead: boolean;
-  createdAt: string;
-  metadata: Record<string, unknown>;
+export interface CommunityPostListResult {
+  posts: CommunityPostItem[];
+  page: number;
+  limit: number;
+  hasMore: boolean;
 }
 
 function mapPost(row: Record<string, unknown>): CommunityPostItem {
@@ -93,11 +64,20 @@ function mapComment(row: Record<string, unknown>): CommunityCommentItem {
   return {
     id: String(row.id),
     postId: String(row.post_id),
+    parentCommentId: row.parent_comment_id ? String(row.parent_comment_id) : null,
     userId: String(row.user_id),
     author: String(row.author || row.user_id),
     content: String(row.content || ''),
     createdAt: toIso(row.created_at),
   };
+}
+
+function normalizePage(value: number | undefined): number {
+  return Number.isFinite(value) ? Math.max(1, Math.floor(Number(value))) : 1;
+}
+
+function normalizeLimit(value: number | undefined): number {
+  return Number.isFinite(value) ? Math.max(1, Math.min(50, Math.floor(Number(value)))) : 20;
 }
 
 export async function createPost(userId: string, body: Record<string, unknown>): Promise<CommunityPostItem> {
@@ -112,7 +92,7 @@ export async function createPost(userId: string, body: Record<string, unknown>):
   await pgPool!.query(
     `INSERT INTO community_posts
        (id, user_id, route_id, title, title_en, content, content_en, topic_tags, media_payload, metrics, status, review_status, published_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8::jsonb, $9::jsonb, 'published', 'approved', NOW())`,
+     VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8::jsonb, $9::jsonb, 'pending', 'pending', NULL)`,
     [
       id,
       userId,
@@ -130,17 +110,16 @@ export async function createPost(userId: string, body: Record<string, unknown>):
   return post;
 }
 
-export async function listPosts(userId: string, tab: string = 'recommend'): Promise<CommunityPostItem[]> {
+export async function listPosts(userId: string, options: CommunityPostListOptions = {}): Promise<CommunityPostListResult> {
   requireDb();
   await ensureUser(userId);
-  const orderBy = tab === 'latest'
-    ? 'p.published_at DESC NULLS LAST, p.created_at DESC'
-    : tab === 'hot'
-      ? '(p.like_count + p.comment_count + p.favorite_count) DESC, p.published_at DESC NULLS LAST'
-      : 'p.published_at DESC NULLS LAST, p.created_at DESC';
-  const followFilter = tab === 'follow' ? 'AND uf_filter.follower_id IS NOT NULL' : '';
-  const result = await pgPool!.query(
-    `SELECT p.*, COALESCE(a.display_name, p.user_id) AS author,
+  const tab = options.tab || 'recommend';
+  const page = normalizePage(options.page);
+  const limit = normalizeLimit(options.limit);
+  const offset = (page - 1) * limit;
+  const followOnly = tab === 'follow';
+  // 用固定 SQL 分支表达排序，避免把客户端 tab 拼成 ORDER BY 片段。
+  const feedSql = `SELECT p.*, COALESCE(a.display_name, p.user_id) AS author,
             cr.id IS NOT NULL AS has_liked,
             uf.id IS NOT NULL AS is_following
      FROM community_posts p
@@ -148,12 +127,30 @@ export async function listPosts(userId: string, tab: string = 'recommend'): Prom
      LEFT JOIN community_reactions cr ON cr.target_type = 'post' AND cr.target_id = p.id AND cr.user_id = $1
      LEFT JOIN user_follows uf ON uf.follower_id = $1 AND uf.following_id = p.user_id
      LEFT JOIN user_follows uf_filter ON uf_filter.follower_id = $1 AND uf_filter.following_id = p.user_id
-     WHERE p.status = 'published' AND p.review_status = 'approved' ${followFilter}
-     ORDER BY ${orderBy}
-     LIMIT 50`,
-    [userId]
-  );
-  return result.rows.map(mapPost);
+     WHERE p.status = 'published' AND p.review_status = 'approved'
+       AND ($4::boolean = FALSE OR uf_filter.follower_id IS NOT NULL)
+     ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC
+     LIMIT $2 OFFSET $3`;
+  const hotSql = `SELECT p.*, COALESCE(a.display_name, p.user_id) AS author,
+            cr.id IS NOT NULL AS has_liked,
+            uf.id IS NOT NULL AS is_following
+     FROM community_posts p
+     LEFT JOIN auth_identities a ON a.user_id = p.user_id
+     LEFT JOIN community_reactions cr ON cr.target_type = 'post' AND cr.target_id = p.id AND cr.user_id = $1
+     LEFT JOIN user_follows uf ON uf.follower_id = $1 AND uf.following_id = p.user_id
+     LEFT JOIN user_follows uf_filter ON uf_filter.follower_id = $1 AND uf_filter.following_id = p.user_id
+     WHERE p.status = 'published' AND p.review_status = 'approved'
+       AND ($4::boolean = FALSE OR uf_filter.follower_id IS NOT NULL)
+     ORDER BY (p.like_count + p.comment_count + p.favorite_count) DESC, p.published_at DESC NULLS LAST, p.created_at DESC
+     LIMIT $2 OFFSET $3`;
+  const result = await pgPool!.query(tab === 'hot' ? hotSql : feedSql, [userId, limit + 1, offset, followOnly]);
+  const rows = result.rows.slice(0, limit);
+  return {
+    posts: rows.map(mapPost),
+    page,
+    limit,
+    hasMore: result.rows.length > limit,
+  };
 }
 
 export async function getPost(userId: string, postId: string): Promise<CommunityPostItem | null> {
@@ -167,7 +164,12 @@ export async function getPost(userId: string, postId: string): Promise<Community
      LEFT JOIN auth_identities a ON a.user_id = p.user_id
      LEFT JOIN community_reactions cr ON cr.target_type = 'post' AND cr.target_id = p.id AND cr.user_id = $1
      LEFT JOIN user_follows uf ON uf.follower_id = $1 AND uf.following_id = p.user_id
-     WHERE p.id = $2 AND p.status <> 'deleted'
+     WHERE p.id = $2
+       AND p.status <> 'deleted'
+       AND (
+         (p.status = 'published' AND p.review_status = 'approved')
+         OR p.user_id = $1
+       )
      LIMIT 1`,
     [userId, postId]
   );
@@ -181,22 +183,29 @@ export async function listComments(postId: string): Promise<CommunityCommentItem
      FROM community_comments c
      LEFT JOIN auth_identities a ON a.user_id = c.user_id
      WHERE c.post_id = $1 AND c.status = 'published'
-     ORDER BY c.created_at ASC`,
+     ORDER BY COALESCE(c.parent_comment_id, c.id), c.parent_comment_id NULLS FIRST, c.created_at ASC`,
     [postId]
   );
   return result.rows.map(mapComment);
 }
 
-export async function addComment(userId: string, postId: string, content: string): Promise<CommunityCommentItem> {
+export async function addComment(userId: string, postId: string, content: string, parentCommentId?: string | null): Promise<CommunityCommentItem> {
   requireDb();
   await ensureUser(userId);
   const id = newId('comment');
   const client = await pgPool!.connect();
   try {
     await client.query('BEGIN');
+    if (parentCommentId) {
+      const parent = await client.query(
+        `SELECT id FROM community_comments WHERE id = $1 AND post_id = $2 AND status = 'published' LIMIT 1`,
+        [parentCommentId, postId]
+      );
+      if (!parent.rows[0]) throw new Error('parent_comment_not_found');
+    }
     await client.query(
-      `INSERT INTO community_comments (id, post_id, user_id, content) VALUES ($1, $2, $3, $4)`,
-      [id, postId, userId, content]
+      `INSERT INTO community_comments (id, post_id, user_id, parent_comment_id, content) VALUES ($1, $2, $3, $4, $5)`,
+      [id, postId, userId, parentCommentId || null, content]
     );
     const postRows = await client.query(
       `UPDATE community_posts SET comment_count = comment_count + 1, updated_at = NOW()
@@ -206,14 +215,15 @@ export async function addComment(userId: string, postId: string, content: string
     if (!postRows.rows[0]) throw new Error('post_not_found');
     const ownerId = postRows.rows[0]?.user_id;
     if (ownerId && ownerId !== userId) {
+      const notificationId = newId('notice');
       await client.query(
         `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
          VALUES ($1, $2, $3, 'comment', '收到新评论', $4, 'post', $5)`,
-        [newId('notice'), ownerId, userId, content, postId]
+        [notificationId, ownerId, userId, content, postId]
       );
       // 实时推送通知
       pushNotification(ownerId, {
-        id: `notice-${Date.now()}`,
+        id: notificationId,
         type: 'comment',
         title: '收到新评论',
         body: content,
@@ -270,14 +280,15 @@ export async function togglePostLike(userId: string, postId: string): Promise<{ 
         if (!postRows.rows[0]) throw new Error('post_not_found');
         const ownerId = postRows.rows[0]?.user_id;
         if (ownerId && ownerId !== userId) {
+          const notificationId = newId('notice');
           await client.query(
             `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
              VALUES ($1, $2, $3, 'like', '收到新点赞', '有人点赞了你的作品', 'post', $4)`,
-            [newId('notice'), ownerId, userId, postId]
+            [notificationId, ownerId, userId, postId]
           );
           // 实时推送通知
           pushNotification(ownerId, {
-            id: `notice-${Date.now()}`,
+            id: notificationId,
             type: 'like',
             title: '收到新点赞',
             body: '有人点赞了你的作品',
@@ -323,14 +334,15 @@ export async function toggleFollow(userId: string, followingId: string): Promise
       [newId('follow'), userId, followingId]
     );
     if (inserted.rows[0]) {
+      const notificationId = newId('notice');
       await client.query(
         `INSERT INTO notifications (id, user_id, actor_user_id, type, title, body, target_type, target_id)
          VALUES ($1, $2, $3, 'follow', '新增关注', '有人关注了你', 'user', $3)`,
-        [newId('notice'), followingId, userId]
+        [notificationId, followingId, userId]
       );
       // 实时推送通知
       pushNotification(followingId, {
-        id: `notice-${Date.now()}`,
+        id: notificationId,
         type: 'follow',
         title: '新增关注',
         body: '有人关注了你',

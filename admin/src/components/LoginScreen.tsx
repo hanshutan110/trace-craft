@@ -1,8 +1,13 @@
+/**
+ * 管理后台登录页组件
+ * 用户名密码登录后，通过 API 获取管理员档案并回调父组件
+ */
 import {useState, type ReactElement} from 'react';
 import {SafetyCertificateOutlined} from '@ant-design/icons';
 import {App as AntApp, Button, Form, Input, Typography} from 'antd';
 import {login, type AdminProfile} from '../api/admin';
 
+/** 登录屏组件 */
 export function LoginScreen({onLogin}: {onLogin: (profile: AdminProfile) => void}): ReactElement {
   const {message} = AntApp.useApp();
   const [loading, setLoading] = useState(false);

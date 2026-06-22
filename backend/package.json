@@ -8,6 +8,8 @@
     "start": "tsx src/index.ts",
     "dev": "tsx src/index.ts",
     "build": "tsc",
+    "migrate": "tsx src/scripts/migrate.ts",
+    "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck"
   },

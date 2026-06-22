@@ -11,6 +11,8 @@
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 import { verifyUserToken } from './token';
+import { isUserTokenRevoked } from './tokenRevocationService';
+import { logger } from './logger';
 
 // ===== 类型定义 =====
 
@@ -68,16 +70,20 @@ export function initWebSocket(httpServer: HttpServer): SocketIOServer {
   });
 
   // 认证中间件
-  io.use((socket: Socket, next) => {
+  io.use(async (socket: Socket, next) => {
     const token =
       (socket.handshake.auth?.token as string | undefined) ||
-      extractBearer(socket.handshake.headers.authorization);
+      extractBearer(socket.handshake.headers.authorization) ||
+      readCookie(socket.handshake.headers.cookie, 'tc_user_token');
 
     if (!token) {
       return next(new Error('auth_token_required'));
     }
     const payload = verifyUserToken(token);
     if (!payload?.userId) {
+      return next(new Error('invalid_token'));
+    }
+    if (await isUserTokenRevoked(token)) {
       return next(new Error('invalid_token'));
     }
     (socket.data as Record<string, string>).userId = payload.userId;
@@ -96,7 +102,7 @@ export function initWebSocket(httpServer: HttpServer): SocketIOServer {
     socket.join(`user:${userId}`);
     socketUserMap.set(socket.id, userId);
 
-    console.log(`[ws] user ${userId} connected (${socket.id})`);
+    logger.info('ws_connected', { userId, socketId: socket.id });
 
     // 客户端心跳 ping
     socket.on('ping:client', (callback) => {
@@ -108,11 +114,11 @@ export function initWebSocket(httpServer: HttpServer): SocketIOServer {
     // 断开连接
     socket.on('disconnect', () => {
       socketUserMap.delete(socket.id);
-      console.log(`[ws] user ${userId} disconnected (${socket.id})`);
+      logger.info('ws_disconnected', { userId, socketId: socket.id });
     });
   });
 
-  console.log('[ws] Socket.IO initialized on path /ws');
+  logger.info('ws_initialized', { path: '/ws' });
   return io;
 }
 
@@ -120,6 +126,14 @@ export function initWebSocket(httpServer: HttpServer): SocketIOServer {
 function extractBearer(auth: string | undefined): string | null {
   if (typeof auth !== 'string') return null;
   return auth.replace(/^Bearer\s+/i, '').trim() || null;
+}
+
+/** Socket.IO 浏览器客户端依赖 HttpOnly Cookie，JS 无法读取 token，只能由握手头透传。 */
+function readCookie(rawCookie: string | undefined, name: string): string | null {
+  if (typeof rawCookie !== 'string' || !rawCookie) return null;
+  const prefix = `${name}=`;
+  const item = rawCookie.split(';').map((part) => part.trim()).find((part) => part.startsWith(prefix));
+  return item ? decodeURIComponent(item.slice(prefix.length)) : null;
 }
 
 // ===== 推送函数 =====

@@ -9,6 +9,11 @@
   - 覆盖核心用户、路线、跑步会话、快捷登录身份、后台管理、模板库、收藏、搜索、社区、通知、分享、用户资产、反馈。
   - 适合空库初始化，也可对已有库补齐缺失表和索引。
   - SQL 使用 `CREATE TABLE IF NOT EXISTS`、`CREATE INDEX IF NOT EXISTS`、`INSERT ... ON CONFLICT`，重复执行相对安全。
+- [migrations/](migrations/)
+  - 增量 schema 迁移目录，文件名格式为 `001_xxx.sql`。
+  - 后端启动默认执行未登记 migration，并写入 `schema_migrations`。
+  - 可手动运行：`cd backend && npm run migrate`。
+  - 本地调试如需跳过自动迁移，可设置 `TRACECRAFT_AUTO_MIGRATE=0`。
 
 ## 当前执行状态
 

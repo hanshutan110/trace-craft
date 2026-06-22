@@ -1,7 +1,16 @@
+/**
+ * 管理后台模块表单组件
+ *
+ * 根据当前模块类型动态渲染对应的表单字段：
+ *   - 用户模块：用户名、姓名、手机号、邮箱、密码、角色、状态
+ *   - 内容模块：Key、类型、标题、摘要、正文、排序、状态
+ *   - 其他模块：模板编码、名称、分类、版本、Payload JSON 等
+ */
 import type {ReactElement} from 'react';
 import {Form, Input, InputNumber, Select, Switch} from 'antd';
 import type {AdminModule, RoleItem} from '../api/admin';
 
+/** 根据模块类型渲染对应的表单字段 */
 export function ModuleForm({module, roles}: {module: AdminModule; roles: RoleItem[]}): ReactElement {
   if (module === 'users') {
     return (

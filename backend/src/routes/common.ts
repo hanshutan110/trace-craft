@@ -8,6 +8,7 @@ import type { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { getMapConfig } from '../services/map-config';
 import { verifyUserToken } from '../services/token';
+import { isUserTokenRevoked } from '../services/tokenRevocationService';
 
 // ===== Express Request 类型扩展 =====
 
@@ -34,11 +35,26 @@ export function buildTraceId(req: Request): string {
 
 /** 解析用户身份：只接受服务端签名 token，避免 body/query/header 冒充用户。 */
 export function parseUserId(req: Request): string | null {
-  const token = bearerToken(req) || readCookie(req, 'tc_user_token');
+  const token = readUserToken(req);
   if (token) {
     return verifyUserToken(token)?.userId || null;
   }
   return null;
+}
+
+/** 异步解析用户身份：校验签名、过期时间和退出登录黑名单。 */
+export async function parseUserIdAsync(req: Request): Promise<string | null> {
+  const token = readUserToken(req);
+  if (!token) return null;
+  const payload = verifyUserToken(token);
+  if (!payload) return null;
+  if (await isUserTokenRevoked(token)) return null;
+  return payload.userId;
+}
+
+export function readUserToken(req: Request): string | null {
+  const token = bearerToken(req) || readCookie(req, 'tc_user_token');
+  return token || null;
 }
 
 export function bearerToken(req: Request): string | null {

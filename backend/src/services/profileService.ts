@@ -11,6 +11,7 @@
 import { initStorage } from './storage';
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
+import { cacheDelete, getOrCompute } from './cacheService';
 
 /** 用户偏好设置（距离单位、语音播报、震动反馈、地图样式、线宽） */
 export interface UserSettings {
@@ -58,6 +59,10 @@ async function ensurePostgres(): Promise<void> {
 
 /** 获取用户完整资料：基本信息 + 统计数据 + 设置（4 查询并行） */
 export async function getUserProfile(userId: string): Promise<Record<string, unknown>> {
+  return getOrCompute(`profile:${userId}`, 60, () => getUserProfileUncached(userId));
+}
+
+async function getUserProfileUncached(userId: string): Promise<Record<string, unknown>> {
   await ensurePostgres();
   await pgPool!.query(
     `INSERT INTO users (id, metadata)
@@ -123,7 +128,7 @@ export async function getUserProfile(userId: string): Promise<Record<string, unk
 /** 更新用户偏好设置（部分更新，返回更新后的完整资料） */
 export async function updateUserSettings(userId: string, patch: Partial<UserSettings>): Promise<Record<string, unknown>> {
   await ensurePostgres();
-  const current = await getUserProfile(userId);
+  const current = await getUserProfileUncached(userId);
   const settings = normalizeSettings({
     ...(current.settings as Record<string, unknown>),
     ...patch,
@@ -132,6 +137,7 @@ export async function updateUserSettings(userId: string, patch: Partial<UserSett
   const userResult = await pgPool!.query('SELECT metadata FROM users WHERE id = $1 LIMIT 1', [userId]);
   const metadata = mergeMetadata(userResult.rows[0]?.metadata as Record<string, unknown> | undefined, { settings });
   await pgPool!.query('UPDATE users SET metadata = $2::jsonb WHERE id = $1', [userId, JSON.stringify(metadata)]);
+  await cacheDelete(`profile:${userId}`);
   return {
     ...current,
     settings,
@@ -141,7 +147,7 @@ export async function updateUserSettings(userId: string, patch: Partial<UserSett
 /** 更新用户资料（displayName、signature、badge 等元数据字段） */
 export async function updateUserProfile(userId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
   await ensurePostgres();
-  const current = await getUserProfile(userId);
+  const current = await getUserProfileUncached(userId);
   const allowedFields = ['displayName', 'signature', 'badge'];
   const updates: Record<string, unknown> = {};
   for (const key of allowedFields) {
@@ -157,6 +163,7 @@ export async function updateUserProfile(userId: string, patch: Record<string, un
     const metadata = mergeMetadata(userResult.rows[0]?.metadata as Record<string, unknown> | undefined, updates);
     await pgPool!.query('UPDATE users SET metadata = $2::jsonb WHERE id = $1', [userId, JSON.stringify(metadata)]);
   }
+  await cacheDelete(`profile:${userId}`);
   return { ...current, ...updates };
 }
 

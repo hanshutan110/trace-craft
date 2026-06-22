@@ -64,7 +64,7 @@ const enUS: TextMap = {
   'auth.sending': 'Sending',
   'auth.reget_code': 'Resend',
   'auth.get_code': 'Get Code',
-  'auth.submit_phone_login': 'Authorize and bind login (test pass-through)',
+  'auth.submit_phone_login': 'Authorize and bind login',
   'auth.privacy_title': 'TraceCraft Privacy Policy',
   'auth.agreement_title': 'TraceCraft Terms of Service',
   'auth.updated_at': 'Updated: 2026-06-09',

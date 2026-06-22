@@ -1,8 +1,15 @@
+/**
+ * 管理后台配置
+ *
+ * 定义各模块的元信息（标题、副标题、图标、新增按钮文案）
+ * 以及状态标签的映射渲染
+ */
 import type {ReactElement, ReactNode} from 'react';
 import {AuditOutlined, CommentOutlined, FileTextOutlined, FlagOutlined, HistoryOutlined, MessageOutlined, PictureOutlined, SafetyCertificateOutlined, ShareAltOutlined, TeamOutlined, UnorderedListOutlined} from '@ant-design/icons';
 import {Tag} from 'antd';
 import type {AdminModule} from '../../shared/admin';
 
+/** 各模块元信息配置（导航栏/列表页头/表单标题共用） */
 export const moduleMeta: Record<AdminModule, {title: string; subtitle: string; createText: string; icon: ReactNode}> = {
   users: {
     title: '管理员用户',
@@ -78,6 +85,7 @@ export const moduleMeta: Record<AdminModule, {title: string; subtitle: string; c
   },
 };
 
+/** 状态标签渲染（支持布尔值和字符串状态） */
 export function statusTag(value: string | boolean): ReactElement {
   if (value === true) return <Tag color="success">启用</Tag>;
   if (value === false) return <Tag>停用</Tag>;

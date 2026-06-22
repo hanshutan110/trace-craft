@@ -27,10 +27,12 @@ import {
   selectPost,
   toggleCommunityLike,
   toggleFollowUser,
+  uploadCommunityMedia,
   type CommunityCommentItem,
   type CommunityPostItem,
   type NotificationItem,
 } from '../api/community';
+import { onRealtime } from '../services/realtime';
 
 function communityShapeSvg(shapeType: string, className: string = 'w-16 h-16 text-rose-500') {
   if (shapeType === 'star') {
@@ -56,6 +58,13 @@ function formatRelativeTime(value: string, text: (cn: string, en: string) => str
   return text(`${days}天前`, `${days}d ago`);
 }
 
+function primaryCommunityImage(post: CommunityPostItem): string {
+  const images = post.mediaPayload?.images;
+  if (!Array.isArray(images)) return '';
+  const first = images[0] as { url?: unknown } | undefined;
+  return typeof first?.url === 'string' ? first.url : '';
+}
+
 // ----------------------------------------------------------------------
 // SCREEN 23: Trace Share Preview (轨迹分享预览页)
 // ----------------------------------------------------------------------
@@ -63,23 +72,31 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
   const { text } = useI18n();
   const [description, setDescription] = useState('');
   const [topicTags, setTopicTags] = useState<string[]>([]);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState('');
+  const [publishing, setPublishing] = useState(false);
 
   const handlePublish = async () => {
+    if (publishing) return;
+    setPublishing(true);
     try {
+      const uploadedMedia = mediaFile ? await uploadCommunityMedia(mediaFile) : null;
       const post = await createCommunityPost({
         title: text('路线分享', 'Route Share'),
         content: description.trim() || text('分享一次新的 TraceCraft 路线。', 'Sharing a new TraceCraft route.'),
         topicTags,
         metrics: { distanceKm: 5.01, duration: '32:15', pace: '6\'27" /km' },
-        mediaPayload: { shapeType: 'heart' },
+        mediaPayload: uploadedMedia ? { shapeType: 'heart', images: [uploadedMedia] } : { shapeType: 'heart' },
       });
       selectPost(post.id);
-      miniToast(text('轨迹路线成功发布至公开社区！', 'Route published to the public community!'));
+      miniToast(text('轨迹已提交审核，通过后将在公开社区展示', 'Route submitted for review. It will appear after approval.'));
       setTimeout(() => {
         onNavigate('square');
       }, 400);
     } catch {
       miniToast(text('发布失败，请稍后重试', 'Publish failed. Try again later.'));
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -91,6 +108,16 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
     }
   };
 
+  const handleMediaChange = (file: File | null) => {
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaFile(file);
+    setMediaPreview(file ? URL.createObjectURL(file) : '');
+  };
+
+  useEffect(() => () => {
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+  }, [mediaPreview]);
+
   return (
     <div className="w-full h-full bg-[#FFFFFF] flex flex-col justify-between overflow-y-auto text-slate-800 animate-fadeIn select-none">
       {/* Top Header */}
@@ -99,11 +126,12 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
           <ArrowLeft size={18} className="text-slate-700" />
         </button>
         <span className="text-[16px] font-bold text-slate-900">{text('分享轨迹', 'Share Route')}</span>
-        <button 
+        <button
           onClick={handlePublish}
-          className="text-[14px] text-cyan-600 font-extrabold px-1.5 py-0.5 rounded-full hover:bg-cyan-50"
+          disabled={publishing}
+          className="text-[14px] text-cyan-600 font-extrabold px-1.5 py-0.5 rounded-full hover:bg-cyan-50 disabled:opacity-50"
         >
-          {text('发布', 'Publish')}
+          {publishing ? text('发布中', 'Publishing') : text('发布', 'Publish')}
         </button>
       </div>
 
@@ -174,6 +202,23 @@ export function TraceShareScreen({ onNavigate }: { onNavigate: (screen: ScreenId
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+          </div>
+
+          <div>
+            <span className="text-[13px] font-black text-slate-900 block mb-1.5">{text('添加图片', 'Add image')}</span>
+            <label className="block rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-[11px] font-bold text-slate-500 cursor-pointer active:scale-[0.99]">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(event) => handleMediaChange(event.target.files?.[0] || null)}
+              />
+              {mediaPreview ? (
+                <img src={mediaPreview} alt="" className="mx-auto max-h-32 rounded-xl object-cover" />
+              ) : (
+                text('选择一张轨迹图片或运动照片', 'Choose a route image or running photo')
+              )}
+            </label>
           </div>
 
           {/* Hashtag choices */}
@@ -344,6 +389,7 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
         <div className="grid grid-cols-2 gap-3">
           {posts.map((item, index) => {
             const shapeType = String(item.mediaPayload?.shapeType || 'heart');
+            const imageUrl = primaryCommunityImage(item);
             const distance = Number(item.metrics?.distanceKm || item.metrics?.distance || 0);
             const height = ['h-[110px]', 'h-[100px]', 'h-[120px]', 'h-[95px]'][index % 4];
             return (
@@ -357,7 +403,9 @@ export function SquareScreen({ onNavigate }: { onNavigate: (screen: ScreenId) =>
             >
               {/* Graphic container */}
               <div className={`${height} bg-slate-50 flex items-center justify-center p-3 relative select-none border-b border-slate-50 shrink-0`}>
-                {communityShapeSvg(shapeType)}
+                {imageUrl ? (
+                  <img src={imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                ) : communityShapeSvg(shapeType)}
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -410,6 +458,7 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
   const [likesCount, setLikesCount] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
   const [comments, setComments] = useState<CommunityCommentItem[]>([]);
+  const [replyTarget, setReplyTarget] = useState<CommunityCommentItem | null>(null);
   const [post, setPost] = useState<CommunityPostItem | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -446,9 +495,10 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
     e.preventDefault();
     if (!commentInput.trim() || !post) return;
     try {
-      const newComment = await addCommunityComment(post.id, commentInput.trim());
+      const newComment = await addCommunityComment(post.id, commentInput.trim(), replyTarget?.id);
       setComments(prev => [...prev, newComment]);
       setCommentInput('');
+      setReplyTarget(null);
       setPost(prev => prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev);
       miniToast(text('评论发布成功！', 'Comment posted successfully!'));
     } catch {
@@ -526,12 +576,17 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
 
         {/* Map Preview Area */}
         <div className="h-[200px] bg-slate-50 border-b border-slate-100 relative overflow-hidden flex items-center justify-center">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:18px_18px] opacity-50"></div>
-          
-          <svg className="w-40 h-40 text-rose-500 drop-shadow-md relative z-10" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
-            <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
-            <circle cx="50" cy="75" r="4.5" fill="#10B981" stroke="#FFFFFF" strokeWidth="1.5" />
-          </svg>
+          {primaryCommunityImage(post) ? (
+            <img src={primaryCommunityImage(post)} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:18px_18px] opacity-50"></div>
+              <svg className="w-40 h-40 text-rose-500 drop-shadow-md relative z-10" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="4">
+                <path d="M 50,75 C 10,40 25,10 50,35 C 75,10 90,40 50,75 Z" />
+                <circle cx="50" cy="75" r="4.5" fill="#10B981" stroke="#FFFFFF" strokeWidth="1.5" />
+              </svg>
+            </>
+          )}
         </div>
 
         {/* Post metrics card */}
@@ -597,13 +652,23 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
             {text(`评论列表 (${comments.length})`, `Comments (${comments.length})`)}
             </span>
 
+          {/* Reply state is kept visible so nested comments do not look like new top-level comments. */}
+          {replyTarget && (
+            <div className="mb-2 flex items-center justify-between rounded-md bg-cyan-50 px-3 py-2 text-[10px] font-bold text-cyan-700">
+              <span>{text(`回复 ${replyTarget.author}`, `Replying to ${replyTarget.author}`)}</span>
+              <button type="button" onClick={() => setReplyTarget(null)} className="text-slate-400 hover:text-slate-600">
+                {text('取消', 'Cancel')}
+              </button>
+            </div>
+          )}
+
           {/* New message input inline */}
           <form onSubmit={handleSendComment} className="flex items-center space-x-2 mb-4 bg-slate-50 pl-3 pr-1 py-1 rounded-full border border-slate-100">
             <input 
               type="text" 
               value={commentInput} 
               onChange={(e) => setCommentInput(e.target.value)}
-              placeholder={text('输入评论内容，文明发言...', 'Write a comment respectfully...')}
+              placeholder={replyTarget ? text('输入回复内容...', 'Write a reply...') : text('输入评论内容，文明发言...', 'Write a comment respectfully...')}
               className="bg-transparent border-none text-[11px] placeholder:text-slate-400 focus:outline-none w-full font-medium"
             />
             <button 
@@ -617,16 +682,23 @@ export function PostDetailScreen({ onNavigate }: { onNavigate: (screen: ScreenId
           {/* lists view */}
           <div className="space-y-3 pb-4">
             {comments.map((comment) => (
-              <div key={comment.id} className="flex items-start space-x-2.5 border-b border-slate-50/60 pb-2.5">
+              <div key={comment.id} className={`flex items-start space-x-2.5 border-b border-slate-50/60 pb-2.5 ${comment.parentCommentId ? 'ml-8' : ''}`}>
                 <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-205 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
                   {comment.author.slice(0, 1)}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-baseline space-x-1.5">
                     <span className="text-[12px] font-bold text-slate-900">{comment.author}</span>
                     <span className="text-[9px] text-slate-400 font-mono">{formatRelativeTime(comment.createdAt, text)}</span>
                   </div>
                   <p className="text-[11.5px] text-slate-700 mt-1 lines-relaxed">{comment.content}</p>
+                  <button
+                    type="button"
+                    onClick={() => setReplyTarget(comment)}
+                    className="mt-1 text-[10px] font-bold text-slate-400 hover:text-cyan-600"
+                  >
+                    {text('回复', 'Reply')}
+                  </button>
                 </div>
               </div>
             ))}
@@ -690,6 +762,18 @@ export function NotificationsScreen({ onNavigate }: { onNavigate: (screen: Scree
     return () => {
       cancelled = true;
     };
+  }, [activeTab]);
+
+  useEffect(() => {
+    return onRealtime('notification', (notification) => {
+      const eventType = notification.type === 'system' ? 'sys' : notification.type;
+      if (activeTab !== 'all' && activeTab !== eventType) return;
+      setMsgList(prev => {
+        if (prev.some(item => item.id === notification.id)) return prev;
+        return [{ ...notification, isRead: false, metadata: notification.metadata || {} }, ...prev];
+      });
+      setShowEmpty(false);
+    });
   }, [activeTab]);
 
   const handleMarkAllRead = async () => {

@@ -5,6 +5,7 @@
  */
 import type { GeneratedRoute, GeoPoint, SessionMetrics } from '../types';
 import { apiGet, apiPost, apiPut, apiDelete, apiRequest } from './client';
+import { getOfflineValue, putOfflineValue } from '../services/offlineStore';
 
 /** 用户偏好设置（与后端 UserSettings 保持一致） */
 export interface UserSettings {
@@ -75,8 +76,17 @@ export async function updateUserSettings(settings: Partial<UserSettings>): Promi
 
 /** 获取跑步历史记录（默认最近 30 条） */
 export async function getRunHistory(limit: number = 30): Promise<RunHistoryEntry[]> {
-  const payload = await apiGet<{ runs?: RunHistoryEntry[] }>(`/run-history?limit=${limit}`);
-  return payload.runs || [];
+  const cacheKey = `run-history:${limit}`;
+  try {
+    const payload = await apiGet<{ runs?: RunHistoryEntry[] }>(`/run-history?limit=${limit}`);
+    const runs = payload.runs || [];
+    await putOfflineValue(cacheKey, runs);
+    return runs;
+  } catch (error) {
+    const cached = await getOfflineValue<RunHistoryEntry[]>(cacheKey);
+    if (cached) return cached;
+    throw error;
+  }
 }
 
 /** 清除用户生成的缓存数据（DELETE /me/cache） */
@@ -114,4 +124,15 @@ export async function uploadUserAsset(file: File, assetType: string = 'avatar'):
     body,
   });
   return payload.asset || {};
+}
+
+/** 注册原生 Push token（Capacitor 插件获取 token 后调用） */
+export async function registerPushToken(payload: {
+  token: string;
+  platform: string;
+  deviceId?: string | null;
+  provider?: string;
+}): Promise<Record<string, unknown>> {
+  const data = await apiPost<{ token?: Record<string, unknown> }>('/me/push-token', payload);
+  return data.token || {};
 }

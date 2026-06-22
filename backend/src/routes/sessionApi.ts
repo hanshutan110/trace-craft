@@ -21,6 +21,7 @@ import {
   normalizeLocationBody,
   parseJsonField,
 } from './common';
+import { logger } from '../services/logger';
 
 const router = Router();
 
@@ -45,7 +46,7 @@ router.post('/routes/:routeId/start', requireAuth, async (req: Request, res: Res
       routeId,
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('session_start_failed', err, { traceId: req.traceId, routeId: req.params.routeId, userId: req.userId });
     if ((err as Error).message === 'route_high_risk') {
       res.status(409).json(errorPayload('route risk is too high to start', 'route_high_risk', 409));
       return;
@@ -69,7 +70,7 @@ router.get('/sessions/:sessionId', requireAuth, async (req: Request, res: Respon
     }
     res.json(successPayload({ state, traceId: req.traceId }));
   } catch (err) {
-    console.error(err);
+    logger.error('session_state_fetch_failed', err, { traceId: req.traceId, sessionId: req.params.sessionId, userId: req.userId });
     res.status(500).json(errorPayload('get state failed', 'state_fetch_failed', 500));
   }
 });
@@ -85,7 +86,7 @@ router.post('/sessions/:sessionId/pause', requireAuth, async (req: Request, res:
     }
     res.json(successPayload({ state, traceId: req.traceId, nextAction: 'resume' }));
   } catch (err) {
-    console.error(err);
+    logger.error('session_pause_failed', err, { traceId: req.traceId, sessionId: req.params.sessionId, userId: req.userId });
     res.status(500).json(errorPayload('pause failed', 'pause_failed', 500));
   }
 });
@@ -101,7 +102,7 @@ router.post('/sessions/:sessionId/resume', requireAuth, async (req: Request, res
     }
     res.json(successPayload({ state, traceId: req.traceId, nextAction: 'report_location' }));
   } catch (err) {
-    console.error(err);
+    logger.error('session_resume_failed', err, { traceId: req.traceId, sessionId: req.params.sessionId, userId: req.userId });
     res.status(500).json(errorPayload('resume failed', 'resume_failed', 500));
   }
 });
@@ -135,7 +136,7 @@ router.post('/sessions/:sessionId/location', requireAuth, async (req: Request, r
       nextAction: 'report_location',
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('session_location_failed', err, { traceId: req.traceId, sessionId: req.params.sessionId, userId: req.userId });
     res.status(500).json(errorPayload('location update failed', 'location_failed', 500));
   }
 });
@@ -158,7 +159,7 @@ router.post('/sessions/:sessionId/finish', requireAuth, async (req: Request, res
       nextAction: 'summary',
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('session_finish_failed', err, { traceId: req.traceId, sessionId: req.params.sessionId, userId: req.userId });
     res.status(500).json(errorPayload('finish failed', 'finish_failed', 500));
   }
 });

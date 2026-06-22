@@ -22,13 +22,15 @@ import {
   asPositiveInt,
 } from './common';
 import { getRouteRecord } from '../services/storage';
+import { cleanupUploadedFile, readUploadedFile, tempUploadStorage } from '../utils/uploadTemp';
+import { logger } from '../services/logger';
 
 const router = Router();
 const IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: tempUploadStorage('routes'),
   limits: { fileSize: IMAGE_UPLOAD_MAX_BYTES, files: 1 },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
@@ -76,7 +78,8 @@ router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Respo
       res.status(400).json(errorPayload('missing image file', 'missing_image', 400));
       return;
     }
-    if (!hasAllowedImageSignature(req.file.buffer)) {
+    const imageBuffer = await readUploadedFile(req.file);
+    if (!hasAllowedImageSignature(imageBuffer)) {
       res.status(415).json(errorPayload('unsupported image signature', 'unsupported_image_signature', 415));
       return;
     }
@@ -84,7 +87,7 @@ router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Respo
     const route = await createRouteFromImage({
       userId: req.userId ?? null,
       filename: req.file.originalname || 'upload',
-      buffer: req.file.buffer,
+      buffer: imageBuffer,
       provider: body.provider,
       locale: body.locale,
       targetKm: Number(body.targetKm),
@@ -101,7 +104,7 @@ router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Respo
       version: route?.version || 1,
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('route_image_create_failed', err, { traceId: req.traceId, userId: req.userId });
     if (['image_buffer_empty', 'image_has_no_visible_contour', 'image_contour_too_weak', 'image_contour_too_sparse'].includes((err as Error).message)) {
       res.status(400).json(errorPayload('image contour is too weak', 'image_contour_too_weak', 400));
       return;
@@ -111,6 +114,8 @@ router.post('/routes', requireAuth, uploadImage, async (req: Request, res: Respo
       return;
     }
     res.status(500).json(errorPayload('route generation failed', 'route_generation_failed', 500));
+  } finally {
+    await cleanupUploadedFile(req.file).catch((error) => logger.warn('upload_cleanup_failed', { message: (error as Error).message }));
   }
 });
 
@@ -138,7 +143,7 @@ router.post('/routes/from-template', requireAuth, async (req: Request, res: Resp
       version: route?.version || 1,
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('route_template_create_failed', err, { traceId: req.traceId, userId: req.userId });
     if (['start_point_required', 'invalid_target_distance'].includes((err as Error).message)) {
       res.status(400).json(errorPayload((err as Error).message, (err as Error).message, 400));
       return;
@@ -158,7 +163,7 @@ router.get('/routes/:routeId', requireAuth, async (req: Request, res: Response) 
     }
     res.json(successPayload({ route, traceId: req.traceId }));
   } catch (err) {
-    console.error(err);
+    logger.error('route_fetch_failed', err, { traceId: req.traceId, routeId: req.params.routeId, userId: req.userId });
     res.status(500).json(errorPayload('fetch route failed', 'route_fetch_failed', 500));
   }
 });
@@ -186,7 +191,7 @@ router.put('/routes/:routeId/adjust', requireAuth, async (req: Request, res: Res
       nextAction: 'start_run',
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('route_adjust_failed', err, { traceId: req.traceId, routeId: req.params.routeId, userId: req.userId });
     if ((err as Error).message === 'route_version_conflict') {
       res.status(409).json(errorPayload('route version conflict', 'route_version_conflict', 409));
       return;
@@ -214,7 +219,7 @@ router.put('/routes/:routeId/rebase', requireAuth, async (req: Request, res: Res
       nextAction: 'start_run',
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('route_rebase_failed', err, { traceId: req.traceId, routeId: req.params.routeId, userId: req.userId });
     if ((err as Error).message === 'route_version_conflict') {
       res.status(409).json(errorPayload('route version conflict', 'route_version_conflict', 409));
       return;
@@ -240,7 +245,7 @@ router.get('/runs', requireAuth, async (req: Request, res: Response) => {
       traceId: req.traceId,
     }));
   } catch (err) {
-    console.error(err);
+    logger.error('runs_list_failed', err, { traceId: req.traceId, userId: req.userId });
     res.status(500).json(errorPayload('list runs failed', 'list_runs_failed', 500));
   }
 });

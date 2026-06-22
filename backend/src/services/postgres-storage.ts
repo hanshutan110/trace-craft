@@ -83,6 +83,23 @@ interface SessionDbRow {
 /** PostgreSQL 连接池（全局单例） */
 export let pgPool: import('pg').Pool | null = null;
 
+export interface PgPoolStats {
+  configured: boolean;
+  total: number;
+  idle: number;
+  waiting: number;
+}
+
+/** 暴露连接池只读指标，供 /health 和监控系统判断数据库压力。 */
+export function getPgPoolStats(): PgPoolStats {
+  return {
+    configured: Boolean(pgPool),
+    total: pgPool?.totalCount || 0,
+    idle: pgPool?.idleCount || 0,
+    waiting: pgPool?.waitingCount || 0,
+  };
+}
+
 const connectionString =
   process.env.DATABASE_URL || process.env.PG_URL || process.env.PG_CONNECTION_STRING;
 
@@ -620,8 +637,62 @@ export class PostgresStorage implements IStorage {
     }
   }
 
-  /** saveSession 委托到 createSession（内部已处理存在性检查与更新） */
+  /** saveSession 是完整保存语义：已有记录走 UPDATE，不再误用 createSession 的幂等插入语义。 */
   async saveSession(session: Session): Promise<Session> {
-    return this.createSession(session);
+    await this.ensureUser(session.userId);
+    const metadata = session.metadata || ({} as SessionMetadata);
+    const idempotencyKey = metadata.idempotencyKey || null;
+    const result = await pgPool!.query(
+      `INSERT INTO run_sessions (
+        id, route_id, user_id, status, provider, cursor, current_accuracy, deviation_score,
+        path_version, created_at, updated_at, started_at, finished_at, paused_at, last_state_at,
+        location_sample, actual_path, metadata, metrics, version, idempotency_key
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW(),$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+      ON CONFLICT (id) DO UPDATE SET
+        route_id = EXCLUDED.route_id,
+        user_id = EXCLUDED.user_id,
+        status = EXCLUDED.status,
+        provider = EXCLUDED.provider,
+        cursor = EXCLUDED.cursor,
+        current_accuracy = EXCLUDED.current_accuracy,
+        deviation_score = EXCLUDED.deviation_score,
+        path_version = EXCLUDED.path_version,
+        updated_at = NOW(),
+        started_at = EXCLUDED.started_at,
+        finished_at = EXCLUDED.finished_at,
+        paused_at = EXCLUDED.paused_at,
+        last_state_at = EXCLUDED.last_state_at,
+        location_sample = EXCLUDED.location_sample,
+        actual_path = EXCLUDED.actual_path,
+        metadata = EXCLUDED.metadata,
+        metrics = EXCLUDED.metrics,
+        version = run_sessions.version + 1,
+        idempotency_key = EXCLUDED.idempotency_key
+      RETURNING id, route_id, user_id, status, provider, cursor, current_accuracy, deviation_score,
+        path_version, started_at, finished_at, paused_at, created_at, updated_at, last_state_at,
+        location_sample, actual_path, metadata, metrics, version`,
+      [
+        session.id,
+        session.routeId,
+        session.userId,
+        session.status,
+        session.provider || null,
+        session.cursor || 0,
+        session.currentAccuracy || null,
+        session.deviationScore || 0,
+        session.pathVersion || 1,
+        session.startedAt ? new Date(session.startedAt) : new Date(),
+        session.finishedAt ? new Date(session.finishedAt) : null,
+        session.pausedAt ? new Date(session.pausedAt) : null,
+        session.lastStateAt ? new Date(session.lastStateAt) : new Date(),
+        toJson(Array.isArray(session.locationSample) ? session.locationSample : [], '[]'),
+        toJson(Array.isArray(session.actualPath) ? session.actualPath : [], '[]'),
+        toJson(metadata, '{}'),
+        toJson(session.metrics || {}, '{}'),
+        session.version || 1,
+        idempotencyKey,
+      ],
+    );
+    return this.mapSessionDbRow(result.rows[0] as unknown as SessionDbRow);
   }
 }

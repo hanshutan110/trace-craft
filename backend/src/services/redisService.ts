@@ -8,6 +8,7 @@
  */
 
 import Redis from 'ioredis';
+import { logger } from './logger';
 
 const redisUrl = process.env.REDIS_URL || '';
 
@@ -28,7 +29,7 @@ export async function initRedis(): Promise<void> {
   initialized = true;
 
   if (!redisUrl) {
-    console.log('[redis] no REDIS_URL configured, Redis features disabled');
+    logger.info('redis_disabled_no_url');
     return;
   }
 
@@ -45,7 +46,7 @@ export async function initRedis(): Promise<void> {
 
     client.on('connect', () => {
       connected = true;
-      console.log('[redis] connected');
+      logger.info('redis_connected');
     });
     client.on('close', () => {
       connected = false;
@@ -59,12 +60,12 @@ export async function initRedis(): Promise<void> {
       if (err.message.includes('ECONNREFUSED') || err.message.includes('timeout')) {
         return;
       }
-      console.warn('[redis:error]', err.message);
+      logger.warn('redis_error', { message: err.message });
     });
 
     await client.connect();
   } catch {
-    console.warn('[redis] connection failed, Redis features disabled');
+    logger.warn('redis_connection_failed');
     client = null;
     connected = false;
   }

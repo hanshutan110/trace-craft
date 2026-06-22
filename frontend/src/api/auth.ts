@@ -23,6 +23,12 @@ interface AuthResult {
   provider: QuickLoginProvider | 'phone';
 }
 
+interface SmsCodeResult {
+  provider: string;
+  expiresInSeconds: number;
+  devCode?: string;
+}
+
 /** 生成唯一设备 ID（优先使用 crypto.randomUUID，回退到时间戳 + 随机数） */
 function createDeviceId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -88,7 +94,7 @@ async function doLogin(
   return payload.auth;
 }
 
-/** 快捷登录（微信/支付宝，开发环境自动填充 mock authCode） */
+/** 快捷登录（微信/支付宝；生产环境需由原生 SDK 填入真实 authCode） */
 export async function quickLogin(provider: QuickLoginProvider): Promise<AuthResult> {
   return doLogin('/auth/quick-login', {
     provider,
@@ -104,6 +110,13 @@ export async function phoneLogin(phone: string, smsCode: string): Promise<AuthRe
     smsCode,
     deviceId: getOrCreateDeviceId(),
   });
+}
+
+/** 发送短信验证码；开发模式可能返回 devCode 便于本地联调 */
+export async function sendSmsCode(phone: string): Promise<SmsCodeResult> {
+  const payload = await apiPost<{ sms?: SmsCodeResult }>('/auth/sms-code', { phone });
+  if (!payload.sms) throw new Error('sms_send_failed');
+  return payload.sms;
 }
 
 /** 退出登录（清除 Cookie + 本地标记） */

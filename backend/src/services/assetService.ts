@@ -1,12 +1,14 @@
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import sharp from 'sharp';
 import { initStorage } from './storage';
 import { pgPool } from './postgres-storage';
 import { newId } from '../utils/id';
 import { safeJsonObject } from '../utils/json';
+import { logger } from './logger';
 
-export type UserAssetType = 'avatar' | 'share_poster' | 'route_preview' | 'qr_card';
+export type UserAssetType = 'avatar' | 'share_poster' | 'route_preview' | 'qr_card' | 'community_media';
 
 export interface UserAsset {
   id: string;
@@ -18,7 +20,7 @@ export interface UserAsset {
   createdAt: string;
 }
 
-const ALLOWED_TYPES = new Set<UserAssetType>(['avatar', 'share_poster', 'route_preview', 'qr_card']);
+const ALLOWED_TYPES = new Set<UserAssetType>(['avatar', 'share_poster', 'route_preview', 'qr_card', 'community_media']);
 const MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -28,7 +30,8 @@ const MIME_TO_EXT: Record<string, string> = {
 const MAX_IMAGE_BYTES = Math.max(1, Number(process.env.TRACECRAFT_ASSET_MAX_MB || 5)) * 1024 * 1024;
 const UPLOAD_ROOT = path.resolve(process.env.TRACECRAFT_UPLOAD_DIR || path.join(process.cwd(), 'uploads'));
 const PUBLIC_PREFIX = (process.env.TRACECRAFT_UPLOAD_PUBLIC_PATH || '/uploads').replace(/\/$/, '');
-const CACHE_ASSET_TYPES: UserAssetType[] = ['share_poster', 'route_preview', 'qr_card'];
+const CACHE_ASSET_TYPES: UserAssetType[] = ['share_poster', 'route_preview', 'qr_card', 'community_media'];
+const ASSET_STORAGE_PROVIDER = (process.env.TRACECRAFT_ASSET_STORAGE_PROVIDER || 'local').toLowerCase();
 
 function requireDb(): void {
   if (!pgPool) throw new Error('postgres_not_configured');
@@ -64,6 +67,49 @@ function publicUrlToLocalPath(url: string, userId: string): string | null {
   return absolute;
 }
 
+function relativeAssetPath(userId: string, assetType: UserAssetType, filename: string): string {
+  return path.join('users', userId, assetType, filename).replace(/\\/g, '/');
+}
+
+async function saveLocalAsset(relativePath: string, buffer: Buffer): Promise<{ url: string; provider: string }> {
+  const absolutePath = path.join(UPLOAD_ROOT, relativePath);
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+  await fs.writeFile(absolutePath, buffer);
+  return { url: `${PUBLIC_PREFIX}/${relativePath}`, provider: 'local' };
+}
+
+async function saveWebhookAsset(relativePath: string, buffer: Buffer, mimeType: string): Promise<{ url: string; provider: string }> {
+  const url = process.env.TRACECRAFT_ASSET_WEBHOOK_URL || '';
+  if (!url) throw new Error('asset_storage_not_configured');
+  const body = JSON.stringify({
+    key: relativePath,
+    contentType: mimeType,
+    bodyBase64: buffer.toString('base64'),
+  });
+  const secret = process.env.TRACECRAFT_ASSET_WEBHOOK_SECRET || '';
+  const signature = secret ? crypto.createHmac('sha256', secret).update(body).digest('hex') : '';
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(signature ? { 'X-TraceCraft-Signature': signature } : {}),
+    },
+    body,
+  });
+  if (!response.ok) throw new Error('asset_storage_failed');
+  const payload = await response.json() as { url?: unknown; provider?: unknown };
+  const publicUrl = typeof payload.url === 'string' && payload.url ? payload.url : `${process.env.TRACECRAFT_ASSET_PUBLIC_BASE_URL || ''}/${relativePath}`;
+  if (!publicUrl || publicUrl === `/${relativePath}`) throw new Error('asset_storage_url_missing');
+  return { url: publicUrl, provider: typeof payload.provider === 'string' ? payload.provider : 'webhook' };
+}
+
+async function saveAssetObject(relativePath: string, buffer: Buffer, mimeType: string): Promise<{ url: string; provider: string }> {
+  if (ASSET_STORAGE_PROVIDER === 'webhook') {
+    return saveWebhookAsset(relativePath, buffer, mimeType);
+  }
+  return saveLocalAsset(relativePath, buffer);
+}
+
 export function uploadRoot(): string {
   return UPLOAD_ROOT;
 }
@@ -91,45 +137,43 @@ export async function saveUserImageAsset(params: {
   if (!params.buffer.length || params.buffer.length > MAX_IMAGE_BYTES) throw new Error('invalid_asset_size');
 
   const id = newId('asset');
-  const relativeDir = path.join('users', params.userId, assetType);
-  const absoluteDir = path.join(UPLOAD_ROOT, relativeDir);
-  await fs.mkdir(absoluteDir, { recursive: true });
-
   const outputExt = assetType === 'avatar' ? 'webp' : ext;
   const filename = `${id}.${outputExt}`;
-  const absolutePath = path.join(absoluteDir, filename);
   const image = sharp(params.buffer, { failOn: 'error' }).rotate();
   let metadata: sharp.Metadata;
+  let outputBuffer: Buffer;
+  const outputMimeType = outputExt === 'webp' ? 'image/webp' : params.mimeType;
   try {
     metadata = await image.metadata();
     if (!metadata.width || !metadata.height) throw new Error('invalid_image');
     if (assetType === 'avatar') {
-      await image.resize(512, 512, { fit: 'cover' }).webp({ quality: 86 }).toFile(absolutePath);
+      outputBuffer = await image.resize(512, 512, { fit: 'cover' }).webp({ quality: 86 }).toBuffer();
     } else {
-      await image.resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).toFile(absolutePath);
+      outputBuffer = await image.resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).toBuffer();
     }
   } catch {
     throw new Error('invalid_image');
   }
 
-  const publicPath = `${PUBLIC_PREFIX}/${relativeDir.replace(/\\/g, '/')}/${filename}`;
+  const relativePath = relativeAssetPath(params.userId, assetType, filename);
+  const saved = await saveAssetObject(relativePath, outputBuffer, outputMimeType);
   const savedMetadata = {
     originalName: params.originalName || '',
-    mimeType: params.mimeType,
+    mimeType: outputMimeType,
     width: metadata.width,
     height: metadata.height,
   };
   await pgPool!.query(
     `INSERT INTO user_assets (id, user_id, asset_type, url, storage_provider, metadata)
-     VALUES ($1, $2, $3, $4, 'local', $5::jsonb)`,
-    [id, params.userId, assetType, publicPath, JSON.stringify(savedMetadata)]
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+    [id, params.userId, assetType, saved.url, saved.provider, JSON.stringify(savedMetadata)]
   );
   if (assetType === 'avatar') {
     const userResult = await pgPool!.query(`SELECT metadata FROM users WHERE id = $1 LIMIT 1`, [params.userId]);
     const current = safeJsonObject(userResult.rows[0]?.metadata);
     await pgPool!.query(
       `UPDATE users SET metadata = $2::jsonb WHERE id = $1`,
-      [params.userId, JSON.stringify({ ...current, avatarUrl: publicPath })]
+      [params.userId, JSON.stringify({ ...current, avatarUrl: saved.url })]
     );
   }
   const rows = await pgPool!.query(`SELECT * FROM user_assets WHERE id = $1 LIMIT 1`, [id]);
@@ -148,19 +192,15 @@ export async function saveGeneratedImageAsset(params: {
   requireDb();
   const assetType = assertAssetType(params.assetType);
   const id = newId('asset');
-  const relativeDir = path.join('users', params.userId, assetType);
-  const absoluteDir = path.join(UPLOAD_ROOT, relativeDir);
-  await fs.mkdir(absoluteDir, { recursive: true });
 
   const filename = `${id}.${params.extension}`;
-  const absolutePath = path.join(absoluteDir, filename);
-  await fs.writeFile(absolutePath, params.buffer);
+  const relativePath = relativeAssetPath(params.userId, assetType, filename);
+  const saved = await saveAssetObject(relativePath, params.buffer, params.mimeType);
 
-  const publicPath = `${PUBLIC_PREFIX}/${relativeDir.replace(/\\/g, '/')}/${filename}`;
   await pgPool!.query(
     `INSERT INTO user_assets (id, user_id, asset_type, url, storage_provider, metadata)
-     VALUES ($1, $2, $3, $4, 'local', $5::jsonb)`,
-    [id, params.userId, assetType, publicPath, JSON.stringify({ mimeType: params.mimeType, ...(params.metadata || {}) })]
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+    [id, params.userId, assetType, saved.url, saved.provider, JSON.stringify({ mimeType: params.mimeType, ...(params.metadata || {}) })]
   );
   const rows = await pgPool!.query(`SELECT * FROM user_assets WHERE id = $1 LIMIT 1`, [id]);
   return mapAsset(rows.rows[0]);
@@ -204,7 +244,7 @@ export async function clearUserGeneratedCache(userId: string): Promise<{ removed
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code !== 'ENOENT') {
-          console.warn('[asset:cache_file_remove_failed]', filePath, (err as Error).message);
+          logger.warn('asset_cache_file_remove_failed', { filePath, message: (err as Error).message });
         }
       }
     }

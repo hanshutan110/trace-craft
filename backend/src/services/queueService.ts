@@ -12,6 +12,7 @@ import { Queue, Worker, type Job } from 'bullmq';
 import { getRedisClient, isRedisConnected } from './redisService';
 import { createShareCard, createUserQrCard } from './shareService';
 import { pgPool } from './postgres-storage';
+import { logger } from './logger';
 
 // ===== 任务类型定义 =====
 
@@ -40,6 +41,14 @@ interface CleanupJobData {
   olderThanDays: number;
 }
 
+function retentionDays(type: CleanupJobData['type']): number {
+  const key = type === 'location_events'
+    ? 'TRACECRAFT_LOCATION_EVENT_RETENTION_DAYS'
+    : 'TRACECRAFT_AUDIT_LOG_RETENTION_DAYS';
+  const fallback = type === 'location_events' ? 90 : 180;
+  return Math.max(1, Number(process.env[key] || fallback));
+}
+
 // ===== 队列实例 =====
 
 let shareCardQueue: Queue<ShareCardJobData> | null = null;
@@ -53,6 +62,34 @@ let cleanupWorker: Worker<CleanupJobData> | null = null;
 let initialized = false;
 
 /**
+ * 清理只删除已完成会话的历史明细点，不碰 run_sessions.actual_path 最近快照。
+ * 返回删除行数，方便定时任务和未来管理端操作统一审计。
+ */
+export async function runCleanupJob(data: CleanupJobData): Promise<{ removed: number }> {
+  if (!pgPool) return { removed: 0 };
+  const olderThanDays = Math.max(1, Number(data.olderThanDays || retentionDays(data.type)));
+  const cutoff = new Date(Date.now() - olderThanDays * 86400000).toISOString();
+  if (data.type === 'location_events') {
+    const result = await pgPool.query(
+      `DELETE FROM run_location_events
+       WHERE session_id IN (
+         SELECT id FROM run_sessions WHERE finished_at IS NOT NULL AND finished_at < $1
+       )`,
+      [cutoff],
+    );
+    return { removed: Number(result.rowCount || 0) };
+  }
+  if (data.type === 'audit_logs') {
+    const result = await pgPool.query(
+      `DELETE FROM run_audit_logs WHERE created_at < $1`,
+      [cutoff],
+    );
+    return { removed: Number(result.rowCount || 0) };
+  }
+  return { removed: 0 };
+}
+
+/**
  * 初始化 BullMQ 队列和 Worker
  *
  * Redis 不可用时跳过初始化，所有入队函数返回 null
@@ -62,7 +99,7 @@ export async function initQueues(): Promise<void> {
   initialized = true;
 
   if (!isRedisConnected()) {
-    console.log('[queue] Redis not available, BullMQ queues disabled (sync fallback)');
+    logger.info('queue_disabled_no_redis');
     return;
   }
 
@@ -81,7 +118,7 @@ export async function initQueues(): Promise<void> {
     { connection, concurrency: 2 },
   );
   shareCardWorker.on('failed', (job, err) => {
-    console.warn(`[queue:share-card] job ${job?.id} failed:`, err.message);
+    logger.warn('queue_job_failed', { queue: 'share-card', jobId: job?.id, message: err.message });
   });
 
   // 二维码名片队列
@@ -95,36 +132,14 @@ export async function initQueues(): Promise<void> {
     { connection, concurrency: 2 },
   );
   qrCardWorker.on('failed', (job, err) => {
-    console.warn(`[queue:qr-card] job ${job?.id} failed:`, err.message);
+    logger.warn('queue_job_failed', { queue: 'qr-card', jobId: job?.id, message: err.message });
   });
 
   // 定时清理队列
   cleanupQueue = new Queue<CleanupJobData>('cleanup', { connection });
   cleanupWorker = new Worker<CleanupJobData>(
     'cleanup',
-    async (job: Job<CleanupJobData>) => {
-      const { type, olderThanDays } = job.data;
-      if (!pgPool) return { removed: 0 };
-      const cutoff = new Date(Date.now() - olderThanDays * 86400000).toISOString();
-      if (type === 'location_events') {
-        const result = await pgPool.query(
-          `DELETE FROM run_location_events
-           WHERE session_id IN (
-             SELECT id FROM run_sessions WHERE finished_at IS NOT NULL AND finished_at < $1
-           )`,
-          [cutoff],
-        );
-        return { removed: Number(result.rowCount || 0) };
-      }
-      if (type === 'audit_logs') {
-        const result = await pgPool.query(
-          `DELETE FROM run_audit_logs WHERE created_at < $1`,
-          [cutoff],
-        );
-        return { removed: Number(result.rowCount || 0) };
-      }
-      return { removed: 0 };
-    },
+    async (job: Job<CleanupJobData>) => runCleanupJob(job.data),
     { connection, concurrency: 1 },
   );
 
@@ -132,17 +147,17 @@ export async function initQueues(): Promise<void> {
   if (cleanupQueue) {
     await cleanupQueue.add(
       'cleanup-location-events',
-      { type: 'location_events', olderThanDays: 90 },
+      { type: 'location_events', olderThanDays: retentionDays('location_events') },
       { repeat: { pattern: '0 3 * * *' }, jobId: 'cleanup-location-daily' },
     );
     await cleanupQueue.add(
       'cleanup-audit-logs',
-      { type: 'audit_logs', olderThanDays: 180 },
+      { type: 'audit_logs', olderThanDays: retentionDays('audit_logs') },
       { repeat: { pattern: '0 4 * * *' }, jobId: 'cleanup-audit-daily' },
     );
   }
 
-  console.log('[queue] BullMQ queues initialized (share-card, qr-card, cleanup)');
+  logger.info('queue_initialized', { queues: ['share-card', 'qr-card', 'cleanup'] });
 }
 
 // ===== 入队函数 =====
@@ -182,9 +197,9 @@ export async function enqueueQrCard(userId: string): Promise<string | null> {
 /**
  * 手动触发一次数据清理（管理员操作）
  */
-export async function enqueueManualCleanup(type: 'location_events' | 'audit_logs', olderThanDays: number = 90): Promise<string | null> {
+export async function enqueueManualCleanup(type: 'location_events' | 'audit_logs', olderThanDays?: number): Promise<string | null> {
   if (!cleanupQueue) return null;
-  const job = await cleanupQueue.add('manual-cleanup', { type, olderThanDays });
+  const job = await cleanupQueue.add('manual-cleanup', { type, olderThanDays: olderThanDays || retentionDays(type) });
   return job.id || null;
 }
 

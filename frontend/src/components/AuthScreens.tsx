@@ -7,7 +7,7 @@ import {
 import { ScreenId } from '../types';
 import { useI18n } from '../i18n';
 import { useToast } from './common/Toast';
-import { phoneLogin, quickLogin, type QuickLoginProvider } from '../api/auth';
+import { phoneLogin, quickLogin, sendSmsCode, type QuickLoginProvider } from '../api/auth';
 import { getPublicContent, type PublicContentItem } from '../api/content';
 
 /* ==========================================
@@ -207,19 +207,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     }
   };
 
-  const sendSMS = () => {
+  const sendSMS = async () => {
     if (!phoneNumber || phoneNumber.length < 11) {
       showToast(text('请输入合法的11位手机号', 'Enter a valid 11-digit mobile number'));
       return;
     }
     setIsSendingCode(true);
     showToast(text('验证码发送中...', 'Sending verification code...'));
-    setTimeout(() => {
+    try {
+      const result = await sendSmsCode(phoneNumber);
       setIsSendingCode(false);
       setCodeSent(true);
-      setSmsCode('8888');
-      showToast(text('验证码[8888]已发送', 'Code [8888] sent'));
-    }, 1000);
+      if (result.devCode) {
+        setSmsCode(result.devCode);
+        showToast(text(`开发验证码[${result.devCode}]已生成`, `Dev code [${result.devCode}] generated`));
+        return;
+      }
+      showToast(text('验证码已发送，请查收短信', 'Code sent. Check your SMS.'));
+    } catch {
+      setIsSendingCode(false);
+      showToast(text('验证码发送失败，请稍后重试', 'Failed to send code. Try again later.'));
+    }
   };
 
   const handlePhoneLoginSubmit = async (e: React.FormEvent) => {
@@ -454,7 +462,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
                 disabled={!phoneNumber || !smsCode}
                 className="w-full py-3.5 bg-gradient-to-r from-[#4FACFE] to-[#00F2FE] hover:brightness-105 active:scale-[0.99] rounded-[24px] text-white font-bold text-sm tracking-wider shadow-lg shadow-[#4FACFE]/25 disabled:opacity-50 transition-all text-center mt-3"
               >
-                {t('auth.submit_phone_login', '授权并绑定登录（测试直通）')}
+                {t('auth.submit_phone_login', '授权并绑定登录')}
               </button>
             </form>
           </div>

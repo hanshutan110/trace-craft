@@ -20,7 +20,7 @@ import rateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import { getMapConfig, getMapConfigCached } from './services/map-config';
 import { initStorage, storageMode } from './services/storage';
-import { buildTraceId, parseUserId, successPayload, applyIfMatch } from './routes/common';
+import { buildTraceId, parseUserIdAsync, successPayload, applyIfMatch } from './routes/common';
 import { initRedis, isRedisConnected, getRedisClient, closeRedis } from './services/redisService';
 import { initQueues, closeQueues } from './services/queueService';
 import { initWebSocket, closeWebSocket, getOnlineSocketCount } from './services/wsService';
@@ -32,6 +32,10 @@ import discoveryApi from './routes/discoveryApi';
 import communityApi from './routes/communityApi';
 import adminApi from './routes/adminApi';
 import { uploadRoot } from './services/assetService';
+import { getPgPoolStats } from './services/postgres-storage';
+import { runMigrations } from './services/migrationService';
+import { logger } from './services/logger';
+import { requestLogger } from './middleware/requestLogger';
 
 const app = express();
 
@@ -86,12 +90,17 @@ app.use('/uploads', express.static(path.resolve(uploadRoot()), {
 }));
 
 // 为每个请求注入追踪 ID、用户身份和幂等键
-app.use((req: Request, _res: Response, next) => {
+app.use(async (req: Request, _res: Response, next) => {
   req.traceId = buildTraceId(req);
-  req.userId = parseUserId(req) || null;
-  req.idempotencyKey = req.headers['idempotency-key'] as string | undefined;
-  next();
+  try {
+    req.userId = await parseUserIdAsync(req);
+    req.idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
+app.use(requestLogger);
 
 // ===== 基础端点 =====
 
@@ -101,6 +110,7 @@ app.get('/health', (_req: Request, res: Response) => {
     service: 'tracecraft-backend',
     storage: storageMode(),
     redis: isRedisConnected(),
+    postgresPool: getPgPoolStats(),
     websocketConnections: getOnlineSocketCount(),
   }));
 });
@@ -135,7 +145,7 @@ app.use((_req: Request, res: Response) => {
 // 全局错误处理中间件：统一捕获未处理的异常，避免裸 500
 app.use((err: unknown, _req: Request, res: Response, _next: import('express').NextFunction) => {
   const message = err instanceof Error ? err.message : 'internal_server_error';
-  console.error('[unhandled_error]', err);
+  logger.error('unhandled_error', err);
   if (message === 'cors_origin_denied') {
     res.status(403).json({ ok: false, code: 'cors_origin_denied', error: 'origin not allowed', status: 403 });
     return;
@@ -150,6 +160,14 @@ const port = process.env.PORT || 3017;
   // 初始化 Redis（可选，失败时降级）
   await initRedis();
 
+  // 正式 schema 变更统一走 db/migrations；本地可设 TRACECRAFT_AUTO_MIGRATE=0 跳过。
+  if (process.env.TRACECRAFT_AUTO_MIGRATE !== '0') {
+    const migrationResult = await runMigrations();
+    if (migrationResult.applied.length) {
+      logger.info('migrations_applied', { versions: migrationResult.applied });
+    }
+  }
+
   // 初始化数据库存储
   await initStorage();
 
@@ -161,19 +179,21 @@ const port = process.env.PORT || 3017;
   initWebSocket(server);
 
   server.listen(Number(port), () => {
-    console.log(`TraceCraft backend listening on port ${port}`);
-    console.log(`  Redis: ${isRedisConnected() ? 'connected' : 'disabled'}`);
-    console.log(`  WebSocket: /ws`);
+    logger.info('server_started', {
+      port: Number(port),
+      redis: isRedisConnected() ? 'connected' : 'disabled',
+      websocketPath: '/ws',
+    });
   });
 
   // 优雅关闭：依次关闭 Socket.IO → BullMQ → Redis → HTTP
   const shutdown = async (signal: string) => {
-    console.log(`\n[shutdown] received ${signal}, closing services...`);
+    logger.info('shutdown_started', { signal });
     await closeWebSocket();
     await closeQueues();
     await closeRedis();
     server.close(() => {
-      console.log('[shutdown] HTTP server closed');
+      logger.info('shutdown_http_closed');
       process.exit(0);
     });
     // 强制超时退出

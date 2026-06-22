@@ -5,76 +5,53 @@
  */
 import type { FinishResult, GeneratedRoute, GeoPoint, SessionState } from '../types';
 import { apiGet, apiPost, apiRequest } from './client';
+import { getDefaultMapProvider } from './mapConfig';
+import { getOfflineValue, putOfflineValue } from '../services/offlineStore';
+import { getCurrentLocation } from '../services/nativeLocation';
 
 // ===== 定位 =====
 
-// ===== 默认定位降级坐标（北京天安门） =====
-const DEFAULT_FALLBACK_POINT: GeoPoint = { lat: 39.9087, lng: 116.3975 };
-
 /**
  * 获取当前 GPS 定位点
- * 使用浏览器 Geolocation API，高精度模式，超时 3.5 秒
- * 定位失败时自动降级为默认坐标（北京），避免阻断路线生成
+ * Capacitor 原生定位优先，失败时由服务层降级到浏览器/默认坐标，避免阻断路线生成。
  */
 export async function getCurrentPoint(): Promise<{ point: GeoPoint; accuracy: number | null; isFallback?: boolean }> {
-  if (!navigator.geolocation) {
-    console.warn('[geo] Geolocation API not available, using fallback');
-    return { point: DEFAULT_FALLBACK_POINT, accuracy: null, isFallback: true };
-  }
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          point: {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          },
-          accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
-        });
-      },
-      () => {
-        console.warn('[geo] Location permission denied or timeout, using fallback');
-        resolve({ point: DEFAULT_FALLBACK_POINT, accuracy: null, isFallback: true });
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 3500,
-        maximumAge: 30000,
-      },
-    );
-  });
+  const location = await getCurrentLocation();
+  return { point: location.point, accuracy: location.accuracy, isFallback: location.isFallback };
 }
 
 // ===== 路线创建 =====
 
-/** 从模板图形创建路线（默认高德服务商，支持传入模板详情） */
+/** 从模板图形创建路线（地图服务商来自后端配置，支持传入模板详情） */
 export async function createTemplateRoute(
   shapeType: string,
   targetKm: number = 5,
   template?: Record<string, unknown> | null,
 ): Promise<GeneratedRoute> {
   const current = await getCurrentPoint();
+  const provider = await getDefaultMapProvider();
   const payload = await apiPost<{ route?: GeneratedRoute }>('/routes/from-template', {
     shapeType,
     targetKm,
-    provider: 'amap',
+    provider,
     startPoint: current.point,
     currentAccuracy: current.accuracy,
     templateId: template?.id || null,
     templateCode: template?.templateCode || null,
   });
   if (!payload.route) throw new Error('route_missing');
+  await putOfflineValue(`route:${payload.route.id}`, payload.route);
   return payload.route;
 }
 
 /** 从上传图片创建路线（FormData 上传，支持 targetKm/startPoint/currentAccuracy） */
 export async function createImageRoute(file: File, targetKm: number = 5): Promise<GeneratedRoute> {
   const current = await getCurrentPoint();
+  const provider = await getDefaultMapProvider();
   const body = new FormData();
   body.append('image', file);
   body.append('targetKm', String(targetKm));
-  body.append('provider', 'amap');
+  body.append('provider', provider);
   body.append('startPoint', JSON.stringify(current.point));
   if (current.accuracy !== null) {
     body.append('currentAccuracy', String(current.accuracy));
@@ -85,18 +62,24 @@ export async function createImageRoute(file: File, targetKm: number = 5): Promis
     body,
   });
   if (!payload.route) throw new Error('route_missing');
+  await putOfflineValue(`route:${payload.route.id}`, payload.route);
   return payload.route;
 }
 
 // ===== 路线查询 =====
 
 /** 获取单条路线详情 */
-export function getRoute(routeId: string): Promise<GeneratedRoute> {
-  return apiGet<{ route?: GeneratedRoute }>(`/routes/${encodeURIComponent(routeId)}`)
-    .then((p) => {
-      if (!p.route) throw new Error('route_missing');
-      return p.route;
-    });
+export async function getRoute(routeId: string): Promise<GeneratedRoute> {
+  try {
+    const payload = await apiGet<{ route?: GeneratedRoute }>(`/routes/${encodeURIComponent(routeId)}`);
+    if (!payload.route) throw new Error('route_missing');
+    await putOfflineValue(`route:${routeId}`, payload.route);
+    return payload.route;
+  } catch (error) {
+    const cached = await getOfflineValue<GeneratedRoute>(`route:${routeId}`);
+    if (cached) return cached;
+    throw error;
+  }
 }
 
 /** 分页查询路线列表，支持 status/search 过滤 */
@@ -111,24 +94,35 @@ export async function listUserRuns(options: {
   params.set('limit', String(options.limit ?? 20));
   if (options.status) params.set('status', options.status);
   if (options.search) params.set('search', options.search);
-  const payload = await apiGet<{ runs?: GeneratedRoute[]; total?: number; page?: number; limit?: number }>(
-    `/runs?${params.toString()}`,
-  );
-  return {
-    runs: payload.runs || [],
-    total: payload.total || 0,
-    page: payload.page || 1,
-    limit: payload.limit || 20,
-  };
+  const cacheKey = `runs:${params.toString()}`;
+  try {
+    const payload = await apiGet<{ runs?: GeneratedRoute[]; total?: number; page?: number; limit?: number }>(
+      `/runs?${params.toString()}`,
+    );
+    const result = {
+      runs: payload.runs || [],
+      total: payload.total || 0,
+      page: payload.page || 1,
+      limit: payload.limit || 20,
+    };
+    await putOfflineValue(cacheKey, result);
+    await Promise.all(result.runs.map((route) => putOfflineValue(`route:${route.id}`, route)));
+    return result;
+  } catch (error) {
+    const cached = await getOfflineValue<{ runs: GeneratedRoute[]; total: number; page: number; limit: number }>(cacheKey);
+    if (cached) return cached;
+    throw error;
+  }
 }
 
 // ===== 会话 =====
 
 /** 开始跑步会话，返回 sessionId（支持风险确认标志） */
 export async function startRoute(routeId: string, riskConfirmed: boolean): Promise<string> {
+  const provider = await getDefaultMapProvider();
   const payload = await apiPost<{ sessionId?: string; session?: { id?: string } }>(
     `/routes/${encodeURIComponent(routeId)}/start`,
-    { provider: 'amap', riskConfirmed },
+    { provider, riskConfirmed },
   );
   const sessionId = payload.sessionId || payload.session?.id;
   if (!sessionId) throw new Error('session_missing');
