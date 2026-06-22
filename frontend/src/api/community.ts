@@ -4,8 +4,8 @@
  * 提供帖子 CRUD、评论、点赞、关注、通知等功能
  */
 import { apiGet, apiPost, apiRequest } from './client';
-export type { CommunityCommentItem, CommunityPostItem, NotificationItem } from '../../../shared/community';
 import type { CommunityCommentItem, CommunityPostItem, NotificationItem } from '../../../shared/community';
+export type { CommunityCommentItem, CommunityPostItem, NotificationItem } from '../../../shared/community';
 
 export interface CommunityMediaPayload {
   assetId: string;
@@ -140,4 +140,19 @@ export async function listNotifications(
 /** 标记通知已读（传 id 标记单条，不传标记全部） */
 export async function markNotificationsRead(id?: string): Promise<void> {
   await apiPost('/notifications/read', id ? { id } : {});
+}
+
+/** 批量标记通知已读（最多 100 条） */
+export async function markNotificationsBatchRead(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const data = await apiPost<{ count?: number }>('/notifications/batch-read', { ids: ids.slice(0, 100) });
+  return data.count || ids.length;
+}
+
+/** 举报帖子（reason 必填，description 可选） */
+export async function reportCommunityPost(postId: string, reason: string, description?: string): Promise<void> {
+  await apiPost(
+    `/community/posts/${encodeURIComponent(postId)}/report`,
+    description ? { reason, description } : { reason },
+  );
 }

@@ -12,7 +12,7 @@ import { pgPool } from './postgres-storage';
 import { saveGeneratedImageAsset, type UserAsset } from './assetService';
 import { getUserProfile } from './profileService';
 import { newId } from '../utils/id';
-import type { GeoPoint, Route, Session } from '../../../shared/types';
+import type { GeoPoint, Session } from '../../../shared/types';
 
 /** 分享海报生成结果 */
 export interface ShareCardResult {

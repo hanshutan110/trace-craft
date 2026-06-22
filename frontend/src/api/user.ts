@@ -137,6 +137,15 @@ export async function registerPushToken(payload: {
   return data.token || {};
 }
 
+/** 注销 Push token（登出或卸载时调用） */
+export async function deletePushToken(token: string): Promise<boolean> {
+  const data = await apiRequest<{ removed?: boolean }>('/me/push-token', {
+    method: 'DELETE',
+    body: JSON.stringify({ token }),
+  });
+  return data.removed ?? true;
+}
+
 /**
  * 账号注销（软删除）
  *

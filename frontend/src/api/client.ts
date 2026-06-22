@@ -88,7 +88,7 @@ function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number = 
  * 判断错误是否可重试（网络异常、超时、5xx）
  * POST/PUT/DELETE 等写操作仅在网络层面失败时重试，不对 5xx 重试
  */
-function isRetryable(error: unknown, method: string): boolean {
+function isRetryable(error: unknown, _method: string): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') return true;
   if (error instanceof TypeError) return true; // fetch network error
   return false;

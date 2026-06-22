@@ -18,7 +18,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-import { getMapConfig, getMapConfigCached } from './services/map-config';
+import { getMapConfigCached } from './services/map-config';
 import { initStorage, storageMode } from './services/storage';
 import { buildTraceId, parseUserIdAsync, successPayload, applyIfMatch } from './routes/common';
 import { initRedis, isRedisConnected, getRedisClient, closeRedis } from './services/redisService';
@@ -130,7 +130,7 @@ app.get('/api/maps/config', applyIfMatch, async (req: Request, res: Response) =>
 });
 
 // CSRF Token 获取端点（前端启动时调用一次，拿到 Token 放入请求头）
-app.get('/api/csrf-token', (req: Request, res: Response) => {
+app.get('/api/csrf-token', (_req: Request, res: Response) => {
   const token = generateCsrfToken();
   setCsrfCookie(res, token);
   res.json(successPayload({ csrfToken: token }));

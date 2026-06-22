@@ -11,7 +11,7 @@
  *   - selectedShapeId / isBottomSheetOpen：UI 状态
  *   - navigateToScreen / setActiveNavbarTab：导航动作
  */
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 import type { GeneratedRoute, ScreenId } from '../types';
 import type { NavbarTab } from '../hooks/useScreenNavigation';
 
@@ -80,8 +80,6 @@ export function AppProvider({ children, navigateToScreen, setActiveNavbarTab }: 
   const [routeGenerationError, setRouteGenerationError] = useState<string | null>(null);
   const [selectedShapeId, setSelectedShapeId] = useState('star');
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
-
-  const closeBottomSheet = useCallback(() => setIsBottomSheetOpen(false), []);
 
   const value = useMemo<AppContextValue>(
     () => ({
