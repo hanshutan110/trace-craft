@@ -13,8 +13,14 @@
 /** 安全 HTTP 方法（不需要 CSRF 校验） */
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+function normalizeApiBase(rawValue: string | undefined): string {
+  const value = (rawValue || 'http://localhost:3017/api').trim().replace(/\/$/, '');
+  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  return withProtocol.endsWith('/api') ? withProtocol : `${withProtocol}/api`;
+}
+
 /** API 基址：从 Vite 环境变量 VITE_API_BASE_URL 读取，默认指向本地开发服务器 */
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3017/api').replace(/\/$/, '');
+export const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 
 /** CSRF Token 缓存（从 Cookie 中读取，由后端 /api/csrf-token 接口设置） */
 let csrfToken: string | null = null;

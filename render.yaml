@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: trace-craft-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRACECRAFT_STORAGE
+        value: postgres
+      - key: TRACECRAFT_AUTO_MIGRATE
+        value: "1"
+      - key: PG_POOL_MAX
+        value: "8"
+      - key: PG_POOL_IDLE_TIMEOUT_MS
+        value: "30000"
+      - key: TRACECRAFT_ALLOW_DEV_AUTH
+        value: "0"
+      - key: TRACECRAFT_ALLOW_ADMIN_PASSWORD_FALLBACK
+        value: "0"
+      - key: TRACECRAFT_CORS_ORIGINS
+        fromService:
+          type: web
+          name: trace-craft-web
+          property: host
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trace-craft-db
+          property: connectionString
+      - key: TRACECRAFT_USER_TOKEN_SECRET
+        generateValue: true
+      - key: TRACECRAFT_USER_REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: TRACECRAFT_ADMIN_TOKEN_SECRET
+        generateValue: true
+      - key: TRACECRAFT_SMS_CODE_SECRET
+        generateValue: true
+      - key: TRACECRAFT_ASSET_STORAGE_PROVIDER
+        value: local
+
+  - type: web
+    name: trace-craft-web
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: trace-craft-api
+          property: host
+
+databases:
+  - name: trace-craft-db
+    plan: free
+    databaseName: tracecraft
+    user: tracecraft

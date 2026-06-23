@@ -37,6 +37,7 @@ import { requestLogger } from './middleware/requestLogger';
 import { csrfProtection, generateCsrfToken, setCsrfCookie } from './middleware/csrf';
 import { assertEnvOrExit } from './services/envCheck';
 import { createRedisAwareRateLimiter } from './middleware/rateLimit';
+import { parseAllowedOrigins } from './utils/origins';
 
 const app = express();
 
@@ -73,10 +74,7 @@ app.use(helmet({
 app.use(compression());
 
 // CORS 跨域控制
-const allowedOrigins = (process.env.TRACECRAFT_CORS_ORIGINS || 'http://localhost:3016,http://localhost:3018')
-  .split(',')
-  .map((item) => item.trim())
-  .filter(Boolean);
+const allowedOrigins = parseAllowedOrigins();
 app.use(cors({
   credentials: true,
   origin(origin, callback) {

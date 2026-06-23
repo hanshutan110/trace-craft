@@ -13,6 +13,7 @@ import type { Server as HttpServer } from 'http';
 import { verifyUserToken } from './token';
 import { isUserTokenRevoked } from './tokenRevocationService';
 import { logger } from './logger';
+import { parseAllowedOrigins } from '../utils/origins';
 
 // ===== 类型定义 =====
 
@@ -55,10 +56,7 @@ const socketUserMap = new Map<string, string>();
  *   - 验证失败拒绝连接
  */
 export function initWebSocket(httpServer: HttpServer): SocketIOServer {
-  const allowedOrigins = (process.env.TRACECRAFT_CORS_ORIGINS || 'http://localhost:3016,http://localhost:3018')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const allowedOrigins = parseAllowedOrigins();
 
   io = new SocketIOServer(httpServer, {
     cors: {
