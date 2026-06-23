@@ -188,6 +188,9 @@ const port = process.env.PORT || 3017;
   // 初始化 Redis（可选，失败时降级）
   await initRedis();
 
+  // 初始化数据库存储，先创建 users/routes 等基础表，后续迁移会引用这些表。
+  await initStorage();
+
   // 正式 schema 变更统一走 db/migrations；本地可设 TRACECRAFT_AUTO_MIGRATE=0 跳过。
   if (process.env.TRACECRAFT_AUTO_MIGRATE !== '0') {
     const migrationResult = await runMigrations();
@@ -195,9 +198,6 @@ const port = process.env.PORT || 3017;
       logger.info('migrations_applied', { versions: migrationResult.applied });
     }
   }
-
-  // 初始化数据库存储
-  await initStorage();
 
   // 初始化 BullMQ 队列（依赖 Redis）
   await initQueues();
