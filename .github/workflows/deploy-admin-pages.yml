@@ -5,20 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 jobs:
   deploy-admin:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -31,11 +23,6 @@ jobs:
           cache: npm
           cache-dependency-path: admin/package-lock.json
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-        with:
-          enablement: true
-
       - name: Install dependencies
         working-directory: admin
         run: npm ci
@@ -46,11 +33,11 @@ jobs:
           VITE_ADMIN_API_BASE_URL: ${{ vars.ADMIN_API_BASE_URL || '/api' }}
         run: npm run build -- --base=./
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to GitHub Pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: admin/dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: admin/dist
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: "chore: deploy admin static site"
