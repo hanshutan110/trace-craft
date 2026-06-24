@@ -36,7 +36,8 @@ jobs:
       - name: Deploy to GitHub Pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 在组织/企业仓库或权限受限场景可改用自建 PAT（repo scope）
+          github_token: ${{ secrets.GH_PAGES_PAT || secrets.GITHUB_TOKEN }}
           publish_dir: admin/dist
           publish_branch: gh-pages
           force_orphan: true
