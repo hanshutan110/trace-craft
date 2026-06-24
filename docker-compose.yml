@@ -3,6 +3,7 @@
 # 服务：
 #   - frontend：前端 Web 应用（Vite 构建 + Nginx 运行）
 #   - backend：后端 API 服务（Express + TypeScript）
+#   - admin：管理后台（Vite 构建 + Nginx 运行）
 #   - postgres：PostgreSQL 16 数据库
 #   - redis：Redis 缓存/消息队列
 #
@@ -92,6 +93,23 @@ services:
         condition: service_healthy
     ports:
       - '${FRONTEND_PORT:-80}:80'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - '${ADMIN_PORT:-3018}:80'
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider http://localhost/health || exit 1']
       interval: 10s
