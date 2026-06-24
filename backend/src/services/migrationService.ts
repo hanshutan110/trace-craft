@@ -27,6 +27,25 @@ async function ensureMigrationTable(client: import('pg').PoolClient): Promise<vo
   `);
 }
 
+async function ensureUserAssetsTable(client: import('pg').PoolClient): Promise<void> {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS user_assets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      asset_type TEXT NOT NULL,
+      mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size_bytes INT NOT NULL DEFAULT 0,
+      url TEXT NOT NULL DEFAULT '',
+      storage_provider TEXT NOT NULL DEFAULT 'local',
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await client.query(`ALTER TABLE user_assets ADD COLUMN IF NOT EXISTS storage_provider TEXT NOT NULL DEFAULT 'local'`);
+  await client.query(`ALTER TABLE user_assets ADD COLUMN IF NOT EXISTS mime_type TEXT NOT NULL DEFAULT 'application/octet-stream'`);
+  await client.query(`ALTER TABLE user_assets ADD COLUMN IF NOT EXISTS size_bytes INT NOT NULL DEFAULT 0`);
+}
+
 async function listMigrationFiles(): Promise<string[]> {
   try {
     const files = await fs.readdir(migrationsDir());
@@ -50,6 +69,7 @@ export async function runMigrations(): Promise<MigrationResult> {
   const skipped: string[] = [];
   try {
     await ensureMigrationTable(client);
+    await ensureUserAssetsTable(client);
     const files = await listMigrationFiles();
     for (const file of files) {
       const version = file.replace(/\.sql$/, '');
