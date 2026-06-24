@@ -56,6 +56,13 @@ async function listMigrationFiles(): Promise<string[]> {
   }
 }
 
+function requiresUserAssets(version: string, sql: string): boolean {
+  if (/^003_/.test(version) || /^005_/.test(version)) {
+    return true;
+  }
+  return /user_assets/i.test(sql);
+}
+
 /** 运行 db/migrations 下的 SQL 文件；每个文件事务内执行并登记版本。 */
 export async function runMigrations(): Promise<MigrationResult> {
   const connectionString = getConnectionString();
@@ -74,12 +81,16 @@ export async function runMigrations(): Promise<MigrationResult> {
     for (const file of files) {
       const version = file.replace(/\.sql$/, '');
       const existing = await client.query('SELECT 1 FROM schema_migrations WHERE version = $1 LIMIT 1', [version]);
+      const sql = await fs.readFile(path.join(migrationsDir(), file), 'utf8');
       if (existing.rows[0]) {
+        if (requiresUserAssets(version, sql)) {
+          await ensureUserAssetsTable(client);
+          logger.info('migration_already_applied_user_assets_guard', { version, file });
+        }
         skipped.push(version);
         continue;
       }
 
-      const sql = await fs.readFile(path.join(migrationsDir(), file), 'utf8');
       logger.info('migration_run_start', { version, file });
       await client.query('BEGIN');
       try {
