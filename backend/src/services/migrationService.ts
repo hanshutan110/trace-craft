@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pgModule from 'pg';
 import { getConnectionString } from './postgres-storage';
+import { logger } from './logger';
 
 export interface MigrationResult {
   applied: string[];
@@ -59,6 +60,7 @@ export async function runMigrations(): Promise<MigrationResult> {
       }
 
       const sql = await fs.readFile(path.join(migrationsDir(), file), 'utf8');
+      logger.info('migration_run_start', { version, file });
       await client.query('BEGIN');
       try {
         await client.query(sql);
@@ -66,6 +68,11 @@ export async function runMigrations(): Promise<MigrationResult> {
         await client.query('COMMIT');
         applied.push(version);
       } catch (error) {
+        logger.error('migration_run_failed', {
+          version,
+          file,
+          message: error instanceof Error ? error.message : 'migration_failed',
+        });
         await client.query('ROLLBACK');
         throw error;
       }
