@@ -1,14 +1,15 @@
 # TraceCraft 数据库说明
 
-`db/` 只保留一个可执行主 schema 和一个维护说明文件，避免多份 SQL / API 草案互相过期。
+`db/` 统一维护一份主 schema（兼顾前端/后台）和迁移文件，避免多份 SQL / API 草案互相过期。
 
 ## 文件
 
-- [feature-precreate-schema.sql](feature-precreate-schema.sql)
-  - MVP 完整 PostgreSQL schema。
-  - 覆盖核心用户、路线、跑步会话、快捷登录身份、后台管理、模板库、收藏、搜索、社区、通知、分享、用户资产、反馈。
+- [tracecraft-unified-schema.sql](tracecraft-unified-schema.sql)
+  - 统一主 SQL：覆盖前端业务、管理后台与关键通用表。
   - 适合空库初始化，也可对已有库补齐缺失表和索引。
   - SQL 使用 `CREATE TABLE IF NOT EXISTS`、`CREATE INDEX IF NOT EXISTS`、`INSERT ... ON CONFLICT`，重复执行相对安全。
+- [feature-precreate-schema.sql](feature-precreate-schema.sql)
+  - 兼容旧文档入口，建议优先使用 `tracecraft-unified-schema.sql`。
 - [migrations/](migrations/)
   - 增量 schema 迁移目录，文件名格式为 `001_xxx.sql`。
   - 后端启动默认执行未登记 migration，并写入 `schema_migrations`。
@@ -17,7 +18,7 @@
 
 ## 当前执行状态
 
-- `feature-precreate-schema.sql` 已执行到 VM PostgreSQL：`192.168.252.128` / `tracecraft-postgres` / `tracecraft`。
+- `tracecraft-unified-schema.sql` 已执行到 VM PostgreSQL：`192.168.252.128` / `tracecraft-postgres` / `tracecraft`。
 - 后端 `PostgresStorage` 启动时仍会补齐核心主链路表；完整 schema 以本文件夹主 SQL 为准。
 - 后续结构调整必须先确认目标环境、完整 SQL、影响范围、回滚方式。
 

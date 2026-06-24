@@ -158,10 +158,10 @@ npm run dev
 - 已接入 VM PostgreSQL：`192.168.252.128:5432/tracecraft`
 - 当前核心表：`users`、`auth_identities`、`routes`、`route_versions`、`run_sessions`、`run_location_events`、`run_audit_logs`
 - 已落库功能：快捷注册登录、路线生成/查询、导航会话、位置上报、完成记录、我的轨迹、跑步历史、个人中心统计、用户设置、模板库、收藏、搜索、社区发布/广场/评论/点赞/关注/通知、后台管理 CRUD
-- 已执行并维护为完整 schema 的 SQL：`db/feature-precreate-schema.sql`
+- 已执行并维护为完整 schema 的 SQL：`db/tracecraft-unified-schema.sql`
 - Schema 覆盖：核心用户/路线/会话、快捷登录身份、后台管理、模板库、收藏、搜索、社区、评论、点赞、关注、通知、分享记录、用户素材、反馈
 
-> `db/feature-precreate-schema.sql` 已在 VM PostgreSQL 执行；后续如调整表结构仍需先确认目标环境和影响范围。
+> `db/tracecraft-unified-schema.sql` 已在 VM PostgreSQL 执行；后续如调整表结构仍需先确认目标环境和影响范围。
 
 ## 安全与边界说明
 
@@ -198,7 +198,7 @@ npm run dev
 
 `db/` 目录包含数据库相关文档：
 
-- `feature-precreate-schema.sql` — MVP 完整 PostgreSQL schema（核心链路 + 后续页面表 + 种子数据）
+- `tracecraft-unified-schema.sql` — MVP 完整 PostgreSQL schema（核心链路 + 后续页面表 + 种子数据）
 - `README.md` — 数据库执行状态、后台 API、上线前检查、修复 SQL、回滚建议
 
 ## 基础设施
